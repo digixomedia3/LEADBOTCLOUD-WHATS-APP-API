@@ -3,67 +3,55 @@ import { Plus } from 'lucide-react';
 import { campaigns } from '@/lib/demo-data';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { PageHeader } from '@/components/page-header';
+import { Pagination, Table, TableWrap, Td, Th } from '@/components/ui/table';
 import { DemoBanner } from '@/components/demo-banner';
 import { inr, num, pct } from '@/lib/format';
 
 const status: Record<string, [string, Tone]> = {
-  running: ['Sending now', 'blue'],
-  completed: ['Finished', 'green'],
+  running: ['LIVE', 'green'],
+  completed: ['Completed', 'grey'],
   scheduled: ['Scheduled', 'amber'],
   paused: ['Paused', 'red'],
   draft: ['Draft', 'grey'],
 };
+const template: Record<string, string> = { b1: 'diwali_offer_2026', b2: 'renewal_reminder_7d', b3: 'new_plan_launch' };
 
-export default function SendPage() {
+export default function CampaignsPage() {
   return (
-    <div>
-      <PageHeader
-        title="Send to customers"
-        subtitle="Send an approved message to many customers. You see the cost first."
-        action={<Button asChild size="sm"><Link href="/send/new"><Plus className="size-4" />New</Link></Button>}
-      />
+    <div className="flex flex-col gap-4">
       <DemoBanner />
-      <ul className="flex flex-col gap-3">
-        {campaigns.map((c) => {
-          const [label, tone] = status[c.status]!;
-          return (
-            <li key={c.id} className="rounded-xl border border-border bg-card p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold">{c.name}</p>
-                  <p className="text-xs text-muted-foreground">{c.when}</p>
-                </div>
-                <Badge tone={tone}>{label}</Badge>
-              </div>
-              {c.status !== 'scheduled' ? (
-                <>
-                  <div className="mt-3"><Progress value={(c.sent / c.total) * 100} label={`${c.name} progress`} /></div>
-                  <dl className="mt-3 grid grid-cols-4 gap-2 text-center">
-                    {[
-                      ['Sent', c.sent],
-                      ['Delivered', c.delivered],
-                      ['Read', c.read],
-                      ['Replied', c.replied],
-                    ].map(([k, v]) => (
-                      <div key={k as string} className="rounded-lg bg-muted p-2">
-                        <dd className="text-lg font-bold">{num(v as number)}</dd>
-                        <dt className="text-[11px] text-muted-foreground">{k} {k !== 'Sent' ? pct(v as number, c.sent) : ''}</dt>
-                      </div>
-                    ))}
-                  </dl>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    {c.failed} did not go through · {c.limited} limited by WhatsApp (we will try again after 24 hours) · Cost so far {inr(c.costPaise)} plus GST, charged by Meta
-                  </p>
-                </>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">{num(c.total)} customers will get this message.</p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Send an approved template to many contacts. You see the cost before you send.</p>
+        <Button asChild><Link href="/send/new"><Plus className="size-4" />Create Campaign</Link></Button>
+      </div>
+      <TableWrap>
+        <Table>
+          <thead>
+            <tr><Th>Campaign</Th><Th>Template</Th><Th>Status</Th><Th>When</Th><Th className="text-right">Audience</Th><Th className="text-right">Sent</Th><Th className="text-right">Delivered</Th><Th className="text-right">Read</Th><Th className="text-right">Replied</Th><Th className="text-right">Failed</Th><Th className="text-right">Cost</Th></tr>
+          </thead>
+          <tbody>
+            {campaigns.map((c) => {
+              const [label, tone] = status[c.status]!;
+              return (
+                <tr key={c.id} className="group hover:bg-muted/40">
+                  <Td className="font-semibold"><Link href={`/send/${c.id}`} className="hover:underline">{c.name}</Link></Td>
+                  <Td className="font-mono text-xs">{template[c.id]}</Td>
+                  <Td><Badge tone={tone}>{label}</Badge></Td>
+                  <Td className="text-muted-foreground">{c.when}</Td>
+                  <Td className="text-right">{num(c.total)}</Td>
+                  <Td className="text-right">{num(c.sent)}</Td>
+                  <Td className="text-right">{num(c.delivered)} <span className="text-xs text-muted-foreground">{pct(c.delivered, c.sent)}</span></Td>
+                  <Td className="text-right">{num(c.read)} <span className="text-xs text-muted-foreground">{pct(c.read, c.sent)}</span></Td>
+                  <Td className="text-right">{num(c.replied)}</Td>
+                  <Td className="text-right">{num(c.failed)}</Td>
+                  <Td className="text-right">{inr(c.costPaise)}</Td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+        <Pagination from={1} to={campaigns.length} total={campaigns.length} />
+      </TableWrap>
     </div>
   );
 }
