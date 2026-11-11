@@ -11,7 +11,7 @@ export function ChatsFrame({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const inConversation = path !== '/chats';
   return (
-    <div className="md:grid md:h-[calc(100dvh-4rem)] md:grid-cols-[20rem_minmax(0,1fr)] md:gap-4">
+    <div className="md:grid md:h-[calc(100dvh-7.5rem)] md:grid-cols-[20rem_minmax(0,1fr)] md:gap-4">
       <section aria-label="Chat list" className={cn('min-w-0 md:block md:overflow-hidden', inConversation && 'hidden')}>
         <h1 className="mb-3 text-2xl font-bold md:hidden">Chats</h1>
         <ChatList />

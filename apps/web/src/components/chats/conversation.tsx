@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { Check, CheckCheck, ChevronLeft, Clock, Info, Paperclip, Send, StickyNote, Zap } from 'lucide-react';
+import { Check, CheckCheck, ChevronLeft, Clock, CreditCard, FileText, Info, Paperclip, Send, StickyNote, Zap } from 'lucide-react';
 import type { Chat, Msg } from '@/lib/demo-data';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -62,6 +62,16 @@ export function Conversation({ chat }: { chat: Chat }) {
           <Button variant="ghost" size="icon" aria-label="Customer details" onClick={() => setPanel((p) => !p)} className="md:hidden">
             <Info className="size-5" />
           </Button>
+          <label className="hidden items-center gap-2 text-xs text-muted-foreground md:flex">
+            Assigned to
+            <select defaultValue={chat.assignee ?? ''} aria-label="Assign chat" className="h-9 rounded-lg border border-border bg-background px-2 text-sm text-foreground">
+              <option value="">Unassigned</option>
+              <option>You</option>
+              <option>Priya</option>
+              <option>Arjun</option>
+            </select>
+          </label>
+          <Button variant="outline" size="sm" className="hidden md:inline-flex"><Check className="size-4" />Resolve</Button>
         </header>
 
         <div
@@ -128,20 +138,32 @@ export function Conversation({ chat }: { chat: Chat }) {
               <Button size="sm">Pick a message format</Button>
             </div>
           ) : (
-            <div className="flex items-end gap-2">
-              <Button variant="ghost" size="icon" aria-label="Attach a file"><Paperclip className="size-5" /></Button>
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder={note ? 'Write a private note' : 'Reply, or type / for shortcuts'}
-                aria-label="Message"
-                rows={1}
-                className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-border bg-background px-3 py-2.5 text-sm"
-              />
-              <Button variant={note ? 'outline' : 'ghost'} size="icon" aria-label="Switch to private note" onClick={() => setNote((n) => !n)}>
-                <StickyNote className="size-5" />
-              </Button>
-              <Button size="icon" aria-label="Send" onClick={send}><Send className="size-5" /></Button>
+            <div className="flex flex-col gap-1">
+              <div className="flex gap-1 overflow-x-auto px-1 pb-1 text-xs">
+                {[['Templates', FileText], ['Quick replies', Zap], ['Payment link', CreditCard]].map(([l, I]) => {
+                  const Icon = I as typeof Zap;
+                  return (
+                    <button key={l as string} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 font-medium hover:bg-muted" onClick={() => l === 'Quick replies' && setDraft('/')}>
+                      <Icon className="size-3.5" />{l as string}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-end gap-2">
+                <Button variant="ghost" size="icon" aria-label="Attach a file"><Paperclip className="size-5" /></Button>
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={note ? 'Write a private note' : 'Reply, or type / for shortcuts'}
+                  aria-label="Message"
+                  rows={1}
+                  className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-border bg-background px-3 py-2.5 text-sm"
+                />
+                <Button variant={note ? 'outline' : 'ghost'} size="icon" aria-label="Switch to private note" onClick={() => setNote((n) => !n)}>
+                  <StickyNote className="size-5" />
+                </Button>
+                <Button size="icon" aria-label="Send" onClick={send}><Send className="size-5" /></Button>
+              </div>
             </div>
           )}
         </div>

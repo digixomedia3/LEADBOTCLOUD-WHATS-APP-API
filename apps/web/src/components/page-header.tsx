@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 
+/** The top bar already shows the section title, so the heading only appears on phones or on sub-pages with a back link. */
 export function PageHeader({
   title,
   subtitle,
@@ -22,8 +23,8 @@ export function PageHeader({
       ) : null}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">{title}</h1>
-          {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
+          <h2 className={back ? 'text-xl font-bold' : 'text-xl font-bold md:hidden'}>{title}</h2>
+          {subtitle ? <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p> : null}
         </div>
         {action}
       </div>

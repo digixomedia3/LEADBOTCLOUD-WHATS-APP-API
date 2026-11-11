@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, ShieldCheck, XCircle } from 'lucide-react';
 import { formats } from '@/lib/demo-data';
 import { estimateCost } from '@/lib/cost';
@@ -47,7 +48,7 @@ export default function NewSendPage() {
         <CheckCircle2 className="size-12 text-primary" />
         <h1 className="text-xl font-bold">{when === 'now' ? 'Sending has started' : 'Your send is scheduled'}</h1>
         <p className="text-sm text-muted-foreground">{num(sendable)} customers will get &quot;{fmt.name}&quot;. You can pause or cancel from the Send page.</p>
-        <Button asChild><a href="/send">See results</a></Button>
+        <Button asChild><Link href="/send">See results</Link></Button>
       </Card>
     );
   }
