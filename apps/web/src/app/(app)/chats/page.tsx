@@ -1,8 +1,4 @@
-import { i18n } from '@lbc/shared';
-import { EmptyState } from '@/components/empty-state';
-
-const t = i18n.en.pages;
-
-export default function ChatsPage() {
-  return <EmptyState title={t.chats.title} hint={t.chats.hint} />;
+export default function ChatsIndex() {
+  // The frame shows the list (mobile) or the list + "pick a chat" panel (desktop).
+  return null;
 }
