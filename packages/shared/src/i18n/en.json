@@ -18,6 +18,26 @@
     }
   },
   "empty": { "default": "Nothing here yet." },
+  "landing": { "openApp": "Open the panel" },
+  "pages": {
+    "home": {
+      "title": "Home",
+      "spend": "This month's WhatsApp spend",
+      "spendHint": "Charged by Meta to your card. LeadBotCloud adds nothing.",
+      "lastSend": "Last bulk send",
+      "lastSendHint": "You haven't sent to customers yet. Your first result will show here.",
+      "health": "Number health",
+      "healthHint": "Connect your WhatsApp number to see if it is safe to send.",
+      "pending": "Pending chats",
+      "pendingHint": "Unread or unassigned chats will show here.",
+      "setupTitle": "Let's get you set up",
+      "setupHint": "First step: connect your WhatsApp number. It takes a few minutes.",
+      "setupAction": "Start setup"
+    },
+    "chats": { "title": "No chats yet", "hint": "When customers message you on WhatsApp, their chats appear here." },
+    "send": { "title": "Nothing sent yet", "hint": "Pick a message and your customers, see the cost first, then send." },
+    "customers": { "title": "No customers yet", "hint": "Add or import the customers who agreed to get WhatsApp messages from you." }
+  },
   "legal": {
     "terms": "Terms of Service",
     "privacy": "Privacy Policy",
