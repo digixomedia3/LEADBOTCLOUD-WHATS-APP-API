@@ -1,0 +1,27 @@
+{
+  "app": {
+    "name": "LeadBotCloud",
+    "tagline": "The WhatsApp panel that protects your number, shows every rupee before you spend it, and collects your renewals for you."
+  },
+  "nav": { "home": "Home", "chats": "Chats", "send": "Send", "customers": "Customers", "more": "More" },
+  "auth": {
+    "signup": "Create your account",
+    "login": "Log in",
+    "email": "Email",
+    "password": "Password",
+    "name": "Your name",
+    "businessName": "Business name",
+    "acceptTerms": "I agree to the Terms and the Acceptable Use Policy",
+    "errors": {
+      "invalid": "That email or password is not right. Check it and try again.",
+      "exists": "An account with this email already exists. Try logging in instead."
+    }
+  },
+  "empty": { "default": "Nothing here yet." },
+  "legal": {
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "contact": "Contact us",
+    "placeholder": "This page will be completed before launch."
+  }
+}
