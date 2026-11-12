@@ -36,7 +36,7 @@ export const navGroups: NavGroup[] = [
         href: '/campaigns',
         label: 'Campaigns',
         Icon: Megaphone,
-        built: false,
+        built: true,
         blurb: 'Create, schedule and track WhatsApp campaigns.',
         bullets: [
           'Pick an approved template synced from WhatsApp',
@@ -76,7 +76,7 @@ export const navGroups: NavGroup[] = [
         href: '/templates',
         label: 'Templates',
         Icon: FileText,
-        built: false,
+        built: true,
         blurb: 'Official WhatsApp templates, synced and easy to create.',
         bullets: [
           'Synced from your WhatsApp account with live status',
