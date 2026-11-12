@@ -15,6 +15,13 @@
       "when": 1794499569964,
       "tag": "0001_auth_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794501166693,
+      "tag": "0002_ui_modules",
+      "breakpoints": true
     }
   ]
 }

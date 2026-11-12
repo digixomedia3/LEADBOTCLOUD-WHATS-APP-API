@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { createDb, withTenant, withUser, tenants, tenantMembers, invitations, auditLog, user, contacts, contactGroups, contactGroupMembers, contactConsentEvents } from '../src';
+import { createDb, withTenant, withUser, tenants, tenantMembers, invitations, auditLog, user, contacts, contactGroups, contactGroupMembers, contactConsentEvents, templates, campaigns, conversations, messages, automationRules, renewals, quickReplies } from '../src';
 
 // Isolation tests MUST run as the non-owner `app` role, otherwise RLS is bypassed and tests pass falsely.
 const APP_URL = process.env.DATABASE_URL ?? 'postgres://app:app_dev_password@localhost:5433/leadbotcloud';
@@ -245,6 +245,34 @@ describe('create_workspace (signup)', () => {
   });
   it('app role still cannot insert tenants directly', async () => {
     await expect(app.db.insert(tenants).values({ name: 'WS Test Direct' })).rejects.toThrow();
+  });
+});
+
+describe('templates, campaigns, chats, rules, renewals (as app role)', () => {
+  it('tenant A sees none of tenant B rows in any module table, and cannot write into B', async () => {
+    const [c] = await worker.db.insert(contacts).values({ tenantId: B, phoneE164: '+919****0099', name: 'B cust' }).returning();
+    const [t] = await worker.db.insert(templates).values({ tenantId: B, name: 'b_offer', category: 'marketing', body: 'Hello' }).returning();
+    await worker.db.insert(campaigns).values({ tenantId: B, name: 'B campaign', templateId: t!.id });
+    const [cv] = await worker.db.insert(conversations).values({ tenantId: B, contactId: c!.id }).returning();
+    await worker.db.insert(messages).values({ tenantId: B, conversationId: cv!.id, direction: 'in', body: 'secret' });
+    await worker.db.insert(automationRules).values({ tenantId: B, name: 'r', reply: 'x' });
+    await worker.db.insert(quickReplies).values({ tenantId: B, shortcut: 'hi', body: 'x' });
+    await worker.db.insert(renewals).values({ tenantId: B, contactId: c!.id, planName: 'Gym', amountPaise: 50000, dueOn: '2026-12-01' });
+
+    await withTenant(app.db, { tenantId: A }, async (tx) => {
+      for (const tbl of [templates, campaigns, conversations, messages, automationRules, quickReplies, renewals]) {
+        expect(await tx.select().from(tbl)).toHaveLength(0);
+      }
+      await expect(tx.transaction(async (sp) => { await sp.insert(templates).values({ tenantId: B, name: 'x', category: 'utility', body: 'x' }); })).rejects.toThrow(/row-level security/);
+    });
+    await withTenant(app.db, { tenantId: B }, async (tx) => {
+      expect(await tx.select().from(messages)).toHaveLength(1);
+    });
+  });
+  it('rejects invalid category, status and negative amounts at the database', async () => {
+    await withTenant(app.db, { tenantId: A }, async (tx) => {
+      await expect(tx.transaction(async (sp) => { await sp.execute(sql`insert into templates (tenant_id,name,category,body) values (${A},'bad','nonsense','x')`); })).rejects.toThrow(/check constraint/);
+    });
   });
 });
 

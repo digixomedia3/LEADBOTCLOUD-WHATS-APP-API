@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -248,6 +249,171 @@ export const contactConsentEvents = pgTable(
   (t) => [
     index('cce_contact_idx').on(t.contactId, t.occurredAt),
     check('cce_action_chk', sql`${t.action} in ('opt_in','opt_out','resume')`),
+  ],
+);
+
+/** Message formats (WhatsApp templates). Status follows Meta's lifecycle; until a number is connected, approval is simulated in test mode. */
+export const templates = pgTable(
+  'templates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    language: text('language').notNull().default('en'),
+    category: text('category').notNull(),
+    status: text('status').notNull().default('draft'),
+    headerType: text('header_type').notNull().default('none'),
+    headerText: text('header_text'),
+    body: text('body').notNull(),
+    footer: text('footer'),
+    buttons: jsonb('buttons').notNull().default(sql`'[]'::jsonb`),
+    samples: jsonb('samples').notNull().default(sql`'[]'::jsonb`),
+    quality: text('quality').notNull().default('unknown'),
+    rejectionReason: text('rejection_reason'),
+    createdBy: text('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('templates_tenant_name_lang_uq').on(t.tenantId, t.name, t.language),
+    check('templates_category_chk', sql`${t.category} in ('marketing','utility','authentication')`),
+    check('templates_status_chk', sql`${t.status} in ('draft','pending','approved','rejected','paused')`),
+  ],
+);
+
+export const campaigns = pgTable(
+  'campaigns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    templateId: uuid('template_id').references(() => templates.id, { onDelete: 'set null' }),
+    groupIds: uuid('group_ids').array().notNull().default(sql`'{}'::uuid[]`),
+    status: text('status').notNull().default('draft'),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+    repeat: text('repeat').notNull().default('none'),
+    estCostPaise: integer('est_cost_paise').notNull().default(0),
+    spendCapPaise: integer('spend_cap_paise'),
+    counts: jsonb('counts').notNull().default(sql`'{}'::jsonb`),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdBy: text('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('campaigns_tenant_created_idx').on(t.tenantId, t.createdAt),
+    check('campaigns_status_chk', sql`${t.status} in ('draft','scheduled','running','completed','paused','cancelled')`),
+    check('campaigns_repeat_chk', sql`${t.repeat} in ('none','daily','weekly','monthly')`),
+  ],
+);
+
+export const campaignRecipients = pgTable(
+  'campaign_recipients',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    campaignId: uuid('campaign_id').notNull().references(() => campaigns.id, { onDelete: 'cascade' }),
+    contactId: uuid('contact_id').references(() => contacts.id, { onDelete: 'set null' }),
+    phoneE164: text('phone_e164').notNull(),
+    name: text('name'),
+    state: text('state').notNull().default('queued'),
+    reason: text('reason'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('cr_campaign_idx').on(t.campaignId, t.state),
+    check('cr_state_chk', sql`${t.state} in ('queued','sent','delivered','read','replied','failed','skipped')`),
+  ],
+);
+
+export const conversations = pgTable(
+  'conversations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    contactId: uuid('contact_id').notNull().references(() => contacts.id, { onDelete: 'cascade' }),
+    status: text('status').notNull().default('open'),
+    assignedTo: text('assigned_to'),
+    unread: integer('unread').notNull().default(0),
+    lastPreview: text('last_preview'),
+    lastMessageAt: timestamp('last_message_at', { withTimezone: true }).notNull().defaultNow(),
+    /** WhatsApp lets you reply freely for 24 hours after the customer's last message. */
+    windowExpiresAt: timestamp('window_expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('conversations_tenant_contact_uq').on(t.tenantId, t.contactId),
+    index('conversations_tenant_last_idx').on(t.tenantId, t.lastMessageAt),
+    check('conversations_status_chk', sql`${t.status} in ('open','resolved')`),
+  ],
+);
+
+export const messages = pgTable(
+  'messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    conversationId: uuid('conversation_id').notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+    direction: text('direction').notNull(),
+    kind: text('kind').notNull().default('text'),
+    body: text('body').notNull(),
+    status: text('status').notNull().default('sent'),
+    senderUserId: text('sender_user_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('messages_conv_idx').on(t.conversationId, t.createdAt),
+    check('messages_direction_chk', sql`${t.direction} in ('in','out','note')`),
+  ],
+);
+
+export const quickReplies = pgTable(
+  'quick_replies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    shortcut: text('shortcut').notNull(),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('quick_replies_tenant_shortcut_uq').on(t.tenantId, t.shortcut)],
+);
+
+export const automationRules = pgTable(
+  'automation_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    kind: text('kind').notNull().default('keyword'),
+    keywords: text('keywords').array().notNull().default(sql`'{}'::text[]`),
+    reply: text('reply').notNull(),
+    active: boolean('active').notNull().default(true),
+    hits: integer('hits').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('automation_kind_chk', sql`${t.kind} in ('keyword','welcome','away')`)],
+);
+
+/** A customer plan to renew (gym month, subscription, ISP plan). Reminders are Promotional messages. */
+export const renewals = pgTable(
+  'renewals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    contactId: uuid('contact_id').notNull().references(() => contacts.id, { onDelete: 'cascade' }),
+    planName: text('plan_name').notNull(),
+    amountPaise: integer('amount_paise').notNull(),
+    dueOn: text('due_on').notNull(),
+    status: text('status').notNull().default('active'),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    lastReminderAt: timestamp('last_reminder_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('renewals_tenant_due_idx').on(t.tenantId, t.dueOn),
+    check('renewals_status_chk', sql`${t.status} in ('active','renewed','cancelled')`),
+    check('renewals_amount_chk', sql`${t.amountPaise} >= 0`),
   ],
 );
 
