@@ -1,0 +1,64 @@
+import { describe, expect, it } from 'vitest';
+import { buildPreview, detectField, parsePasted, suggestMapping, toCsv } from '../src/lib/contacts/import';
+
+describe('detectField / suggestMapping', () => {
+  it('recognises English and Hindi headers', () => {
+    expect(detectField('Mobile Number')).toBe('phone');
+    expect(detectField('WhatsApp')).toBe('phone');
+    expect(detectField('नाम')).toBe('name');
+    expect(detectField('मोबाइल')).toBe('phone');
+    expect(detectField('E-mail')).toBe('email');
+    expect(detectField('Plan')).toBe('tags');
+    expect(detectField('Random')).toBe('ignore');
+  });
+  it('uses each field once and guesses the phone column from data when headers are useless', () => {
+    expect(suggestMapping(['Name', 'Full name', 'Mobile'], [])).toEqual(['name', 'ignore', 'phone']);
+    const m = suggestMapping(['A', 'B', 'C'], [['Asha', '98765 43210', 'x'], ['Rohit', '9123456780', 'y']]);
+    expect(m).toEqual(['ignore', 'phone', 'ignore']);
+  });
+});
+
+describe('buildPreview', () => {
+  const map = ['name', 'phone', 'email', 'tags'] as const;
+  it('normalises phones, flags bad rows with a reason and counts duplicates inside the file', () => {
+    const p = buildPreview([
+      ['Asha', '98765 43210', 'ASHA@Example.com', 'vip; yearly'],
+      ['Rohit', '09123456780', '', ''],
+      ['Bad', '12345', '', ''],
+      ['Dup', '+91 98765-43210', '', ''],
+      ['', '', '', ''],
+    ], [...map]);
+    expect(p.rows).toHaveLength(4); // blank line skipped
+    expect(p.rows[0]).toMatchObject({ phone: '+919876543210', email: 'asha@example.com', tags: ['vip', 'yearly'], line: 2 });
+    expect(p.rows[2]!.error).toMatch(/valid Indian mobile/);
+    expect(p.rows[3]).toMatchObject({ duplicateOf: 2 });
+    expect(p).toMatchObject({ valid: 2, invalid: 1, duplicates: 1 });
+  });
+  it('drops a malformed email instead of failing the row', () => {
+    const p = buildPreview([['A', '9876543210', 'not-an-email', '']], [...map]);
+    expect(p.rows[0]!.email).toBeUndefined();
+    expect(p.rows[0]!.error).toBeUndefined();
+  });
+  it('fails every row if no phone column is mapped', () => {
+    const p = buildPreview([['A', 'x']], ['name', 'ignore']);
+    expect(p.invalid).toBe(1);
+  });
+  it('trims non-breaking spaces and caps long values', () => {
+    const p = buildPreview([[`\u00a0${'x'.repeat(300)}`, '9876543210', '', '']], [...map]);
+    expect(p.rows[0]!.name!.length).toBe(120);
+  });
+});
+
+describe('parsePasted', () => {
+  it('handles numbers alone, "name, number" and "number, name"', () => {
+    expect(parsePasted('9876543210\nAsha, 98765 43211\n9876543212, Rohit Singh\n\n')).toEqual([
+      ['', '9876543210'], ['Asha', '98765 43211'], ['Rohit Singh', '9876543212'],
+    ]);
+  });
+});
+
+describe('toCsv', () => {
+  it('quotes fields and neutralises spreadsheet formulas', () => {
+    expect(toCsv([['a,b', 'say "hi"', '=SUM(A1)', '+91 1']])).toBe(`"a,b","say ""hi""",'=SUM(A1),'+91 1`);
+  });
+});

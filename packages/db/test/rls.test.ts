@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { createDb, withTenant, withUser, tenants, tenantMembers, invitations, auditLog } from '../src';
+import { createDb, withTenant, withUser, tenants, tenantMembers, invitations, auditLog, user, contacts, contactGroups, contactGroupMembers, contactConsentEvents } from '../src';
 
 // Isolation tests MUST run as the non-owner `app` role, otherwise RLS is bypassed and tests pass falsely.
 const APP_URL = process.env.DATABASE_URL ?? 'postgres://app:app_dev_password@localhost:5433/leadbotcloud';
@@ -18,6 +18,10 @@ const userB = `test-user-b-${B.slice(0, 8)}`;
 
 beforeAll(async () => {
   // Seed through the worker (BYPASSRLS) role, as the real signup flow will.
+  await worker.db.insert(user).values([
+    { id: userA, name: 'User A', email: `${userA}@example.test` },
+    { id: userB, name: 'User B', email: `${userB}@example.test` },
+  ]);
   await worker.db.insert(tenants).values([
     { id: A, name: 'Tenant A' },
     { id: B, name: 'Tenant B' },
@@ -38,9 +42,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // audit_log is insert-only even for the worker, so clean up as the owner via a one-off connection.
-  const owner = createDb(process.env.DATABASE_URL_MIGRATE ?? 'postgres://owner:owner_dev_password@localhost:5433/leadbotcloud', { max: 1 });
-  await owner.client.unsafe(`delete from audit_log where tenant_id in ('${A}','${B}')`);
-  await owner.client.unsafe(`delete from tenants where id in ('${A}','${B}')`);
+  // Tenants cascade to every tenant-owned child table; audit_log has no cascade, so clear it first.
+  // Teardown uses the dev superuser: FORCE RLS leaves the owner insert-only on audit_log, by design.
+  const owner = createDb(process.env.DATABASE_URL_ADMIN_TEST ?? 'postgres://postgres:postgres_dev_password@localhost:5433/leadbotcloud', { max: 1 });
+  const testTenants = `select id from tenants where id in ('${A}','${B}') or name like 'WS Test %'`;
+  await owner.client.unsafe(`delete from audit_log where tenant_id in (${testTenants})`);
+  await owner.client.unsafe(`delete from tenants where id in (${testTenants})`);
+  await owner.client.unsafe(`delete from "user" where id in ('${userA}','${userB}') or email like 'ws-test-%@example.test'`);
   await owner.client.end();
   await app.client.end();
   await worker.client.end();
@@ -139,3 +147,104 @@ describe('worker role', () => {
     expect(rows).toHaveLength(2);
   });
 });
+
+describe('contacts, groups and consent (as app role)', () => {
+  const ids: Record<string, string> = {};
+  beforeAll(async () => {
+    const rows = await worker.db.insert(contacts).values([
+      { tenantId: A, phoneE164: '+919000000001', name: 'A contact' },
+      { tenantId: B, phoneE164: '+919000000001', name: 'B contact (same phone, other tenant)' },
+    ]).returning();
+    ids.cA = rows.find((r) => r.tenantId === A)!.id;
+    ids.cB = rows.find((r) => r.tenantId === B)!.id;
+    const [g] = await worker.db.insert(contactGroups).values({ tenantId: B, name: 'B group' }).returning();
+    ids.gB = g!.id;
+    await worker.db.insert(contactGroupMembers).values({ tenantId: B, groupId: ids.gB, contactId: ids.cB });
+    await worker.db.insert(contactConsentEvents).values({ tenantId: A, contactId: ids.cA, action: 'opt_in', source: 'Website form' });
+  });
+
+  it('the same phone number can exist in two tenants without clashing', async () => {
+    await withTenant(app.db, { tenantId: A }, async (tx) => {
+      const r = await tx.select().from(contacts);
+      expect(r.map((x) => x.name)).toEqual(['A contact']);
+    });
+  });
+  it('tenant A cannot see or touch tenant B contacts, groups or members', async () => {
+    await withTenant(app.db, { tenantId: A }, async (tx) => {
+      expect(await tx.select().from(contactGroups)).toHaveLength(0);
+      expect(await tx.select().from(contactGroupMembers)).toHaveLength(0);
+      const upd = await tx.update(contacts).set({ name: 'hacked' }).where(sql`id = ${ids.cB}`).returning();
+      expect(upd).toHaveLength(0);
+      const del = await tx.delete(contacts).where(sql`id = ${ids.cB}`).returning();
+      expect(del).toHaveLength(0);
+    });
+    const [still] = await worker.db.select().from(contacts).where(sql`id = ${ids.cB}`);
+    expect(still?.name).toMatch(/B contact/);
+  });
+  it('tenant A cannot add its contact to tenant B group, or write contacts for B', async () => {
+    await expect(withTenant(app.db, { tenantId: A }, (tx) => tx.insert(contactGroupMembers).values({ tenantId: B, groupId: ids.gB, contactId: ids.cA }))).rejects.toThrow();
+    await expect(withTenant(app.db, { tenantId: A }, (tx) => tx.insert(contacts).values({ tenantId: B, phoneE164: '+919000000002' }))).rejects.toThrow();
+  });
+  it('consent events are readable by their tenant, hidden from others, and cannot be edited or deleted', async () => {
+    await withTenant(app.db, { tenantId: A }, async (tx) => {
+      expect(await tx.select().from(contactConsentEvents)).toHaveLength(1);
+    });
+    await withTenant(app.db, { tenantId: B }, async (tx) => {
+      expect(await tx.select().from(contactConsentEvents)).toHaveLength(0);
+    });
+    await expect(withTenant(app.db, { tenantId: A }, (tx) => tx.update(contactConsentEvents).set({ source: 'x' }))).rejects.toThrow();
+    await expect(withTenant(app.db, { tenantId: A }, (tx) => tx.delete(contactConsentEvents))).rejects.toThrow();
+    await expect(worker.db.update(contactConsentEvents).set({ source: 'x' })).rejects.toThrow();
+  });
+});
+
+describe('create_workspace (signup)', () => {
+  const email = `ws-test-${Date.now()}@example.test`;
+  const uid = `ws-test-user-${Date.now()}`;
+  beforeAll(async () => {
+    await worker.db.insert(user).values({ id: uid, name: 'WS Test', email });
+  });
+
+  it('creates tenant + owner membership + audit row atomically', async () => {
+    const id = await app.db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.user_id', ${uid}, true)`);
+      const r = await tx.execute(sql`select public.create_workspace(${uid}, ${'WS Test One'}, ${'retail'}, ${'none'}, ${'2026-11-11'}) as id`);
+      return (r as unknown as { id: string }[])[0]!.id;
+    });
+    const m = await worker.db.select().from(tenantMembers).where(sql`tenant_id = ${id}`);
+    expect(m).toHaveLength(1);
+    expect(m[0]).toMatchObject({ userId: uid, role: 'owner' });
+    const a = await worker.db.select().from(auditLog).where(sql`tenant_id = ${id}`);
+    expect(a.some((x) => x.action === 'workspace.created')).toBe(true);
+    await withUser(app.db, uid, async (tx) => {
+      expect((await tx.select().from(tenants)).map((t) => t.id)).toContain(id);
+    });
+  });
+  it('refuses to create a workspace for someone else', async () => {
+    await expect(
+      app.db.transaction(async (tx) => {
+        await tx.execute(sql`select set_config('app.user_id', ${userA}, true)`);
+        await tx.execute(sql`select public.create_workspace(${uid}, ${'WS Test Evil'}, ${'retail'}, ${'none'}, ${'x'})`);
+      }),
+    ).rejects.toThrow();
+  });
+  it('refuses with no user context, unknown users and bad input', async () => {
+    await expect(app.db.execute(sql`select public.create_workspace(${uid}, ${'WS Test No Ctx'}, ${'retail'}, ${'none'}, ${'x'})`)).rejects.toThrow();
+    await expect(
+      app.db.transaction(async (tx) => {
+        await tx.execute(sql`select set_config('app.user_id', ${'ghost'}, true)`);
+        await tx.execute(sql`select public.create_workspace(${'ghost'}, ${'WS Test Ghost'}, ${'retail'}, ${'none'}, ${'x'})`);
+      }),
+    ).rejects.toThrow();
+    await expect(
+      app.db.transaction(async (tx) => {
+        await tx.execute(sql`select set_config('app.user_id', ${uid}, true)`);
+        await tx.execute(sql`select public.create_workspace(${uid}, ${'x'}, ${'retail'}, ${'none'}, ${'x'})`);
+      }),
+    ).rejects.toThrow();
+  });
+  it('app role still cannot insert tenants directly', async () => {
+    await expect(app.db.insert(tenants).values({ name: 'WS Test Direct' })).rejects.toThrow();
+  });
+});
+

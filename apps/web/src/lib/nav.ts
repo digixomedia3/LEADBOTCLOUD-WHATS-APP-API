@@ -50,7 +50,7 @@ export const navGroups: NavGroup[] = [
         href: '/contacts',
         label: 'Contacts',
         Icon: Users,
-        built: false,
+        built: true,
         blurb: 'Every customer, group and import in one place.',
         bullets: [
           'Add one contact or paste many numbers',

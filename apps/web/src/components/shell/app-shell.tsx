@@ -8,6 +8,7 @@ import { allNav, mobileTabs, navGroups, titleFor } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/shell/theme-toggle';
 import { CommandPalette } from '@/components/shell/command-palette';
+import { AccountMenu, type WorkspaceInfo } from '@/components/shell/account-menu';
 
 const KEY = 'lbc.sidebar.collapsed';
 
@@ -20,7 +21,7 @@ function Logo({ small }: { small?: boolean }) {
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, user, workspace, workspaces }: { children: React.ReactNode; user: { name: string; email: string }; workspace: WorkspaceInfo; workspaces: { id: string; name: string }[] }) {
   const path = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [palette, setPalette] = useState(false);
@@ -87,12 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className={cn('flex items-center border-t border-white/10 p-3', collapsed ? 'flex-col gap-2' : 'justify-between')}>
-          {!collapsed ? (
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-orange-500 text-sm font-bold text-white">D</span>
-              <span className="min-w-0 text-xs"><span className="block truncate font-semibold text-white">DiGiXO Store</span><span className="block truncate text-sidebarink/60">Owner</span></span>
-            </div>
-          ) : null}
+          <div className={cn('min-w-0', collapsed ? '' : 'flex-1')}><AccountMenu user={user} workspace={workspace} workspaces={workspaces} collapsed={collapsed} onDark /></div>
           <button onClick={() => setCollapsed((c) => !c)} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-pressed={collapsed} className="flex size-10 items-center justify-center rounded-xl hover:bg-white/10">
             {collapsed ? <ChevronsRight className="size-5" /> : <ChevronsLeft className="size-5" />}
           </button>
@@ -137,6 +133,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div role="dialog" aria-modal="true" aria-label="More" className="absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto rounded-t-3xl bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] [animation:sheet-in_0.28s_cubic-bezier(0.2,0.8,0.2,1)]" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-line" />
             <div className="mb-3 flex items-center justify-between"><p className="font-display text-lg font-bold">More</p><button onClick={() => setMore(false)} aria-label="Close" className="flex size-11 items-center justify-center rounded-xl hover:bg-ink/5"><X className="size-5" /></button></div>
+            <div className="mb-4 rounded-2xl border border-line bg-card2 p-1.5"><AccountMenu user={user} workspace={workspace} workspaces={workspaces} /></div>
             <div className="grid grid-cols-3 gap-3">
               {allNav.filter((n) => !mobileTabs.includes(n.href as (typeof mobileTabs)[number])).map(({ href, label, Icon }) => (
                 <Link key={href} href={href} className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border border-line bg-card2 text-sm font-semibold active:scale-95">
