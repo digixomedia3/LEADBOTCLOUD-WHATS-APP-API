@@ -7,7 +7,6 @@ import { createDb, withTenant, withUser, tenants, tenantMembers, type Role, type
 import { auth } from '@/lib/auth';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __lbcAppDb: ReturnType<typeof createDb> | undefined;
 }
 const url = process.env.DATABASE_URL;

@@ -10,7 +10,6 @@ import { createDb, user, session, account, verification } from '@lbc/db';
  * still cannot read any tenant table without a tenant context.
  */
 declare global {
-  // eslint-disable-next-line no-var
   var __lbcAuthDb: ReturnType<typeof createDb> | undefined;
 }
 const url = process.env.DATABASE_URL;
