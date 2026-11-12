@@ -14,7 +14,7 @@ const button = cva(
         ghost: 'hover:bg-ink/5',
         glass: 'glass text-white hover:bg-white/20',
       },
-      size: { md: 'min-h-11 px-5', sm: 'min-h-10 px-3.5', icon: 'size-11' },
+      size: { lg: 'min-h-12 px-7 text-base', md: 'min-h-11 px-5', sm: 'min-h-10 px-3.5', icon: 'size-11' },
     },
     defaultVariants: { variant: 'primary', size: 'md' },
   },
