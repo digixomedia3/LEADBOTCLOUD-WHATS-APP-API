@@ -63,7 +63,7 @@ export const navGroups: NavGroup[] = [
         href: '/chats',
         label: 'Chats',
         Icon: MessageSquare,
-        built: false,
+        built: true,
         blurb: 'A shared inbox for your whole team.',
         bullets: [
           'WhatsApp-style conversations with delivery ticks',
@@ -94,7 +94,7 @@ export const navGroups: NavGroup[] = [
         href: '/automation',
         label: 'Automation',
         Icon: Zap,
-        built: false,
+        built: true,
         blurb: 'Reply automatically, without losing the human touch.',
         bullets: ['Welcome and away messages', 'Keyword replies in English and Hinglish', 'Always a way to reach a person'],
       },

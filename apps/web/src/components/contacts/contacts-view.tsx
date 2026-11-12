@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { ChevronDown, Download, FolderPlus, Loader2, Pencil, Plus, Search, Tag, Trash2, Upload, UserPlus, Users, X } from 'lucide-react';
 import { formatPhone } from '@lbc/shared';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { Modal } from '@/components/ui/modal';
 import { AddContactDialog } from '@/components/contacts/add-contact-dialog';
 import { ImportWizard } from '@/components/contacts/import-wizard';
 import { bulkAction, createGroup, deleteGroup, exportContacts, listContacts, renameGroup, type BulkAction, type ContactRow, type GroupRow } from '@/app/(app)/contacts/actions';
+import { startConversation } from '@/app/(app)/chats/actions';
 import { cn } from '@/lib/utils';
 
 type Consent = 'all' | 'allowed' | 'stopped' | 'unknown';
@@ -35,6 +37,7 @@ export function ContactsView({ initial, summary, groups: initialGroups, canManag
   const [bulkMenu, setBulkMenu] = useState(false);
   const [tagPrompt, setTagPrompt] = useState<null | 'addTag' | 'removeTag'>(null);
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   const load = useCallback(async (over?: Partial<{ q: string; consent: Consent; group: string; tag: string; page: number }>) => {
     setLoading(true);
@@ -153,11 +156,11 @@ export function ContactsView({ initial, summary, groups: initialGroups, canManag
             <table className="w-full min-w-[44rem] text-sm">
               <thead><tr className="border-b border-line bg-card2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th className="w-12 px-4 py-3">{canManage ? <input type="checkbox" aria-label="Select all on this page" checked={allOn} onChange={() => setSel(allOn ? new Set() : new Set(data.rows.map((r) => r.id)))} className="size-4 accent-[var(--brand)]" /> : null}</th>
-                <th className="px-3 py-3">Name</th><th className="px-3 py-3">Phone</th><th className="px-3 py-3">Groups and tags</th><th className="px-3 py-3">Permission</th><th className="px-3 py-3">Added</th>
+                <th className="px-3 py-3">Name</th><th className="px-3 py-3">Phone</th><th className="px-3 py-3">Groups and tags</th><th className="px-3 py-3">Permission</th><th className="px-3 py-3">Added</th><th className="w-20 px-3 py-3"><span className="sr-only">Chat</span></th>
               </tr></thead>
               <tbody>
                 {data.rows.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-14 text-center">
+                  <tr><td colSpan={7} className="px-4 py-14 text-center">
                     <Users className="mx-auto mb-3 size-10 text-muted" />
                     <p className="font-semibold">{sum.total === 0 ? 'No contacts yet' : 'No contacts match'}</p>
                     <p className="mx-auto mt-1 max-w-sm text-sm text-muted">{sum.total === 0 ? 'Add a customer or import a CSV to get started. Only add people who agreed to get your WhatsApp messages.' : 'Clear the search or change the filters.'}</p>
@@ -174,6 +177,7 @@ export function ContactsView({ initial, summary, groups: initialGroups, canManag
                       <td className="px-3 py-3"><div className="flex max-w-64 flex-wrap gap-1">{c.groups.map((g) => <span key={g} className="rounded-full bg-indigo/10 px-2 py-0.5 text-[11px] font-semibold text-indigo">{g}</span>)}{c.tags.map((t) => <span key={t} className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium">{t}</span>)}{!c.groups.length && !c.tags.length ? <span className="text-muted">-</span> : null}</div></td>
                       <td className="px-3 py-3"><span className={cn('rounded-full px-2.5 py-1 text-xs font-bold', bc)}>{bl}</span>{c.consentSource && c.consentStatus === 'allowed' ? <span className="block text-[11px] text-muted">{c.consentSource}</span> : null}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-muted">{new Date(c.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</td>
+                      <td className="px-3 py-3">{canWrite && c.consentStatus !== 'stopped' ? <button onClick={() => start(async () => { const r = await startConversation(c.id); if (r.ok) router.push('/chats'); else flash(r.error); })} className="min-h-11 rounded-lg px-3 text-xs font-bold text-brand hover:bg-brand/10">Chat</button> : null}</td>
                     </tr>
                   );
                 })}
