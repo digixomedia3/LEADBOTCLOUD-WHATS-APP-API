@@ -274,10 +274,11 @@ export default async function Landing() {
       </section>
 
       <footer className="border-t border-line px-4 py-10 text-sm text-muted">
-        <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div><p className="flex items-center gap-2 font-display text-lg font-extrabold text-ink"><span className="grad-bg flex size-8 items-center justify-center rounded-lg text-white">L</span>LeadBotCloud</p><p className="mt-3 max-w-sm">WhatsApp marketing for Indian businesses. A product of DigiXoMedia.</p></div>
           <div><p className="mb-2 font-semibold text-ink">Product</p><ul>{[['#how', 'How it works'], ['#safety', 'Safety'], ['#pricing', 'Pricing'], ['#faq', 'FAQ']].map(([h, l]) => <li key={h}><a href={h} className="flex min-h-11 items-center hover:text-ink">{l}</a></li>)}</ul></div>
           <div><p className="mb-2 font-semibold text-ink">Account</p><ul><li><Link href="/login" className="flex min-h-11 items-center hover:text-ink">Log in</Link></li><li><Link href="/signup" className="flex min-h-11 items-center hover:text-ink">Create account</Link></li></ul></div>
+          <div><p className="mb-2 font-semibold text-ink">Legal</p><ul>{([['/terms', 'Terms'], ['/privacy', 'Privacy'], ['/acceptable-use', 'Acceptable use'], ['/messaging-policy', 'Messaging and opt-in'], ['/refunds', 'Refunds'], ['/data-deletion', 'Data deletion']] as const).map(([h, l]) => <li key={h}><Link href={h} className="flex min-h-11 items-center hover:text-ink">{l}</Link></li>)}</ul></div>
         </div>
         <div className="mx-auto mt-8 flex max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-line pt-6 text-xs">
           <p>© {new Date().getFullYear()} LeadBotCloud, a product of DigiXoMedia.</p>

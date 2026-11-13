@@ -22,7 +22,7 @@ export function OnboardingForm() {
       </Field>
       <label className="flex min-h-11 items-start gap-3 text-sm">
         <input type="checkbox" name="accept" required className="mt-0.5 size-5 accent-[var(--brand)]" />
-        <span>I agree to the <Link href="/terms" className="font-semibold text-brand" target="_blank">Terms</Link> and the <Link href="/terms#acceptable-use" className="font-semibold text-brand" target="_blank">Acceptable Use Policy</Link>. I will only message people who agreed to hear from me.</span>
+        <span>I agree to the <Link href="/terms" className="font-semibold text-brand" target="_blank">Terms</Link> and the <Link href="/acceptable-use" className="font-semibold text-brand" target="_blank">Acceptable Use Policy</Link>. I will only message people who agreed to hear from me.</span>
       </label>
       <Button type="submit" disabled={pending} className="mt-1 w-full">{pending ? <Loader2 className="size-4 animate-spin" /> : null}Create my workspace</Button>
     </form>

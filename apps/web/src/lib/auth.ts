@@ -3,6 +3,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { createDb, user, session, account, verification } from '@lbc/db';
+import { layout, sendMail } from '@/lib/mail';
 
 /**
  * Better Auth uses its own connection. Its tables (user, session, account, verification) are GLOBAL and hold no
@@ -25,6 +26,18 @@ export const auth = betterAuth({
     minPasswordLength: 8,
     maxPasswordLength: 128,
     autoSignIn: true,
+    // Password reset: the link is valid for one hour and signs the user out everywhere once the password changes.
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user: u, url }) => {
+      // Not awaited on purpose: response time must not reveal whether the address has an account.
+      const m = layout({ heading: 'Reset your password', lines: ['We got a request to reset the password for your LeadBotCloud account.', 'This link works for 1 hour and only once. If you did not ask for it, ignore this email. Your password stays the same.'], button: { label: 'Choose a new password', url }, footer: 'Sent because a password reset was requested for this email address.' });
+      void sendMail({ to: u.email, subject: 'Reset your LeadBotCloud password', text: m.text, html: m.html });
+    },
+    onPasswordReset: async ({ user: u }) => {
+      const m = layout({ heading: 'Your password was changed', lines: ['The password for your LeadBotCloud account was just changed, and you were signed out on all devices.', 'If this was not you, reset your password again straight away.'] });
+      void sendMail({ to: u.email, subject: 'Your LeadBotCloud password was changed', text: m.text, html: m.html });
+    },
   },
   // Google is wired but off until GOOGLE_AUTH_ENABLED=true and credentials exist (step 1 amendment).
   socialProviders:
@@ -32,7 +45,7 @@ export const auth = betterAuth({
       ? { google: { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET } }
       : undefined,
   session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
-  rateLimit: { enabled: true, window: 60, max: 30, customRules: { '/sign-in/email': { window: 60, max: 8 }, '/sign-up/email': { window: 60, max: 5 } } },
+  rateLimit: { enabled: true, window: 60, max: 30, customRules: { '/sign-in/email': { window: 60, max: 8 }, '/sign-up/email': { window: 60, max: 5 }, '/request-password-reset': { window: 300, max: 5 }, '/reset-password': { window: 300, max: 10 } } },
   advanced: { database: { generateId: () => crypto.randomUUID() } },
   trustedOrigins: [process.env.APP_URL ?? 'http://localhost:3000', ...(process.env.TRUSTED_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean)],
   plugins: [nextCookies()], // keep last

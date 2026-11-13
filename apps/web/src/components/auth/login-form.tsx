@@ -34,6 +34,7 @@ export function LoginForm() {
       <FormError>{error}</FormError>
       <Field label="Email"><Input name="email" type="email" autoComplete="email" required placeholder="you@business.com" /></Field>
       <Field label="Password"><Input name="password" type="password" autoComplete="current-password" required minLength={8} /></Field>
+      <Link href="/forgot-password" className="-mt-2 self-end text-sm font-semibold text-brand">Forgot your password?</Link>
       <Button type="submit" disabled={busy} className="mt-1 w-full">{busy ? <Loader2 className="size-4 animate-spin" /> : null}Log in</Button>
       <p className="text-center text-sm text-muted">New here? <Link href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"} className="font-semibold text-brand">Create your account</Link></p>
     </form>
