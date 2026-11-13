@@ -13,6 +13,7 @@ const schema = z.object({
   META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
   /** Test hook: point Graph calls at a local fake. Never set in production. */
   META_GRAPH_BASE_URL: z.string().url().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
   TOKEN_ENCRYPTION_KEY: z.string().min(1),
 });
 export type WorkerConfig = z.infer<typeof schema>;

@@ -6,6 +6,7 @@ import { createDb } from '@lbc/db';
 import { GraphClient, verifyChallenge } from '@lbc/meta';
 import { loadConfig } from './config';
 import { ingestWebhook } from './receiver';
+import { ingestBilling, processBillingEvent } from './billing';
 import { processEvent } from './events';
 import { sendOne } from './send';
 import { deleteQueuedTemplates, submitPendingTemplates, syncTemplates, tenantsDueForSync } from './templates';
@@ -35,7 +36,10 @@ const eventWorker = new Worker('events', async (job: Job<{ id: number }>) => {
   const row = (await db.execute(sql`select * from webhook_events where id = ${job.data.id}`) as unknown as Record<string, any>[])[0];
   return row ? processEvent(db, row, job.attemptsMade) : 'done';
 }, { connection: redis, concurrency: 10 });
-for (const w of [sendWorker, eventWorker]) w.on('failed', (j, e) => console.error(`[${w.name}] job ${j?.id} failed: ${e.message}`));
+/** Billing consumer: one billing_events row per job; a webhook that raced ahead of our own subscription row throws and is retried with backoff. */
+const billingQueue = new Queue('billing', { connection: redis, defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 5000, attempts: 8, backoff: { type: 'exponential', delay: 5000 } } });
+const billingWorker = new Worker('billing', async (job: Job<{ id: number }>) => processBillingEvent(db, job.data.id), { connection: redis, concurrency: 4 });
+for (const w of [sendWorker, eventWorker, billingWorker]) w.on('failed', (j, e) => console.error(`[${w.name}] job ${j?.id} failed: ${e.message}`));
 
 /** Outbox sweeper: anything queued in the database but missing from Redis (a crash between the two) is re-enqueued. */
 async function sweepOutbox() {
@@ -67,7 +71,7 @@ async function templatesTick() {
 const templatesTimer = setInterval(() => templatesTick().catch((e) => console.error('templates', e.message)), 20_000);
 const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
 
-const app = Fastify({ logger: { level: 'info', redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]'] } });
+const app = Fastify({ logger: { level: 'info', redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]', 'req.headers["x-razorpay-signature"]'] } });
 app.removeAllContentTypeParsers();
 app.addContentTypeParser('*', { parseAs: 'buffer' }, (_req, body, done) => done(null, body)); // raw bytes, so the HMAC is computed on exactly what Meta signed
 app.get('/healthz', async () => ({ ok: true }));
@@ -84,6 +88,14 @@ app.post('/webhooks/meta', async (req, reply) => {
   return reply.code(200).send('ok');
 });
 
+app.post('/webhooks/razorpay', async (req, reply) => {
+  const r = await ingestBilling(db, req.body as Buffer, req.headers['x-razorpay-signature'] as string | undefined, req.headers['x-razorpay-event-id'] as string | undefined, cfg.RAZORPAY_WEBHOOK_SECRET);
+  if (r.status === 503) return reply.code(503).send('not configured');
+  if (r.status === 401) return reply.code(401).send('bad signature');
+  if (r.id !== null) await billingQueue.add('billing', { id: r.id }, { jobId: `bill-${r.id}` });
+  return reply.code(200).send('ok');
+});
+
 await app.listen({ port: cfg.PORT, host: '0.0.0.0' });
-const stop = async () => { clearInterval(sweeper); clearInterval(launcher); clearInterval(templatesTimer); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
+const stop = async () => { clearInterval(sweeper); clearInterval(launcher); clearInterval(templatesTimer); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close(), billingWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop);

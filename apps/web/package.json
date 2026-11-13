@@ -13,6 +13,7 @@
   "dependencies": {
     "@lbc/db": "workspace:*",
     "@lbc/meta": "workspace:*",
+    "@lbc/razorpay": "workspace:*",
     "@lbc/shared": "workspace:*",
     "@radix-ui/react-slot": "^1.1.0",
     "better-auth": "^1.7.20",

@@ -184,6 +184,9 @@ importers:
       '@lbc/meta':
         specifier: workspace:*
         version: link:../../packages/meta
+      '@lbc/razorpay':
+        specifier: workspace:*
+        version: link:../../packages/razorpay
       '@lbc/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -281,6 +284,9 @@ importers:
       '@lbc/meta':
         specifier: workspace:*
         version: link:../../packages/meta
+      '@lbc/razorpay':
+        specifier: workspace:*
+        version: link:../../packages/razorpay
       '@lbc/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -342,6 +348,25 @@ importers:
         version: 2.1.9(@types/node@24.19.2)(lightningcss@1.33.0)(supports-color@7.2.0)
 
   packages/meta:
+    dependencies:
+      '@lbc/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@24.19.2)(lightningcss@1.33.0)(supports-color@7.2.0)
+
+  packages/razorpay:
     dependencies:
       '@lbc/shared':
         specifier: workspace:*
