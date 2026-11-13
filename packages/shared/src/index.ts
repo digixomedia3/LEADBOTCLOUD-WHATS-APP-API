@@ -10,3 +10,4 @@ export * from './errors';
 export * from './cost';
 export * from './billing';
 export * from './leads';
+export * from './template-library';
