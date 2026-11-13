@@ -1,12 +1,16 @@
 import {
   BarChart3,
   FileText,
+  History,
   LayoutDashboard,
   Megaphone,
   UserPlus,
   MessageSquare,
   RefreshCw,
+  Reply,
+  Rocket,
   Settings,
+  ShieldOff,
   Users,
   Zap,
   type LucideIcon,
@@ -33,6 +37,7 @@ export const navGroups: NavGroup[] = [
     title: 'Main',
     items: [
       { href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard, built: true, blurb: '', bullets: [] },
+      { href: '/get-started', label: 'Get started', Icon: Rocket, built: true, blurb: 'Your setup checklist.', bullets: ['What is done, what is next'] },
       {
         href: '/leads',
         label: 'Leads',
@@ -123,6 +128,14 @@ export const navGroups: NavGroup[] = [
         blurb: 'See what works and what it costs.',
         bullets: ['Compare campaigns', 'Best time to send', 'Cost per message category'],
       },
+    ],
+  },
+  {
+    title: 'Manage',
+    items: [
+      { href: '/quick-replies', label: 'Quick replies', Icon: Reply, built: true, blurb: 'Saved answers your team can send in one tap.', bullets: ['Type / in a chat to use one', 'Shared by the whole team'] },
+      { href: '/consent', label: 'Opt-outs and consent', Icon: ShieldOff, built: true, blurb: 'Who you may message, and who asked you to stop.', bullets: ['Every opt-out in one list', 'Consent history per contact'] },
+      { href: '/activity', label: 'Activity log', Icon: History, built: true, blurb: 'Who changed what, and when.', bullets: ['Team, billing, campaigns, leads', 'Owners and admins only'] },
     ],
   },
   {

@@ -85,14 +85,14 @@ app.get('/webhooks/meta', async (req, reply) => {
 });
 app.post('/webhooks/meta', async (req, reply) => {
   if (!cfg.META_APP_SECRET) return reply.code(503).send('not configured');
-  const r = await ingestWebhook(db, req.body as Buffer, req.headers['x-hub-signature-256'] as string | undefined, cfg.META_APP_SECRET);
+  const r = await ingestWebhook(db, Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0), req.headers['x-hub-signature-256'] as string | undefined, cfg.META_APP_SECRET);
   if (r.status === 401) return reply.code(401).send('bad signature');
   await Promise.all(r.items.map((i) => eventQueue.add('event', { id: i.id }, { jobId: `ev-${i.id}` }))); // fast: store, enqueue, 200
   return reply.code(200).send('ok');
 });
 
 app.post('/webhooks/razorpay', async (req, reply) => {
-  const r = await ingestBilling(db, req.body as Buffer, req.headers['x-razorpay-signature'] as string | undefined, req.headers['x-razorpay-event-id'] as string | undefined, cfg.RAZORPAY_WEBHOOK_SECRET);
+  const r = await ingestBilling(db, Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0), req.headers['x-razorpay-signature'] as string | undefined, req.headers['x-razorpay-event-id'] as string | undefined, cfg.RAZORPAY_WEBHOOK_SECRET);
   if (r.status === 503) return reply.code(503).send('not configured');
   if (r.status === 401) return reply.code(401).send('bad signature');
   if (r.id !== null) await billingQueue.add('billing', { id: r.id }, { jobId: `bill-${r.id}` });

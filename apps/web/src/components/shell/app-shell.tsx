@@ -136,8 +136,8 @@ export function AppShell({ children, user, workspace, workspaces }: { children: 
             <div className="mb-4 rounded-2xl border border-line bg-card2 p-1.5"><AccountMenu user={user} workspace={workspace} workspaces={workspaces} /></div>
             <div className="grid grid-cols-3 gap-3">
               {allNav.filter((n) => !mobileTabs.includes(n.href as (typeof mobileTabs)[number])).map(({ href, label, Icon }) => (
-                <Link key={href} href={href} className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border border-line bg-card2 text-sm font-semibold active:scale-95">
-                  <span className="grad-bg flex size-11 items-center justify-center rounded-xl text-white"><Icon className="size-5" /></span>{label}
+                <Link key={href} href={href} className="flex min-h-28 flex-col items-center justify-start gap-2 rounded-2xl border border-line bg-card2 px-1 pb-2 pt-3 text-center text-sm font-semibold leading-tight active:scale-95">
+                  <span className="grad-bg flex size-11 shrink-0 items-center justify-center rounded-xl text-white"><Icon className="size-5" /></span>{label}
                 </Link>
               ))}
             </div>

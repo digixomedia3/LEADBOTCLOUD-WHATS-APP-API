@@ -185,3 +185,14 @@ export async function deleteQuickReply(id: string): Promise<Result> {
   const g = await guard('admin'); if ('error' in g) return fail(g.error);
   return db(g.ctx, async (tx) => { await tx.delete(quickReplies).where(eq(quickReplies.id, id)); return { ok: true as const, data: null }; });
 }
+
+const qrUpdate = z.object({ id: z.string().uuid(), body: z.string().trim().min(1).max(1000) });
+export async function updateQuickReply(input: z.input<typeof qrUpdate>): Promise<Result> {
+  const g = await guard('admin'); if ('error' in g) return fail(g.error);
+  const p = qrUpdate.safeParse(input);
+  if (!p.success) return fail(p.error.issues[0]?.message ?? 'Check the fields.');
+  return db(g.ctx, async (tx) => {
+    const r = await tx.update(quickReplies).set({ body: p.data.body }).where(eq(quickReplies.id, p.data.id)).returning({ id: quickReplies.id });
+    return r.length ? { ok: true as const, data: null } : fail('That quick reply no longer exists.');
+  });
+}
