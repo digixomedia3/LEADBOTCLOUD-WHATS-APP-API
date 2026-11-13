@@ -1,0 +1,126 @@
+import { errorPolicy, type ErrorPolicy, type GraphError } from '@lbc/shared';
+
+/**
+ * The only place that talks to the Meta Graph API (AGENTS.md rule 2). The version comes from env META_GRAPH_VERSION and is
+ * never written anywhere else. Secrets are passed per call and never logged.
+ */
+export interface MetaConfig {
+  graphVersion: string;
+  appId?: string;
+  appSecret?: string;
+  /** Injected for tests. Defaults to global fetch. */
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}
+
+export class MetaError extends Error {
+  readonly policy: ErrorPolicy;
+  constructor(public readonly status: number, public readonly graph: GraphError, public readonly path: string) {
+    super(graph.message ?? `Graph error ${graph.code ?? status}`);
+    this.name = 'MetaError';
+    this.policy = errorPolicy(graph.code);
+  }
+  get code() { return this.graph.code; }
+  get isTransient() { return this.graph.is_transient === true; }
+}
+
+/** A network failure or timeout. The request may or may not have been accepted, so marketing sends must NOT be blindly retried (spec 4.5 step 6). */
+export class MetaUnknownOutcome extends Error {
+  constructor(public readonly path: string, public readonly cause_: unknown) {
+    super('Meta request outcome unknown (timeout or network error)');
+    this.name = 'MetaUnknownOutcome';
+  }
+}
+
+export class GraphClient {
+  constructor(private readonly cfg: MetaConfig) {
+    if (!/^v\d+\.\d+$/.test(cfg.graphVersion)) throw new Error('META_GRAPH_VERSION must look like v26.0');
+  }
+
+  url(path: string, query?: Record<string, string | number | undefined>): string {
+    const u = new URL(`https://graph.facebook.com/${this.cfg.graphVersion}/${path.replace(/^\/+/, '')}`);
+    for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined) u.searchParams.set(k, String(v));
+    return u.toString();
+  }
+
+  async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, opts: { token?: string; body?: unknown; query?: Record<string, string | number | undefined> } = {}): Promise<T> {
+    const f = this.cfg.fetchImpl ?? fetch;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), this.cfg.timeoutMs ?? 20_000);
+    let res: Response;
+    try {
+      res = await f(this.url(path, opts.query), {
+        method,
+        headers: { ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}), ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        signal: ctl.signal,
+      });
+    } catch (e) {
+      throw new MetaUnknownOutcome(path, e);
+    } finally {
+      clearTimeout(timer);
+    }
+    const text = await res.text();
+    let json: unknown = undefined;
+    try { json = text ? JSON.parse(text) : undefined; } catch { /* non-JSON body */ }
+    if (!res.ok) {
+      const err = (json as { error?: GraphError } | undefined)?.error;
+      // A 5xx with no parseable body: the message may have been accepted. Treat as unknown outcome.
+      if (!err && res.status >= 500) throw new MetaUnknownOutcome(path, `HTTP ${res.status}`);
+      throw new MetaError(res.status, err ?? { message: `HTTP ${res.status}` }, path);
+    }
+    return json as T;
+  }
+
+  // ---- Embedded Signup server steps (spec 2.2) ----
+
+  /** Step 5: exchange the 30-second code for the business token. Server-side only: needs the app secret. */
+  async exchangeCode(code: string): Promise<{ access_token: string }> {
+    if (!this.cfg.appId || !this.cfg.appSecret) throw new Error('META_APP_ID and META_APP_SECRET are required');
+    return this.request('GET', 'oauth/access_token', { query: { client_id: this.cfg.appId, client_secret: this.cfg.appSecret, code } });
+  }
+
+  /** Step 6: scopes and validity of a token. */
+  async debugToken(token: string): Promise<{ data: { is_valid: boolean; scopes?: string[]; expires_at?: number; data_access_expires_at?: number } }> {
+    if (!this.cfg.appId || !this.cfg.appSecret) throw new Error('META_APP_ID and META_APP_SECRET are required');
+    return this.request('GET', 'debug_token', { query: { input_token: token, access_token: `${this.cfg.appId}|${this.cfg.appSecret}` } });
+  }
+
+  /** Step 7: subscribe our app to the tenant's WABA webhooks. */
+  subscribeApp(wabaId: string, token: string) { return this.request<{ success: boolean }>('POST', `${wabaId}/subscribed_apps`, { token }); }
+  listSubscribedApps(wabaId: string, token: string) { return this.request<{ data: unknown[] }>('GET', `${wabaId}/subscribed_apps`, { token }); }
+
+  /** Step 8: the phone numbers on the WABA. */
+  listPhoneNumbers(wabaId: string, token: string) {
+    return this.request<{ data: PhoneNumber[] }>('GET', `${wabaId}/phone_numbers`, { token, query: { fields: 'id,display_phone_number,verified_name,quality_rating,status,code_verification_status,name_status,account_mode,platform_type,is_on_biz_app,throughput' } });
+  }
+
+  /** Step 9 (standard path only): register the number for Cloud API with a 2FA PIN. */
+  registerNumber(phoneNumberId: string, pin: string, token: string) {
+    return this.request<{ success: boolean }>('POST', `${phoneNumberId}/register`, { token, body: { messaging_product: 'whatsapp', pin } });
+  }
+
+  /** Step 11: Marketing Messages API status on the WABA. */
+  wabaStatus(wabaId: string, token: string) {
+    return this.request<{ id: string; marketing_messages_lite_api_status?: string; disable_marketing_messages_on_cloud_api?: boolean }>('GET', wabaId, { token, query: { fields: 'marketing_messages_lite_api_status,disable_marketing_messages_on_cloud_api' } });
+  }
+
+  // ---- Sending (spec 4) ----
+  sendMessage(phoneNumberId: string, token: string, body: unknown) { return this.request<SendResponse>('POST', `${phoneNumberId}/messages`, { token, body }); }
+  sendMarketingMessage(phoneNumberId: string, token: string, body: unknown) { return this.request<SendResponse>('POST', `${phoneNumberId}/marketing_messages`, { token, body }); }
+  markRead(phoneNumberId: string, token: string, messageId: string) { return this.request<{ success: boolean }>('POST', `${phoneNumberId}/messages`, { token, body: { messaging_product: 'whatsapp', status: 'read', message_id: messageId } }); }
+
+  // ---- Templates (spec 7.1) ----
+  createTemplate(wabaId: string, token: string, body: unknown) { return this.request<{ id: string; status: string; category: string }>('POST', `${wabaId}/message_templates`, { token, body }); }
+  listTemplates(wabaId: string, token: string, after?: string) {
+    return this.request<{ data: RemoteTemplate[]; paging?: { cursors?: { after?: string }; next?: string } }>('GET', `${wabaId}/message_templates`, { token, query: { fields: 'name,status,category,language,components,quality_score', limit: 100, after } });
+  }
+  deleteTemplate(wabaId: string, token: string, name: string) { return this.request<{ success: boolean }>('DELETE', `${wabaId}/message_templates`, { token, query: { name } }); }
+}
+
+export interface PhoneNumber {
+  id: string; display_phone_number?: string; verified_name?: string; quality_rating?: string; status?: string; code_verification_status?: string;
+  name_status?: string; account_mode?: string; platform_type?: string; is_on_biz_app?: boolean; throughput?: { level?: string };
+}
+export interface SendResponse { messaging_product?: string; contacts?: { input: string; wa_id?: string; user_id?: string }[]; messages?: { id: string; message_status?: 'accepted' | 'held_for_quality_assessment' | 'paused' }[] }
+export interface RemoteTemplate { id?: string; name: string; status: string; category: string; language: string; components?: unknown[]; quality_score?: { score?: string } }
