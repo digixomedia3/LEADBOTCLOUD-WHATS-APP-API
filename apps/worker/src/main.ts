@@ -79,7 +79,7 @@ async function templatesTick() {
 }
 /** Safety net: connector events that were stored but not finished (crash, Facebook outage) are retried, and sheets are read every 2 minutes. */
 const connectorTimer = setInterval(async () => { for (const id of await pendingConnectorEvents(db)) await processConnectorEvent(connDeps, id); }, 20_000);
-const sheetsTimer = setInterval(() => syncSheets(connDeps).then((r) => { if (r.rows || r.errors) console.log('[sheets]', JSON.stringify(r)); }).catch((e) => console.error('sheets', e.message)), 120_000);
+const sheetsTimer = setInterval(() => syncSheets(connDeps).then((r) => { if (r.rows || r.errors) console.log('[sheets]', JSON.stringify(r)); }).catch((e) => console.error('sheets', e.message)), cfg.SHEETS_SYNC_MS);
 const templatesTimer = setInterval(() => templatesTick().catch((e) => console.error('templates', e.message)), 20_000);
 const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
 

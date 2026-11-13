@@ -1,6 +1,7 @@
 import {
   BarChart3,
   FileText,
+  Plug,
   History,
   HelpCircle,
   Kanban,
@@ -152,6 +153,7 @@ export const navGroups: NavGroup[] = [
   {
     title: 'Manage',
     items: [
+      { href: '/connections', label: 'Connections', Icon: Plug, built: true, blurb: 'Bring in leads from Facebook, Shopify and Google Sheets.', bullets: ['Connect once', 'Leads arrive on their own'] },
       { href: '/quick-replies', label: 'Quick replies', Icon: Reply, built: true, blurb: 'Saved answers your team can send in one tap.', bullets: ['Type / in a chat to use one', 'Shared by the whole team'] },
       { href: '/consent', label: 'Opt-outs and consent', Icon: ShieldOff, built: true, blurb: 'Who you may message, and who asked you to stop.', bullets: ['Every opt-out in one list', 'Consent history per contact'] },
       { href: '/help', label: 'Help and support', Icon: HelpCircle, built: true, blurb: 'Answers and how to reach us.', bullets: ['Common questions', 'Contact details'] },

@@ -26,6 +26,8 @@ const schema = z.object({
   /** Test hooks: point Google at a local fake. Never set in production. */
   GOOGLE_TOKEN_URL: z.string().url().optional(),
   GOOGLE_SHEETS_BASE: z.string().url().optional(),
+  /** How often connected Google Sheets are read. Short values are for tests only. */
+  SHEETS_SYNC_MS: z.coerce.number().int().min(2000).default(120_000),
   TOKEN_ENCRYPTION_KEY: z.string().min(1),
 });
 export type WorkerConfig = z.infer<typeof schema>;

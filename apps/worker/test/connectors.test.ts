@@ -189,7 +189,7 @@ describe('Google Sheets sync', () => {
     const { t, c } = await tenantWith('google_sheets', `gs1-${tag}`, { config: { spreadsheetId: `SID1${tag}`, sheet: 'Leads' }, expires: '2099-01-01T00:00:00Z' });
     const sheet = [HEAD, ['Asha', '98765 00301', 'Lucknow'], ['Ravi', '+919876500302', 'Agra']];
     const { google } = fakeGoogle(sheet);
-    const r1 = await syncSheets({ db, tokenKey: KEY, google }); expect(r1.errors).toBe(0);
+    await syncSheets({ db, tokenKey: KEY, google }); expect((await q(`select last_error from connections where id = '${c}'`))[0]!.last_error).toBeNull(); // other rows in a shared database must not matter
     let l = await leadsOf(t); expect(l.map((x) => x.phone_e164)).toEqual(['+919876500301', '+919876500302']); expect(l[0]!.fields).toMatchObject({ city: 'Lucknow' });
     expect((await q(`select (config->>'nextRow')::int as n from connections where id = '${c}'`))[0]!.n).toBe(4);
     await syncSheets({ db, tokenKey: KEY, google }); expect(await leadsOf(t)).toHaveLength(2);
