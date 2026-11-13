@@ -3,6 +3,7 @@ import {
   FileText,
   LayoutDashboard,
   Megaphone,
+  UserPlus,
   MessageSquare,
   RefreshCw,
   Settings,
@@ -32,6 +33,14 @@ export const navGroups: NavGroup[] = [
     title: 'Main',
     items: [
       { href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard, built: true, blurb: '', bullets: [] },
+      {
+        href: '/leads',
+        label: 'Leads',
+        Icon: UserPlus,
+        built: true,
+        blurb: 'Every enquiry from every place you advertise.',
+        bullets: ['One inbox for forms, ads and websites', 'Automatic assignment to your team', 'See which source brings the best leads', 'Consent is never assumed'],
+      },
       {
         href: '/campaigns',
         label: 'Send to customers',

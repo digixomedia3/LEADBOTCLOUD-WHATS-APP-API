@@ -7,6 +7,8 @@ import { GraphClient, verifyChallenge } from '@lbc/meta';
 import { loadConfig } from './config';
 import { ingestWebhook } from './receiver';
 import { ingestBilling, processBillingEvent } from './billing';
+import { ingestLead } from './leads';
+import { makeLimiter } from '@lbc/shared';
 import { processEvent } from './events';
 import { sendOne } from './send';
 import { deleteQueuedTemplates, submitPendingTemplates, syncTemplates, tenantsDueForSync } from './templates';
@@ -71,7 +73,7 @@ async function templatesTick() {
 const templatesTimer = setInterval(() => templatesTick().catch((e) => console.error('templates', e.message)), 20_000);
 const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
 
-const app = Fastify({ logger: { level: 'info', redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]', 'req.headers["x-razorpay-signature"]'] } });
+const app = Fastify({ trustProxy: cfg.TRUST_PROXY === 'true', logger: { level: 'info', serializers: { req: (r) => ({ method: r.method, url: String(r.url).replace(/([?&]key=)[^&]*/i, '$1***'), host: r.host, remoteAddress: r.ip }) }, redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]', 'req.headers["x-razorpay-signature"]', 'req.headers["x-lead-key"]'] } });
 app.removeAllContentTypeParsers();
 app.addContentTypeParser('*', { parseAs: 'buffer' }, (_req, body, done) => done(null, body)); // raw bytes, so the HMAC is computed on exactly what Meta signed
 app.get('/healthz', async () => ({ ok: true }));
@@ -94,6 +96,20 @@ app.post('/webhooks/razorpay', async (req, reply) => {
   if (r.status === 401) return reply.code(401).send('bad signature');
   if (r.id !== null) await billingQueue.add('billing', { id: r.id }, { jobId: `bill-${r.id}` });
   return reply.code(200).send('ok');
+});
+
+/** Public lead capture. Browsers post here from other sites, so CORS is open; the source key (header or ?key=) and the rate limits are the protection. */
+const perIp = makeLimiter(60, 60_000), perSource = makeLimiter(600, 60_000);
+const leadCors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, OPTIONS', 'access-control-allow-headers': 'content-type, x-lead-key, authorization', 'access-control-max-age': '86400' };
+app.options('/leads/:id', async (_req, reply) => reply.code(204).headers(leadCors).send());
+app.post('/leads/:id', async (req, reply) => {
+  const id = String((req.params as { id: string }).id).slice(0, 80);
+  if (!perIp(`ip:${req.ip}`) || !perSource(`src:${id}`)) return reply.code(429).headers({ ...leadCors, 'retry-after': '30' }).send({ ok: false, error: 'Too many requests. Slow down.' });
+  const auth = String(req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
+  const key = (req.headers['x-lead-key'] as string | undefined) || auth || (req.query as Record<string, string>).key || undefined;
+  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
+  const r = await ingestLead(db, id, key, raw, req.headers['content-type']);
+  return reply.code(r.status).headers(leadCors).send(r.status === 200 ? { ok: true, id: r.leadId, created: r.created } : { ok: false, error: r.error });
 });
 
 await app.listen({ port: cfg.PORT, host: '0.0.0.0' });
