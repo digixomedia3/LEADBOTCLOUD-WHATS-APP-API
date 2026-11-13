@@ -56,9 +56,11 @@ describe('source checks', () => {
     expect((await post(off.pid, off.secret, { phone: '9876543210' })).status).toBe(403);
     expect(await count('leads', s.t)).toBe(0); expect(await count('contacts', s.t)).toBe(0);
   });
-  it('a source without a secret accepts posts (for tools that cannot send one)', async () => {
+  it('a source with no key accepts nothing from the public endpoint (forms, ads, connections and imports have their own doors)', async () => {
     const s = await setup({ secret: null });
-    expect((await post(s.pid, undefined, { phone: '9876543210' })).status).toBe(200);
+    expect((await post(s.pid, undefined, { phone: '9876543210' })).status).toBe(404);
+    expect((await post(s.pid, 'anything', { phone: '9876543210' })).status).toBe(404);
+    expect(await count('leads', s.t)).toBe(0);
   });
 });
 

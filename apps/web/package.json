@@ -11,6 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@lbc/connectors": "workspace:*",
     "@lbc/db": "workspace:*",
     "@lbc/meta": "workspace:*",
     "@lbc/razorpay": "workspace:*",

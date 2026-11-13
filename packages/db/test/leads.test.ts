@@ -151,3 +151,88 @@ describe('hosted forms: tenant isolation and the public door', () => {
     await expect(admin.client.unsafe(`insert into lead_sources (tenant_id, kind, name, public_id) values ('${T1}', 'ctwa', 'WhatsApp ads 2', 'ctwa-${tag}-2')`)).rejects.toThrow(/lead_sources_one_ctwa/);
   });
 });
+
+describe('connections: tokens are unreadable from the web role', () => {
+  let CN1 = '';
+  const hash = `h-${tag}`;
+  beforeAll(async () => {
+    CN1 = (await admin.client.unsafe(`insert into connections (tenant_id, provider, external_id, label, access_token_enc, refresh_token_enc) values ('${T1}', 'shopify', 'shop-${tag}.myshopify.com', 'Shop', 'v1.SECRET.ACCESS', 'v1.SECRET.REFRESH') returning id`))[0]!.id;
+  });
+  it('the web role can read the safe columns of its own connection', async () => {
+    const r = await as(T1, U1, (tx) => rows(tx, sql`select id, provider, label, status, scopes, config from connections`)); expect(r).toHaveLength(1); expect(r[0]).toMatchObject({ provider: 'shopify', label: 'Shop' });
+  });
+  it('but never the access or refresh token, by any route', async () => {
+    await expect(as(T1, U1, (tx) => tx.execute(sql`select access_token_enc from connections`))).rejects.toThrow(/permission denied/i);
+    await expect(as(T1, U1, (tx) => tx.execute(sql`select refresh_token_enc from connections`))).rejects.toThrow(/permission denied/i);
+    await expect(as(T1, U1, (tx) => tx.execute(sql`select * from connections`))).rejects.toThrow(/permission denied/i);
+    await expect(as(T1, U1, (tx) => tx.execute(sql`select to_jsonb(c) from connections c`))).rejects.toThrow(/permission denied/i);
+  });
+  it('cannot insert, replace a token, retarget, or delete a connection directly', async () => {
+    await expect(as(T1, U1, (tx) => tx.execute(sql`insert into connections (tenant_id, provider, external_id, label) values (${T1}, 'shopify', 'x', 'x')`))).rejects.toThrow(/permission denied/i);
+    await expect(as(T1, U1, (tx) => tx.execute(sql`update connections set access_token_enc = 'mine'`))).rejects.toThrow(/permission denied/i);
+    await expect(as(T1, U1, (tx) => tx.execute(sql`update connections set tenant_id = ${T2}`))).rejects.toThrow(/permission denied/i);
+    await expect(as(T1, U1, (tx) => tx.execute(sql`delete from connections`))).rejects.toThrow(/permission denied/i);
+  });
+  it('can change only the non-secret config, and only on its own connection', async () => {
+    await as(T1, U1, (tx) => tx.execute(sql`update connections set config = '{"range":"A1:E500"}'::jsonb, updated_at = now() where id = ${CN1}`));
+    expect((await admin.client.unsafe(`select config from connections where id = '${CN1}'`))[0]!.config).toEqual({ range: 'A1:E500' });
+    expect(await as(T2, U2, (tx) => rows(tx, sql`update connections set config = '{}'::jsonb where id = ${CN1} returning id`))).toHaveLength(0);
+    expect(await as(T2, U2, (tx) => rows(tx, sql`select id from connections`))).toHaveLength(0);
+  });
+  it('one Page / store belongs to exactly one workspace; unknown providers and statuses are refused', async () => {
+    await expect(admin.client.unsafe(`insert into connections (tenant_id, provider, external_id, label) values ('${T2}', 'shopify', 'shop-${tag}.myshopify.com', 'Stolen')`)).rejects.toThrow(/connections_external_uq/);
+    await expect(admin.client.unsafe(`insert into connections (tenant_id, provider, external_id, label) values ('${T2}', 'tiktok', 'z', 'z')`)).rejects.toThrow(/connections_provider_chk/);
+    await expect(admin.client.unsafe(`update connections set status = 'weird' where id = '${CN1}'`)).rejects.toThrow(/connections_status_chk/);
+  });
+  it('store_connection: owner/admin only, one workspace per page, makes a keyless source, keeps the old refresh token when none is supplied', async () => {
+    const store = (tx: any, ext: string, refresh: string | null = 'v1.R') => tx.execute(sql`select public.store_connection('meta_lead_ads', ${ext}, 'My Page', 'v1.A', ${refresh}, null, ${sql`ARRAY['leads_retrieval']::text[]`}, '{}'::jsonb) as id`);
+    await expect(as(T1, U1, async (tx) => { await admin.client.unsafe(`insert into "user" (id, name, email, email_verified, created_at, updated_at) values ('${U1}-agent', 'a', '${U1}-agent@example.com', true, now(), now()) on conflict do nothing`); await admin.client.unsafe(`insert into tenant_members (tenant_id, user_id, role) values ('${T1}', '${U1}-agent', 'agent') on conflict do nothing`); return as(T1, `${U1}-agent`, (t2) => store(t2, `page-${tag}-1`)); })).rejects.toThrow(/owner or admin only/);
+    const id = ((await as(T1, U1, (tx) => store(tx, `page-${tag}-1`))) as { id: string }[])[0]!.id;
+    const c = (await admin.client.unsafe(`select c.source_id, c.refresh_token_enc, s.kind, s.secret_hash, s.consent_mode, s.enabled from connections c join lead_sources s on s.id = c.source_id where c.id = '${id}'`))[0]!;
+    expect(c).toMatchObject({ kind: 'meta_lead_ads', secret_hash: null, consent_mode: 'none', enabled: true, refresh_token_enc: 'v1.R' });
+    await as(T1, U1, (tx) => store(tx, `page-${tag}-1`, null));
+    expect((await admin.client.unsafe(`select refresh_token_enc from connections where id = '${id}'`))[0]!.refresh_token_enc).toBe('v1.R');
+    await expect(as(T2, U2, (tx) => store(tx, `page-${tag}-1`))).rejects.toThrow(/connection_in_use/);
+  });
+  it('disconnect_connection removes the tokens, switches the source off, keeps leads; owner/admin only; other workspaces cannot', async () => {
+    const id = ((await as(T1, U1, (tx) => tx.execute(sql`select public.store_connection('google_sheets', ${'g-' + tag}, 'Sheet', 'v1.A', 'v1.R', null, ${sql`ARRAY[]::text[]`}, '{}'::jsonb) as id`))) as { id: string }[])[0]!.id;
+    const src = (await admin.client.unsafe(`select source_id from connections where id = '${id}'`))[0]!.source_id;
+    await expect(as(T2, U2, (tx) => tx.execute(sql`select public.disconnect_connection(${id})`))).rejects.toThrow(/not_found/);
+    await as(T1, U1, (tx) => tx.execute(sql`select public.disconnect_connection(${id})`));
+    expect(await admin.client.unsafe(`select 1 from connections where id = '${id}'`)).toHaveLength(0);
+    expect((await admin.client.unsafe(`select enabled from lead_sources where id = '${src}'`))[0]!.enabled).toBe(false);
+    expect((await admin.client.unsafe(`select action from audit_log where tenant_id = '${T1}' and action = 'connection.disconnected'`)).length).toBeGreaterThan(0);
+  });
+  void hash;
+});
+
+describe('oauth states: single use, bound to the tenant AND the signed-in user', () => {
+  const mk = async (h: string, provider = 'google_sheets', mins = 10) => as(T1, U1, (tx) => tx.execute(sql`insert into oauth_states (state_hash, tenant_id, user_id, provider, extra, expires_at) values (${h}, ${T1}, ${U1}, ${provider}, '{"k":1}'::jsonb, now() + (${mins} || ' minutes')::interval)`));
+  const take = (t: string, u: string, h: string, p = 'google_sheets') => as(t, u, async (tx) => (await tx.execute(sql`select public.consume_oauth_state(${h}, ${p}) as s`))[0].s);
+  it('works once, then never again', async () => {
+    await mk(`st-${tag}-1`); expect(await take(T1, U1, `st-${tag}-1`)).toMatchObject({ extra: { k: 1 } }); expect(await take(T1, U1, `st-${tag}-1`)).toBeNull();
+  });
+  it('another user in the same workspace cannot use it (someone else’s link finished in your session)', async () => {
+    await mk(`st-${tag}-2`); expect(await take(T1, `${U1}-agent`, `st-${tag}-2`)).toBeNull(); expect(await take(T1, U1, `st-${tag}-2`)).not.toBeNull();
+  });
+  it('another workspace cannot use it either', async () => {
+    await mk(`st-${tag}-3`); expect(await take(T2, U2, `st-${tag}-3`)).toBeNull();
+  });
+  it('is tied to its provider and refuses an expired state', async () => {
+    await mk(`st-${tag}-4`, 'shopify'); expect(await take(T1, U1, `st-${tag}-4`, 'google_sheets')).toBeNull(); expect(await take(T1, U1, `st-${tag}-4`, 'shopify')).not.toBeNull();
+    await mk(`st-${tag}-5`, 'google_sheets', -5); expect(await take(T1, U1, `st-${tag}-5`)).toBeNull();
+  });
+  it('peek reads without using it up, with the same ownership checks', async () => {
+    await mk(`st-${tag}-6`);
+    const peek = (t: string, u: string) => as(t, u, async (tx) => (await tx.execute(sql`select public.peek_oauth_state(${`st-${tag}-6`}, 'google_sheets') as s`))[0].s);
+    expect(await peek(T1, U1)).not.toBeNull(); expect(await peek(T1, U1)).not.toBeNull(); expect(await peek(T2, U2)).toBeNull(); expect(await take(T1, U1, `st-${tag}-6`)).not.toBeNull(); expect(await peek(T1, U1)).toBeNull();
+  });
+  it('the web role cannot read, list, change or insert a state for someone else', async () => {
+    await expect(as(T1, U1, (tx) => tx.execute(sql`select * from oauth_states`))).rejects.toThrow(/permission denied/i);
+    await expect(as(T1, U1, (tx) => tx.execute(sql`insert into oauth_states (state_hash, tenant_id, user_id, provider, expires_at) values ('x', ${T1}, ${U2}, 'shopify', now() + interval '1 minute')`))).rejects.toThrow(/row-level security/i);
+    await expect(as(T1, U1, (tx) => tx.execute(sql`insert into oauth_states (state_hash, tenant_id, user_id, provider, expires_at) values ('y', ${T2}, ${U1}, 'shopify', now() + interval '1 minute')`))).rejects.toThrow(/row-level security/i);
+  });
+  it('connector_events are invisible to the web role', async () => {
+    await expect(as(T1, U1, (tx) => tx.execute(sql`select * from connector_events`))).rejects.toThrow(/permission denied/i);
+  });
+});

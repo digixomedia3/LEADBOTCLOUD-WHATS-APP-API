@@ -11,6 +11,7 @@
     "lint": "echo ok"
   },
   "dependencies": {
+    "@lbc/connectors": "workspace:*",
     "@lbc/db": "workspace:*",
     "@lbc/meta": "workspace:*",
     "@lbc/razorpay": "workspace:*",

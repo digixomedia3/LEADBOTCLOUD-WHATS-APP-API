@@ -21,8 +21,9 @@ const MAX_BODY = 64 * 1024;
 export async function ingestLead(db: Db, publicId: string, secret: string | undefined, raw: Buffer, contentType: string | undefined): Promise<LeadResult> {
   const src = (await rows(db, sql`select * from lead_sources where public_id = ${publicId}`))[0];
   if (!src) return { status: 404, error: 'Unknown lead source.' };
-  if (src.kind === 'ctwa') return { status: 404, error: 'Unknown lead source.' }; // system-owned, fed only by WhatsApp ad clicks
-  if (src.secret_hash && (!secret || !safeEq(hashSecret(secret), src.secret_hash))) return { status: 401, error: 'Wrong or missing key.' };
+  // A source with no key is fed by something else (a hosted form, a WhatsApp ad click, an OAuth connection, an import). It must never accept posts from the open internet.
+  if (!src.secret_hash) return { status: 404, error: 'Unknown lead source.' };
+  if (!secret || !safeEq(hashSecret(secret), src.secret_hash)) return { status: 401, error: 'Wrong or missing key.' };
   if (!src.enabled) return { status: 403, error: 'This lead source is switched off.' };
   return ingestForSource(db, src, raw, contentType);
 }
