@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { signInternal, verifyInternal } from '../src/internal-sign';
 import { decideConsent, extractLead, flatten, isTruthy, makeLimiter, normKey, parseBody, phoneFromLead } from '../src/leads';
 
 describe('normKey', () => {
@@ -57,6 +58,30 @@ describe('extractLead', () => {
   });
 });
 
+describe('platform formats', () => {
+  const indiamart = { CODE: 200, STATUS: 'SUCCESS', RESPONSE: { UNIQUE_QUERY_ID: '621654886', QUERY_TYPE: 'B', QUERY_TIME: '2024-04-10 11:17:14', SENDER_NAME: 'Prabhat', SENDER_MOBILE: '+91-9999999999', SENDER_EMAIL: 'abcdeprabhat@gmail.com', SENDER_COMPANY: 'ABC Pvt Ltd.', SENDER_CITY: 'Noida', SENDER_COUNTRY_ISO: 'IN', SENDER_MOBILE_ALT: '+91-8888888888', QUERY_PRODUCT_NAME: 'Mineral Water Bottle', QUERY_MESSAGE: 'Need 100000 pieces' } };
+  it('reads an IndiaMART push: unwraps RESPONSE, takes the query id, keeps product and message', () => {
+    const l = extractLead(indiamart);
+    expect(l).toMatchObject({ phone: '+91-9999999999', name: 'Prabhat', email: 'abcdeprabhat@gmail.com', externalId: '621654886' });
+    expect(l.fields).toMatchObject({ query_product_name: 'Mineral Water Bottle', query_message: 'Need 100000 pieces', sender_city: 'Noida', sender_company: 'ABC Pvt Ltd.' });
+    expect(l.fields).not.toHaveProperty('code'); expect(l.fields).not.toHaveProperty('status');
+    expect(phoneFromLead(l)).toEqual({ ok: true, e164: '+919999999999' });
+  });
+  it('does not treat IndiaMART’s placeholder buyer name as a name', () => { expect(extractLead({ SENDER_NAME: 'IndiaMART Buyer', SENDER_MOBILE: '9999999999' }).name).toBeNull(); });
+  it('falls back to the alternate mobile when the main one is a landline or invalid', () => {
+    const l = extractLead({ SENDER_MOBILE: '0120-2222222', SENDER_MOBILE_ALT: '+91-8888888888' });
+    expect(phoneFromLead(l)).toEqual({ ok: true, e164: '+918888888888' });
+    expect(phoneFromLead(extractLead({ SENDER_MOBILE: '12345', SENDER_MOBILE_ALT: '678' }))).toMatchObject({ ok: false });
+  });
+  it('reads JustDial style query parameters (leadid, name, mobile, category, area, city)', () => {
+    const l = extractLead({ leadid: 'JD99', leadtype: 'Phone', prefix: 'Mr', name: 'Asha', mobile: '9876543210', category: 'Sofa Dealers', area: 'Kothrud', city: 'Pune', date: '2026-11-13', time: '10:15' });
+    expect(l).toMatchObject({ name: 'Asha', externalId: 'JD99' }); expect(l.fields).toMatchObject({ category: 'Sofa Dealers', area: 'Kothrud', city: 'Pune' });
+  });
+  it('a plain { RESPONSE } without CODE/STATUS is not mistaken for an envelope', () => {
+    expect(extractLead({ response: 'yes please', phone: '9876543210' }).fields).toMatchObject({ response: 'yes please' });
+  });
+});
+
 describe('consent: a lead is not marketing consent', () => {
   it('truthiness is strict: only clear yes values', () => {
     for (const v of [true, 1, 'true', 'Yes', 'on', 'I agree', 'checked', ' Y ']) expect(isTruthy(v)).toBe(true);
@@ -80,4 +105,19 @@ describe('makeLimiter', () => {
     expect(ok('b')).toBe(true);
     t = 1001; expect(ok('a')).toBe(true);
   });
+});
+
+describe('internal request signing', () => {
+  const secret = 'internal-secret-0123456789';
+  it('accepts a fresh, correctly signed body', () => { const { ts, sig } = signInternal(secret, '{"a":1}', 1_000_000_000_000); expect(verifyInternal(secret, '{"a":1}', ts, sig, 1_000_000_000_000 + 5_000)).toBe(true); });
+  it('rejects an edited body, a wrong secret, and a missing or malformed header', () => {
+    const { ts, sig } = signInternal(secret, '{"a":1}', 1_000_000_000_000), now = 1_000_000_000_000;
+    expect(verifyInternal(secret, '{"a":2}', ts, sig, now)).toBe(false); expect(verifyInternal(secret + 'x', '{"a":1}', ts, sig, now)).toBe(false);
+    for (const [t, s] of [[undefined, sig], [ts, undefined], ['abc', sig], [ts, 'zz'], [ts, sig + '00']] as const) expect(verifyInternal(secret, '{"a":1}', t, s, now)).toBe(false);
+  });
+  it('rejects a replay after 60 seconds and a timestamp from the future', () => {
+    const { ts, sig } = signInternal(secret, 'x', 1_000_000_000_000);
+    expect(verifyInternal(secret, 'x', ts, sig, 1_000_000_000_000 + 61_000)).toBe(false); expect(verifyInternal(secret, 'x', ts, sig, 1_000_000_000_000 - 61_000)).toBe(false);
+  });
+  it('refuses to run with no secret or a short one', () => { const { ts, sig } = signInternal('short', 'x'); expect(verifyInternal('', 'x', ts, sig)).toBe(false); expect(verifyInternal('short', 'x', ts, sig)).toBe(false); });
 });

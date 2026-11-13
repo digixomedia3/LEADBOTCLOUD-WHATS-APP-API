@@ -11,6 +11,7 @@ import {
   type LeadRow, type LeadsData, type SourceRow, type SourcesData,
 } from '@/app/(app)/leads/actions';
 import { cn } from '@/lib/utils';
+import { ChannelsPanel } from './channels-panel';
 
 const STATUS_LABEL: Record<string, string> = { new: 'New', contacted: 'Contacted', qualified: 'Qualified', won: 'Won', lost: 'Lost', junk: 'Junk' };
 const STATUS_STYLE: Record<string, string> = {
@@ -20,12 +21,13 @@ const STATUS_STYLE: Record<string, string> = {
 const CONSENT_LABEL: Record<string, string> = { allowed: 'Can send offers', unknown: 'Reply only', stopped: 'Opted out' };
 const CONSENT_STYLE: Record<string, string> = { allowed: 'text-emerald-700', unknown: 'text-amber-700', stopped: 'text-rose-700' };
 const KINDS: [string, string][] = [['webhook', 'Any tool (webhook)'], ['form', 'Website form'], ['widget', 'Website button'], ['meta_lead_ads', 'Facebook / Instagram lead ads'], ['indiamart', 'IndiaMART'], ['justdial', 'JustDial'], ['shopify', 'Shopify'], ['woocommerce', 'WooCommerce'], ['google_sheets', 'Google Sheets'], ['other', 'Other']];
+const KIND_LABEL: Record<string, string> = { ...Object.fromEntries(KINDS), form: 'Hosted form', import: 'Imported list', ctwa: 'Click-to-WhatsApp ads', widget: 'Website button', manual: 'Added by hand' };
 
 const ago = (iso: string) => { const s = (Date.now() - new Date(iso).getTime()) / 1000; if (s < 60) return 'just now'; if (s < 3600) return `${Math.floor(s / 60)} min ago`; if (s < 86400) return `${Math.floor(s / 3600)} h ago`; return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' }); };
 const wa = (phone: string) => `https://wa.me/${phone.replace(/\D/g, '')}`;
 
 export function LeadsView({ initial, canManage, canWrite }: { initial: LeadsData; canManage: boolean; canWrite: boolean }) {
-  const [tab, setTab] = useState<'inbox' | 'sources'>('inbox');
+  const [tab, setTab] = useState<'inbox' | 'channels' | 'sources'>('inbox');
   const [data, setData] = useState(initial);
   const [filter, setFilter] = useState<{ status?: string; sourceId?: string; ownerId?: string; q?: string; mine?: boolean; page: number }>({ page: 1 });
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -48,11 +50,11 @@ export function LeadsView({ initial, canManage, canWrite }: { initial: LeadsData
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><h2 className="font-display text-2xl font-extrabold">Leads</h2><p className="text-sm text-muted">Everyone who asked to hear from you, from every place you advertise.</p></div>
         <div className="flex rounded-xl border border-line bg-card p-1 text-sm font-semibold">
-          {(['inbox', 'sources'] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={cn('min-h-9 rounded-lg px-4', tab === t ? 'grad-bg text-white' : 'text-muted hover:text-ink')}>{t === 'inbox' ? `Inbox${total ? ` (${total})` : ''}` : 'Where leads come from'}</button>)}
+          {(['inbox', 'channels', 'sources'] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={cn('min-h-9 rounded-lg px-3 sm:px-4', tab === t ? 'grad-bg text-white' : 'text-muted hover:text-ink')}>{t === 'inbox' ? `Inbox${total ? ` (${total})` : ''}` : t === 'channels' ? 'Get leads' : 'Connect tools'}</button>)}
         </div>
       </div>
 
-      {tab === 'sources' ? <SourcesPanel canManage={canManage} onChanged={() => load(filter)} /> : (
+      {tab === 'channels' ? <ChannelsPanel canManage={canManage} /> : tab === 'sources' ? <SourcesPanel canManage={canManage} onChanged={() => load(filter)} /> : (
         <>
           <div className="flex flex-wrap gap-2">
             <Chip on={!filter.status} onClick={() => apply({ status: undefined })}>All <b>{total}</b></Chip>
@@ -73,7 +75,7 @@ export function LeadsView({ initial, canManage, canWrite }: { initial: LeadsData
           ) : null}
           {msg ? <p className="text-sm text-emerald-700">{msg}</p> : null}
 
-          {data.rows.length === 0 ? <Empty total={total} onSources={() => setTab('sources')} /> : (
+          {data.rows.length === 0 ? <Empty total={total} onSources={() => setTab('channels')} /> : (
             <div className="card overflow-hidden">
               <div className="hidden grid-cols-[2rem_1.6fr_1.1fr_1fr_1fr_6rem] gap-3 border-b border-line px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted md:grid">
                 <input type="checkbox" aria-label="Select all" checked={allOn} onChange={() => setSel(allOn ? new Set() : new Set(data.rows.map((r) => r.id)))} /><span>Lead</span><span>Source</span><span>Owner</span><span>Status</span><span className="text-right">When</span>
@@ -114,7 +116,7 @@ function Empty({ total, onSources }: { total: number; onSources: () => void }) {
       <div className="grid size-12 place-items-center rounded-2xl grad-bg text-white"><UserCheck className="size-6" /></div>
       <h3 className="font-display text-lg font-bold">{total ? 'No leads match these filters' : 'No leads yet'}</h3>
       <p className="max-w-md text-sm text-muted">{total ? 'Clear a filter to see more.' : 'Connect a form, an ad, a website or any tool that can send a webhook. New leads land here the moment someone fills it in.'}</p>
-      {!total ? <Button onClick={onSources}>Add your first lead source</Button> : null}
+      {!total ? <Button onClick={onSources}>Get your first lead</Button> : null}
     </div>
   );
 }
@@ -202,11 +204,11 @@ function SourcesPanel({ canManage, onChanged }: { canManage: boolean; onChanged:
       {d.sources.length === 0 ? <div className="card px-6 py-10 text-center text-sm text-muted">No sources yet. Add one to get a lead address you can paste into any form, ad platform or tool.</div> : (
         <ul className="grid gap-3 md:grid-cols-2">
           {d.sources.map((s) => (
-            <li key={s.id} className={cn('card flex flex-col gap-2 p-4', !s.enabled && 'opacity-60')}>
-              <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="truncate font-display font-bold">{s.name}</h3><p className="text-xs text-muted">{KINDS.find((k) => k[0] === s.kind)?.[1] ?? s.kind}</p></div>
-                <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold', s.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700')}>{s.enabled ? 'On' : 'Off'}</span></div>
+            <li key={s.id} className={cn('card flex min-w-0 flex-col gap-2 overflow-hidden p-4', !s.enabled && 'opacity-60')}>
+              <div className="flex items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="truncate font-display font-bold">{s.name}</h3><p className="text-xs text-muted">{KIND_LABEL[s.kind] ?? s.kind}</p></div>
+                <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold', s.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700')}>{s.enabled ? 'On' : 'Off'}</span></div>
               <p className="text-sm"><b>{s.leadCount}</b> leads{s.lastLeadAt ? <span className="text-muted"> · last {ago(s.lastLeadAt)}</span> : <span className="text-muted"> · none yet</span>}</p>
-              <p className={cn('text-xs', s.consentMode === 'none' ? 'text-amber-700' : 'text-emerald-700')}>{s.consentMode === 'none' ? 'Leads are reply-only (no offers) until they opt in' : s.consentMode === 'field' ? 'Offers allowed when the form’s consent box is ticked' : 'Offers allowed: you confirmed the form asks for WhatsApp opt-in'}</p>
+              <p className={cn('break-words text-xs', s.consentMode === 'none' ? 'text-amber-700' : 'text-emerald-700')}>{s.consentMode === 'none' ? 'Leads are reply-only (no offers) until they opt in' : s.consentMode === 'field' ? 'Offers allowed when the form’s consent box is ticked' : 'Offers allowed: you confirmed the form asks for WhatsApp opt-in'}</p>
               {s.rejects7d > 0 ? <p className="text-xs text-rose-700">{s.rejects7d} refused in the last 7 days</p> : null}
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="outline" onClick={() => setHelp(s)}>How to connect</Button>

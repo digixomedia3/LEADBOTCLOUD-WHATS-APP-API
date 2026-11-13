@@ -92,3 +92,62 @@ describe('lead constraints', () => {
     expect(Number((await admin.client.unsafe(`select count(*)::int as n from contacts where id = '${C1}'`))[0]!.n)).toBe(1);
   });
 });
+
+describe('hosted forms: tenant isolation and the public door', () => {
+  let F1 = '', FS1 = '';
+  const slug1 = `form-${tag}-one`, slug2 = `form-${tag}-two`;
+  beforeAll(async () => {
+    const u = admin.client.unsafe;
+    FS1 = (await u(`insert into lead_sources (tenant_id, kind, name, public_id) values ('${T1}', 'form', 'Form A', 'pub-${tag}-f1') returning id`))[0]!.id;
+    const FS2 = (await u(`insert into lead_sources (tenant_id, kind, name, public_id) values ('${T2}', 'form', 'Form B', 'pub-${tag}-f2') returning id`))[0]!.id;
+    F1 = (await u(`insert into lead_forms (tenant_id, source_id, slug, title, intro, consent_text) values ('${T1}', '${FS1}', '${slug1}', 'Get a quote', 'hello', 'I agree to receive WhatsApp messages') returning id`))[0]!.id;
+    await u(`insert into lead_forms (tenant_id, source_id, slug, title) values ('${T2}', '${FS2}', '${slug2}', 'Other')`);
+  });
+  it('each workspace sees only its own forms', async () => {
+    expect((await as(T1, U1, (tx) => rows(tx, sql`select slug from lead_forms`))).map((r) => r.slug)).toEqual([slug1]);
+    expect((await as(T2, U2, (tx) => rows(tx, sql`select slug from lead_forms`))).map((r) => r.slug)).toEqual([slug2]);
+  });
+  it('cannot edit or delete another workspace’s form, or point a form at another workspace', async () => {
+    expect(await as(T2, U2, (tx) => rows(tx, sql`update lead_forms set title = 'hacked' where id = ${F1} returning id`))).toHaveLength(0);
+    expect(await as(T2, U2, (tx) => rows(tx, sql`delete from lead_forms where id = ${F1} returning id`))).toHaveLength(0);
+    await expect(as(T2, U2, (tx) => tx.execute(sql`insert into lead_forms (tenant_id, source_id, slug, title) values (${T1}, ${FS1}, ${'form-' + tag + '-evil'}, 'x')`))).rejects.toThrow(/row-level security/i);
+  });
+  it('rejects bad slugs, bad colours, too many extra fields', async () => {
+    const ins = (slug: string, accent = '#10b981', extra = '[]') => admin.client.unsafe(`insert into lead_forms (tenant_id, source_id, slug, title, accent, extra_fields) values ('${T1}', '${FS1}', '${slug}', 'ok', '${accent}', '${extra}')`);
+    await expect(ins('Bad Slug!')).rejects.toThrow(/lead_forms_slug_chk/); await expect(ins('abc')).rejects.toThrow(/lead_forms_slug_chk/);
+    await expect(ins(`form-${tag}-c`, 'red')).rejects.toThrow(/lead_forms_accent_chk/);
+    await expect(ins(`form-${tag}-d`, '#10b981', JSON.stringify(Array.from({ length: 7 }, (_, i) => ({ key: 'k' + i, label: 'L' })))) ).rejects.toThrow(/lead_forms_extra_chk/);
+  });
+  it('slugs are unique across all workspaces', async () => {
+    await expect(admin.client.unsafe(`insert into lead_forms (tenant_id, source_id, slug, title) values ('${T2}', '${FS1}', '${slug1}', 'dup')`)).rejects.toThrow(/duplicate key/);
+  });
+  it('public_form returns only public fields, with no workspace context', async () => {
+    const r = (await app.client.unsafe(`select public.public_form('${slug1}') as f`))[0]!.f;
+    expect(r).toMatchObject({ title: 'Get a quote', intro: 'hello', consentText: 'I agree to receive WhatsApp messages', business: `LDB one ${tag}` });
+    expect(Object.keys(r).sort()).toEqual(['accent', 'askEmail', 'business', 'buttonText', 'consentText', 'extraFields', 'intro', 'thankYou', 'title']);
+    expect(JSON.stringify(r)).not.toContain(T1);
+  });
+  it('public_form returns nothing for an unknown or switched-off form', async () => {
+    expect((await app.client.unsafe(`select public.public_form('nope-${tag}') as f`))[0]!.f).toBeNull();
+    await admin.client.unsafe(`update lead_forms set enabled = false where slug = '${slug2}'`);
+    expect((await app.client.unsafe(`select public.public_form('${slug2}') as f`))[0]!.f).toBeNull();
+  });
+  it('the web role cannot read the table without a workspace, so visitors cannot list forms', async () => {
+    expect(await app.client.unsafe(`select slug from lead_forms`)).toHaveLength(0);
+  });
+  it('count_form_view counts only live forms', async () => {
+    await app.client.unsafe(`select public.count_form_view('${slug1}')`); await app.client.unsafe(`select public.count_form_view('${slug1}')`); await app.client.unsafe(`select public.count_form_view('${slug2}')`);
+    expect((await admin.client.unsafe(`select slug, view_count from lead_forms where slug in ('${slug1}','${slug2}') order by slug`)).map((r) => [r.slug, r.view_count])).toEqual([[slug1, 2], [slug2, 0]]);
+  });
+  it('external ids: unique per source, readable only by the owning workspace, not writable by the web role', async () => {
+    await admin.client.unsafe(`insert into lead_external_ids (source_id, external_id, tenant_id) values ('${FS1}', 'X1', '${T1}')`);
+    await expect(admin.client.unsafe(`insert into lead_external_ids (source_id, external_id, tenant_id) values ('${FS1}', 'X1', '${T1}')`)).rejects.toThrow(/duplicate key/);
+    expect(await as(T1, U1, (tx) => rows(tx, sql`select external_id from lead_external_ids`))).toHaveLength(1);
+    expect(await as(T2, U2, (tx) => rows(tx, sql`select external_id from lead_external_ids`))).toHaveLength(0);
+    await expect(as(T1, U1, (tx) => tx.execute(sql`insert into lead_external_ids (source_id, external_id, tenant_id) values (${FS1}, 'X2', ${T1})`))).rejects.toThrow(/permission denied/i);
+  });
+  it('a workspace has at most one Click-to-WhatsApp ads source', async () => {
+    await admin.client.unsafe(`insert into lead_sources (tenant_id, kind, name, public_id) values ('${T1}', 'ctwa', 'WhatsApp ads', 'ctwa-${tag}-1')`);
+    await expect(admin.client.unsafe(`insert into lead_sources (tenant_id, kind, name, public_id) values ('${T1}', 'ctwa', 'WhatsApp ads 2', 'ctwa-${tag}-2')`)).rejects.toThrow(/lead_sources_one_ctwa/);
+  });
+});

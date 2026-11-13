@@ -7,8 +7,9 @@ import { GraphClient, verifyChallenge } from '@lbc/meta';
 import { loadConfig } from './config';
 import { ingestWebhook } from './receiver';
 import { ingestBilling, processBillingEvent } from './billing';
-import { ingestLead } from './leads';
+import { ImportSourceNotFound, importLeads, ingestLead, submitForm } from './leads';
 import { makeLimiter } from '@lbc/shared';
+import { verifyInternal } from '@lbc/shared/internal-sign';
 import { processEvent } from './events';
 import { sendOne } from './send';
 import { deleteQueuedTemplates, submitPendingTemplates, syncTemplates, tenantsDueForSync } from './templates';
@@ -73,7 +74,7 @@ async function templatesTick() {
 const templatesTimer = setInterval(() => templatesTick().catch((e) => console.error('templates', e.message)), 20_000);
 const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
 
-const app = Fastify({ trustProxy: cfg.TRUST_PROXY === 'true', logger: { level: 'info', serializers: { req: (r) => ({ method: r.method, url: String(r.url).replace(/([?&]key=)[^&]*/i, '$1***'), host: r.host, remoteAddress: r.ip }) }, redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]', 'req.headers["x-razorpay-signature"]', 'req.headers["x-lead-key"]'] } });
+const app = Fastify({ bodyLimit: 8 * 1024 * 1024, trustProxy: cfg.TRUST_PROXY === 'true', logger: { level: 'info', serializers: { req: (r) => ({ method: r.method, url: String(r.url).replace(/([?&]key=)[^&]*/i, '$1***'), host: r.host, remoteAddress: r.ip }) }, redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]', 'req.headers["x-razorpay-signature"]', 'req.headers["x-lead-key"]', 'req.headers["x-lbc-sig"]'] } });
 app.removeAllContentTypeParsers();
 app.addContentTypeParser('*', { parseAs: 'buffer' }, (_req, body, done) => done(null, body)); // raw bytes, so the HMAC is computed on exactly what Meta signed
 app.get('/healthz', async () => ({ ok: true }));
@@ -110,6 +111,28 @@ app.post('/leads/:id', async (req, reply) => {
   const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
   const r = await ingestLead(db, id, key, raw, req.headers['content-type']);
   return reply.code(r.status).headers(leadCors).send(r.status === 200 ? { ok: true, id: r.leadId, created: r.created } : { ok: false, error: r.error });
+});
+
+/** Hosted form submissions from /f/<slug> (the page is served by the web app, the data comes here). Stricter limits than keyed sources: no key. */
+const perIpForm = makeLimiter(8, 60_000), perForm = makeLimiter(120, 60_000);
+app.options('/forms/:slug', async (_req, reply) => reply.code(204).headers(leadCors).send());
+app.post('/forms/:slug', async (req, reply) => {
+  const slug = String((req.params as { slug: string }).slug).slice(0, 60);
+  if (!perIpForm(`ip:${req.ip}`) || !perForm(`form:${slug}`)) return reply.code(429).headers({ ...leadCors, 'retry-after': '30' }).send({ ok: false, error: 'Too many submissions. Please wait a minute.' });
+  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
+  const r = await submitForm(db, slug, raw, req.headers['content-type']);
+  return reply.code(r.status).headers(leadCors).send(r.status === 200 ? { ok: true } : { ok: false, error: r.error });
+});
+
+/** Called only by the web app, signed with INTERNAL_API_SECRET + timestamp. Not CORS-enabled and never linked from anywhere public. */
+app.post('/internal/leads/import', async (req, reply) => {
+  const raw = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
+  if (!verifyInternal(cfg.INTERNAL_API_SECRET, raw, req.headers['x-lbc-ts'] as string | undefined, req.headers['x-lbc-sig'] as string | undefined)) return reply.code(401).send({ ok: false, error: 'unauthorised' });
+  let b: { tenantId?: string; sourceId?: string; rows?: unknown };
+  try { b = JSON.parse(raw); } catch { return reply.code(400).send({ ok: false, error: 'bad json' }); }
+  if (!b.tenantId || !b.sourceId || !Array.isArray(b.rows) || b.rows.length > 5000) return reply.code(400).send({ ok: false, error: 'bad request' });
+  try { return reply.send({ ok: true, report: await importLeads(db, b.tenantId, b.sourceId, b.rows as never) }); }
+  catch (e) { if (e instanceof ImportSourceNotFound) return reply.code(404).send({ ok: false, error: 'source not found' }); req.log.error({ err: (e as Error).message }, 'lead import failed'); return reply.code(500).send({ ok: false, error: 'import failed' }); }
 });
 
 await app.listen({ port: cfg.PORT, host: '0.0.0.0' });

@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createDb } from '@lbc/db';
-import { hashSecret, ingestLead } from '../src/leads';
+import { hashSecret, importLeads, ingestLead, submitForm } from '../src/leads';
+import { handleInbound } from '../src/handlers';
 
 const src = (await import('node:fs')).readFileSync(new URL('../../../packages/db/test/rls.test.ts', import.meta.url), 'utf8');
 const pick = (re: RegExp) => re.exec(src)![1]!;
@@ -215,5 +216,210 @@ describe('tenant isolation', () => {
   it('a secret from one source does not open another', async () => {
     const a = await setup(), b = await setup();
     expect((await post(b.pid, a.secret, { phone: '9876500081' })).status).toBe(401);
+  });
+});
+
+/* ---------------------------------------------------------------- P2: platform formats, forms, ad clicks */
+
+const indiamart = (id: string, over: Record<string, unknown> = {}) => ({ CODE: 200, STATUS: 'SUCCESS', RESPONSE: { UNIQUE_QUERY_ID: id, QUERY_TYPE: 'W', QUERY_TIME: '2026-11-13 11:17:14', SENDER_NAME: 'Prabhat', SENDER_MOBILE: '+91-9876510001', SENDER_EMAIL: 'p@example.com', SENDER_CITY: 'Noida', SENDER_COUNTRY_ISO: 'IN', QUERY_PRODUCT_NAME: 'Water Bottle', QUERY_MESSAGE: 'Need 1000 pcs', ...over } });
+
+describe('platform retries are harmless (external ids)', () => {
+  it('an IndiaMART push creates a lead with the product and message', async () => {
+    const s = await setup({ mode: 'none' });
+    const r = await post(s.pid, s.secret, indiamart('Q1'));
+    expect(r).toMatchObject({ status: 200, created: true });
+    const l = (await q<any>(sql`select fields from leads where tenant_id = ${s.t}`))[0];
+    expect(l.fields).toMatchObject({ query_product_name: 'Water Bottle', query_message: 'Need 1000 pcs', sender_city: 'Noida' });
+    expect((await contactOf(s.t, '+919876510001')).name).toBe('Prabhat');
+  });
+  it('the same query id sent again changes nothing, even concurrently', async () => {
+    const s = await setup();
+    const rs = await Promise.all(Array.from({ length: 8 }, () => post(s.pid, s.secret, indiamart('Q2', { SENDER_MOBILE: '9876510002' }))));
+    expect(rs.every((r) => r.status === 200)).toBe(true);
+    expect(await count('leads', s.t)).toBe(1); expect(await count('lead_external_ids', s.t)).toBe(1);
+    expect((await q<any>(sql`select submissions from leads where tenant_id = ${s.t}`))[0].submissions).toBe(1);
+    expect(rs.filter((r) => (r as any).created).length).toBe(1);
+    expect(rs.filter((r) => (r as any).duplicate).length).toBe(7);
+    expect(new Set(rs.map((r) => (r as any).leadId)).size).toBe(1);
+  });
+  it('a different query id from the same buyer adds to their open lead', async () => {
+    const s = await setup();
+    await post(s.pid, s.secret, indiamart('Q3', { SENDER_MOBILE: '9876510003' }));
+    const b = await post(s.pid, s.secret, indiamart('Q4', { SENDER_MOBILE: '9876510003', QUERY_PRODUCT_NAME: 'Bottle Caps' }));
+    expect(b).toMatchObject({ created: false });
+    const l = (await q<any>(sql`select submissions, fields from leads where tenant_id = ${s.t}`));
+    expect(l).toHaveLength(1); expect(l[0].submissions).toBe(2); expect(l[0].fields.query_product_name).toBe('Bottle Caps');
+  });
+  it('the same id on two different sources is two different leads', async () => {
+    const a = await setup(), b = await setup();
+    await post(a.pid, a.secret, indiamart('SAME', { SENDER_MOBILE: '9876510004' })); await post(b.pid, b.secret, indiamart('SAME', { SENDER_MOBILE: '9876510004' }));
+    expect(await count('leads', a.t)).toBe(1); expect(await count('leads', b.t)).toBe(1);
+  });
+  it('a refused lead does not burn its id: fixing the phone and resending works', async () => {
+    const s = await setup();
+    expect((await post(s.pid, s.secret, indiamart('Q5', { SENDER_MOBILE: '123', SENDER_MOBILE_ALT: '' }))).status).toBe(422);
+    expect((await post(s.pid, s.secret, indiamart('Q5', { SENDER_MOBILE: '9876510005' }))).status).toBe(200);
+    expect(await count('leads', s.t)).toBe(1);
+  });
+  it('uses the alternate mobile when the main number is a landline', async () => {
+    const s = await setup();
+    expect((await post(s.pid, s.secret, indiamart('Q6', { SENDER_MOBILE: '0120-2222222', SENDER_MOBILE_ALT: '+91-9876510006' }))).status).toBe(200);
+    expect(await contactOf(s.t, '+919876510006')).toBeTruthy();
+  });
+  it('a plan-full refusal also releases the id so the lead can be accepted after an upgrade', async () => {
+    const s = await setup({ plan: 'free' });
+    await A(`insert into contacts (tenant_id, phone_e164, consent_status) select '${s.t}', '+9190000' || lpad(g::text, 5, '0'), 'unknown' from generate_series(1, 500) g`);
+    expect((await post(s.pid, s.secret, indiamart('Q7', { SENDER_MOBILE: '9876510007' }))).status).toBe(402);
+    await A(`update tenants set plan_id = 'growth' where id = '${s.t}'`);
+    expect((await post(s.pid, s.secret, indiamart('Q7', { SENDER_MOBILE: '9876510007' }))).status).toBe(200);
+  });
+});
+
+async function formFor(o: { mode?: string; enabled?: boolean; srcEnabled?: boolean } = {}) {
+  const s = await setup({ mode: o.mode ?? 'attested', secret: 'unused', enabled: o.srcEnabled });
+  const slug = `form-${tag}-${++n}`;
+  await A(`insert into lead_forms (tenant_id, source_id, slug, title, enabled) values ('${s.t}', '${s.sid}', '${slug}', 'Get a quote', ${o.enabled === false ? 'false' : 'true'})`);
+  return { ...s, slug };
+}
+const submit = (slug: string, body: unknown, ct = 'application/json') => submitForm(db, slug, Buffer.from(typeof body === 'string' ? body : JSON.stringify(body)), ct);
+
+describe('hosted forms', () => {
+  it('a submission becomes a lead, counted on the form', async () => {
+    const f = await formFor();
+    expect(await submit(f.slug, { name: 'Asha', phone: '9876520001' })).toMatchObject({ status: 200, created: true });
+    expect((await q<any>(sql`select submit_count from lead_forms where slug = ${f.slug}`))[0].submit_count).toBe(1);
+  });
+  it('needs no key, but an unknown, switched-off form, or switched-off source is refused', async () => {
+    expect((await submit('nope-' + tag, { phone: '9876520002' })).status).toBe(404);
+    const off = await formFor({ enabled: false }); expect((await submit(off.slug, { phone: '9876520002' })).status).toBe(404);
+    const srcOff = await formFor({ srcEnabled: false }); expect((await submit(srcOff.slug, { phone: '9876520002' })).status).toBe(403);
+  });
+  it('a filled hidden “website” field is a bot: reported as success, nothing stored', async () => {
+    const f = await formFor();
+    expect(await submit(f.slug, { phone: '9876520003', website: 'http://spam.example' })).toMatchObject({ status: 200 });
+    expect(await count('leads', f.t)).toBe(0); expect(await count('contacts', f.t)).toBe(0);
+  });
+  it('consent follows the source: a ticked box on a “field” form grants offers', async () => {
+    const f = await formFor({ mode: 'field' });
+    expect(await submit(f.slug, { phone: '9876520004' })).toMatchObject({ consent: 'unknown' });
+    expect(await submit(f.slug, { phone: '9876520005', whatsapp_consent: 'yes' })).toMatchObject({ consent: 'allowed' });
+  });
+  it('a bad phone is explained, not silently accepted', async () => {
+    const f = await formFor(); expect((await submit(f.slug, { phone: '12' })).status).toBe(422);
+  });
+  it('a form cannot be used to reach another workspace’s source', async () => {
+    const a = await formFor(), b = await formFor();
+    await submit(a.slug, { phone: '9876520006' });
+    expect(await count('leads', a.t)).toBe(1); expect(await count('leads', b.t)).toBe(0);
+  });
+});
+
+describe('Click-to-WhatsApp ad attribution', () => {
+  async function inbound(t: string, from: string, referral?: Record<string, unknown>, id = `wamid.${tag}${++n}`) {
+    await A(`insert into meta_accounts (tenant_id, messaging_account_id, token_status, health_state) select '${t}', 'wa-${tag}-${n}', 'valid', 'ok' where not exists (select 1 from meta_accounts where tenant_id = '${t}')`);
+    return handleInbound(db, t, null, { id, from, timestamp: String(Math.floor(Date.now() / 1000)), type: 'text', text: { body: 'Is this available?' }, _contacts: [{ wa_id: from, profile: { name: 'Neha Ad' } }], ...(referral ? { referral } : {}) } as any);
+  }
+  const ad = { source_url: 'https://fb.me/abc', source_id: '120226305854810726', source_type: 'ad', body: 'Summer sale!', headline: 'Chat with us', media_type: 'image', ctwa_clid: 'Aff-click-123' };
+  it('an ad click saves the ad on the conversation and creates a lead from the “WhatsApp ads” source', async () => {
+    const s = await setup();
+    await inbound(s.t, '919876530001', ad);
+    const conv = (await q<any>(sql`select ctwa_clid, referral from conversations where tenant_id = ${s.t}`))[0];
+    expect(conv.ctwa_clid).toBe('Aff-click-123'); expect(conv.referral).toMatchObject({ source_id: '120226305854810726', headline: 'Chat with us' });
+    const l = (await q<any>(sql`select l.utm, l.fields, s.kind, s.name from leads l join lead_sources s on s.id = l.source_id where l.tenant_id = ${s.t}`));
+    expect(l).toHaveLength(1); expect(l[0]).toMatchObject({ kind: 'ctwa', name: 'WhatsApp ads' });
+    expect(l[0].utm).toMatchObject({ utm_source: 'ctwa', ctwa_clid: 'Aff-click-123' }); expect(l[0].fields).toMatchObject({ ad_id: '120226305854810726', ad_headline: 'Chat with us', ad_text: 'Summer sale!' });
+  });
+  it('messaging first is NOT marketing consent: the contact stays reply-only', async () => {
+    const s = await setup(); await inbound(s.t, '919876530002', ad);
+    expect((await contactOf(s.t, '+919876530002')).consent_status).toBe('unknown'); expect(await count('contact_consent_events', s.t)).toBe(0);
+  });
+  it('a normal message without an ad creates no lead and no source', async () => {
+    const s = await setup(); await inbound(s.t, '919876530003');
+    expect(await count('leads', s.t)).toBe(0); expect((await q<any>(sql`select 1 from lead_sources where tenant_id = ${s.t} and kind = 'ctwa'`))).toHaveLength(0);
+  });
+  it('the same customer clicking another ad extends their lead; the system source is created once', async () => {
+    const s = await setup();
+    await inbound(s.t, '919876530004', ad); await inbound(s.t, '919876530004', { ...ad, source_id: '999', headline: 'Second ad', ctwa_clid: 'Aff-click-456' });
+    expect(await count('leads', s.t)).toBe(1); expect((await q<any>(sql`select count(*)::int as n from lead_sources where tenant_id = ${s.t} and kind = 'ctwa'`))[0].n).toBe(1);
+    expect((await q<any>(sql`select submissions from leads where tenant_id = ${s.t}`))[0].submissions).toBe(2);
+    expect((await q<any>(sql`select ctwa_clid from conversations where tenant_id = ${s.t}`))[0].ctwa_clid).toBe('Aff-click-456');
+  });
+  it('a replayed webhook does not double count', async () => {
+    const s = await setup(); const id = `wamid.same${tag}${n}`;
+    await inbound(s.t, '919876530005', ad, id); await inbound(s.t, '919876530005', ad, id);
+    expect((await q<any>(sql`select submissions from leads where tenant_id = ${s.t}`))[0].submissions).toBe(1);
+  });
+  it('a customer who already said STOP stays stopped even if they click an ad', async () => {
+    const s = await setup();
+    await A(`insert into contacts (tenant_id, phone_e164, consent_status, opt_out_at) values ('${s.t}', '+919876530006', 'stopped', now())`);
+    await inbound(s.t, '919876530006', ad);
+    expect((await contactOf(s.t, '+919876530006')).consent_status).toBe('stopped');
+  });
+  it('an ad with a missing or odd referral shape never breaks the message', async () => {
+    const s = await setup();
+    await inbound(s.t, '919876530007', { weird: { nested: true } }); await inbound(s.t, '919876530008', { source_id: 12345, headline: null });
+    expect((await q<any>(sql`select count(*)::int as n from messages where tenant_id = ${s.t}`))[0].n).toBe(2);
+  });
+  it('a switched-off ads source records the ad on the conversation but makes no lead', async () => {
+    const s = await setup(); await inbound(s.t, '919876530009', ad);
+    await A(`update lead_sources set enabled = false where tenant_id = '${s.t}' and kind = 'ctwa'`);
+    await inbound(s.t, '919876530010', ad);
+    expect(await count('leads', s.t)).toBe(1);
+    expect((await q<any>(sql`select ctwa_clid from conversations c join contacts k on k.id = c.contact_id where c.tenant_id = ${s.t} and k.phone_e164 = '+919876530010'`))[0].ctwa_clid).toBe('Aff-click-123');
+  });
+});
+
+describe('spreadsheet import', () => {
+  async function importSource(consent: boolean, t?: string) {
+    const s = await setup({ mode: 'none' });
+    const sid = (await A(`insert into lead_sources (tenant_id, kind, name, public_id, consent_mode${consent ? ', attested_by, attested_at' : ''}) values ('${s.t}', 'import', 'List', 'imp-${tag}-${++n}', '${consent ? 'attested' : 'none'}'${consent ? ", 'owner', now()" : ''}) returning id`))[0]!.id;
+    return { ...s, sid, t: t ?? s.t };
+  }
+  const rowsOf = (...r: [string, string, string?][]) => r.map(([phone, name, email], i) => ({ line: i + 2, phone, name, email }));
+  it('adds new people as leads; reply-only unless the owner confirmed consent', async () => {
+    const s = await importSource(false);
+    const rep = await importLeads(db, s.t, s.sid, rowsOf(['9876540001', 'Asha'], ['98765 40002', 'Ravi', 'r@x.in']));
+    expect(rep).toMatchObject({ added: 2, extended: 0, invalid: 0 });
+    expect((await contactOf(s.t, '+919876540001')).consent_status).toBe('unknown'); expect(await count('contact_consent_events', s.t)).toBe(0);
+  });
+  it('with confirmed consent, people become “can send offers” and each gets a consent record', async () => {
+    const s = await importSource(true);
+    await importLeads(db, s.t, s.sid, rowsOf(['9876540003', 'Meena']));
+    expect((await contactOf(s.t, '+919876540003')).consent_status).toBe('allowed'); expect(await count('contact_consent_events', s.t)).toBe(1);
+  });
+  it('reports invalid numbers and repeats inside the file with line numbers', async () => {
+    const s = await importSource(false);
+    const rep = await importLeads(db, s.t, s.sid, rowsOf(['9876540004', 'A'], ['12', 'Bad'], ['9876540004', 'Dup'], ['', 'Empty']));
+    expect(rep).toMatchObject({ added: 1, invalid: 3 });
+    expect(rep.errors.map((e) => e.line)).toEqual([3, 4, 5]); expect(rep.errors[1]!.reason).toMatch(/earlier/);
+  });
+  it('people already in the workspace extend their open lead instead of duplicating', async () => {
+    const s = await importSource(false);
+    await importLeads(db, s.t, s.sid, rowsOf(['9876540005', 'Once']));
+    const rep = await importLeads(db, s.t, s.sid, rowsOf(['9876540005', 'Again']));
+    expect(rep).toMatchObject({ added: 0, extended: 1 }); expect(await count('leads', s.t)).toBe(1);
+  });
+  it('never un-stops someone, even with confirmed consent', async () => {
+    const s = await importSource(true);
+    await A(`insert into contacts (tenant_id, phone_e164, consent_status, opt_out_at) values ('${s.t}', '+919876540006', 'stopped', now())`);
+    await importLeads(db, s.t, s.sid, rowsOf(['9876540006', 'Stopped']));
+    expect((await contactOf(s.t, '+919876540006')).consent_status).toBe('stopped');
+  });
+  it('stops at the plan’s contact limit and says how many were left out', async () => {
+    const s = await setup({ plan: 'free' });
+    const sid = (await A(`insert into lead_sources (tenant_id, kind, name, public_id, consent_mode) values ('${s.t}', 'import', 'L', 'imp-${tag}-${++n}', 'none') returning id`))[0]!.id;
+    await A(`insert into contacts (tenant_id, phone_e164, consent_status) select '${s.t}', '+9190000' || lpad(g::text, 5, '0'), 'unknown' from generate_series(1, 498) g`);
+    const rep = await importLeads(db, s.t, sid, rowsOf(['9876540010', 'a'], ['9876540011', 'b'], ['9876540012', 'c'], ['9876540013', 'd']));
+    expect(rep.added).toBe(2); expect(rep.overLimit).toBe(2);
+  });
+  it('refuses a source that belongs to another workspace', async () => {
+    const a = await importSource(false), b = await setup();
+    await expect(importLeads(db, b.t, a.sid, rowsOf(['9876540020', 'x']))).rejects.toThrow(/not found/);
+    expect(await count('contacts', b.t)).toBe(0);
+  });
+  it('keeps extra columns as lead fields with safe names', async () => {
+    const s = await importSource(false);
+    await importLeads(db, s.t, s.sid, [{ line: 2, phone: '9876540030', name: 'X', extra: { 'City Name': 'Agra', 'Budget (₹)': '50k' } }]);
+    expect((await q<any>(sql`select fields from leads where tenant_id = ${s.t}`))[0].fields).toEqual({ city_name: 'Agra', budget_: '50k' });
   });
 });

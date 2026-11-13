@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { errorPolicy, type GraphError } from '@lbc/shared';
 import { STATUS_RANK, fromUnixSeconds, isStartText, isStopText, nextStatus, parseCallbackData } from '@lbc/meta';
 import type { Db } from '@lbc/db';
+import { recordAdClick } from './leads';
 
 /**
  * Event handlers (spec 5.4, 5.5). Rules: idempotent (safe to run twice), monotonic (never downgrade a status), tenant-routed by
@@ -89,7 +90,7 @@ export async function applyErrorEffects(db: Db, tenantId: string, messageId: str
   }
 }
 
-interface InboundPayload { id: string; from?: string; from_user_id?: string; timestamp?: string; type?: string; text?: { body?: string }; button?: { payload?: string; text?: string }; interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } }; context?: { id?: string }; _contacts?: { wa_id?: string; profile?: { name?: string } }[] }
+interface InboundPayload { id: string; from?: string; from_user_id?: string; timestamp?: string; type?: string; text?: { body?: string }; button?: { payload?: string; text?: string }; interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } }; context?: { id?: string }; _contacts?: { wa_id?: string; profile?: { name?: string } }[]; referral?: Record<string, unknown> }
 
 /** A message from a customer. Opens the 24-hour window, handles STOP / START, and runs keyword auto-replies. */
 export async function handleInbound(db: Db, tenantId: string, phoneNumberId: string | null, m: InboundPayload): Promise<{ outcome: Outcome; autoReply?: string; optedOut?: boolean }> {
@@ -120,6 +121,9 @@ export async function handleInbound(db: Db, tenantId: string, phoneNumberId: str
   if (!ins[0]) return { outcome: 'ok' };
   await db.execute(sql`update conversations set last_preview = ${preview.slice(0, 120)}, last_message_at = greatest(coalesce(last_message_at, ${ts.toISOString()}::timestamptz), ${ts.toISOString()}::timestamptz),
     window_expires_at = greatest(coalesce(window_expires_at, ${ts.toISOString()}::timestamptz), ${new Date(ts.getTime() + 24 * 3600_000).toISOString()}::timestamptz), unread = unread + 1, status = 'open' where id = ${convId} and tenant_id = ${tenantId}`);
+
+  // Click-to-WhatsApp: the first message of an ad click carries the ad. A failure here must never lose the customer's message.
+  if (m.referral && typeof m.referral === 'object') await recordAdClick(db, tenantId, contactId, convId, phone, profile, m.referral).catch((e: Error) => console.error('[leads] ad click', e.message));
 
   let optedOut = false, autoReply: string | undefined;
   const isStopButton = m.type === 'button' && /^STOP:/i.test(m.button?.payload ?? '');

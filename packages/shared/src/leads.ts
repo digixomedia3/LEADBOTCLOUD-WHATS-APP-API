@@ -17,6 +17,10 @@ export const LEAD_SOURCE_KINDS = ['webhook', 'form', 'widget', 'import', 'manual
 
 export interface ExtractedLead {
   phone: string | null;
+  /** Other numbers the platform sent (alternate mobile, landline), tried in order if the main one is not a valid mobile. */
+  altPhones: string[];
+  /** The platform's own id for this lead (IndiaMART UNIQUE_QUERY_ID, JustDial leadid, Facebook leadgen_id). A retry with the same id is a no-op. */
+  externalId: string | null;
   name: string | null;
   email: string | null;
   /** The payload explicitly said yes to WhatsApp messages (a checkbox or consent field). Absence is NOT consent. */
@@ -34,6 +38,10 @@ const FIRST_KEYS = ['first_name', 'firstname', 'fname', 'given_name'];
 const LAST_KEYS = ['last_name', 'lastname', 'lname', 'surname', 'family_name'];
 const EMAIL_KEYS = ['email', 'email_address', 'mail', 'e_mail', 'sender_email'];
 const CONSENT_KEYS = ['whatsapp_consent', 'whatsapp_optin', 'whatsapp_opt_in', 'consent', 'opt_in', 'optin', 'agree', 'agreed', 'accept_whatsapp', 'allow_whatsapp', 'marketing_consent'];
+const ALT_PHONE_KEYS = ['sender_mobile_alt', 'mobile_alt', 'alternate_mobile', 'alt_mobile', 'alternate_phone', 'sender_phone', 'sender_phone_alt'];
+const EXTERNAL_ID_KEYS = ['unique_query_id', 'query_id', 'leadid', 'lead_id', 'leadgen_id', 'external_id', 'enquiry_id', 'submission_id', 'response_id'];
+/** Names a platform fills in when the buyer gave none. They are not a real name and must not overwrite one. */
+const PLACEHOLDER_NAMES = new Set(['indiamart buyer', 'unknown', 'n/a', 'na', 'null', 'none', 'test']);
 const URL_KEYS = ['page_url', 'source_url', 'url', 'landing_page', 'referrer_url'];
 const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'ctwa_clid'];
 
@@ -100,8 +108,20 @@ const firstOf = (flat: Record<string, string>, keys: string[], custom?: string) 
 };
 
 /** `map` lets a source override a field: { phone: 'Contact No', name: 'Customer' } where values are the platform's own field names. */
+/** Some platforms wrap the lead: IndiaMART sends { CODE, STATUS, RESPONSE: { ...lead } }. Use the inner object so field names are not prefixed. */
+export function unwrapEnvelope(body: unknown): unknown {
+  if (body && typeof body === 'object' && !Array.isArray(body)) {
+    const o = body as Record<string, unknown>;
+    const key = Object.keys(o).find((k) => k.toLowerCase() === 'response');
+    const inner = key ? o[key] : undefined;
+    if (inner && typeof inner === 'object' && !Array.isArray(inner) && Object.keys(o).some((k) => ['code', 'status'].includes(k.toLowerCase()))) return inner;
+    if (Array.isArray(inner) && inner.length === 1 && inner[0] && typeof inner[0] === 'object') return inner[0];
+  }
+  return body;
+}
+
 export function extractLead(body: unknown, map: Partial<Record<'phone' | 'name' | 'email' | 'consent', string>> = {}): ExtractedLead {
-  const flat = flatten(body);
+  const flat = flatten(unwrapEnvelope(body));
   const used = new Set<string>();
   const take = (keys: string[], custom?: string) => {
     if (custom && flat[normKey(custom)]) { used.add(normKey(custom)); return flat[normKey(custom)]!; }
@@ -109,7 +129,11 @@ export function extractLead(body: unknown, map: Partial<Record<'phone' | 'name' 
     return null;
   };
   const phone = take(PHONE_KEYS, map.phone);
+  const altPhones: string[] = [];
+  for (const k of ALT_PHONE_KEYS) if (flat[k]) { altPhones.push(flat[k]!); used.add(k); }
+  const externalId = take(EXTERNAL_ID_KEYS)?.slice(0, 120) ?? null;
   let name = take(NAME_KEYS, map.name);
+  if (name && PLACEHOLDER_NAMES.has(name.trim().toLowerCase())) name = null;
   if (!name) { const f = take(FIRST_KEYS), l = take(LAST_KEYS); name = [f, l].filter(Boolean).join(' ') || null; }
   const email = take(EMAIL_KEYS, map.email);
   const emailOk = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254 ? email.toLowerCase() : null;
@@ -121,7 +145,7 @@ export function extractLead(body: unknown, map: Partial<Record<'phone' | 'name' 
   if (flat.tags) used.add('tags'); if (flat.tag) used.add('tag');
   const fields: Record<string, string> = {};
   for (const [k, v] of Object.entries(flat)) { if (!used.has(k) && Object.keys(fields).length < MAX_FIELDS) fields[k] = v; }
-  return { phone, name: name ? name.slice(0, 120) : null, email: emailOk, consentGiven: consentRaw !== null && isTruthy(consentRaw), utm, sourceUrl: sourceUrl ? sourceUrl.slice(0, 500) : null, fields, tags };
+  return { phone, altPhones, externalId, name: name ? name.slice(0, 120) : null, email: emailOk, consentGiven: consentRaw !== null && isTruthy(consentRaw), utm, sourceUrl: sourceUrl ? sourceUrl.slice(0, 500) : null, fields, tags };
 }
 
 export interface ConsentDecision {
@@ -157,7 +181,11 @@ export function makeLimiter(limit: number, windowMs: number, now: () => number =
   };
 }
 
-export function phoneFromLead(l: Pick<ExtractedLead, 'phone'>): { ok: true; e164: string } | { ok: false; reason: string } {
-  if (!l.phone) return { ok: false, reason: 'No phone number found in the submission.' };
-  return normalizePhone(l.phone);
+/** First valid mobile among the main number and the alternates. If none is valid, the reason for the MAIN number is reported. */
+export function phoneFromLead(l: Pick<ExtractedLead, 'phone'> & { altPhones?: string[] }): { ok: true; e164: string } | { ok: false; reason: string } {
+  const all = [l.phone, ...(l.altPhones ?? [])].filter((x): x is string => !!x);
+  if (!all.length) return { ok: false, reason: 'No phone number found in the submission.' };
+  let first: { ok: false; reason: string } | null = null;
+  for (const p of all) { const r = normalizePhone(p); if (r.ok) return r; first ??= r; }
+  return first!;
 }
