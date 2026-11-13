@@ -5,9 +5,9 @@ import { Check, Copy, Loader2, Trash2, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input, Select } from '@/components/ui/form';
 import { WhatsAppConnect } from './whatsapp-connect';
+import { BillingPanel } from './billing-panel';
 import { Modal } from '@/components/ui/modal';
 import { changeRole, inviteMember, loadTeam, removeMember, revokeInvite, saveProfile } from '@/app/(app)/settings/actions';
-import { PLAN_LIMITS } from '@lbc/shared';
 import { cn } from '@/lib/utils';
 
 type Team = Awaited<ReturnType<typeof loadTeam>>;
@@ -26,7 +26,7 @@ export function SettingsView({ team: t0, profile: p0, role, me }: { team: Team; 
       {tab === 'workspace' ? <WorkspaceTab p={p0} canEdit={isAdmin} /> : null}
       {tab === 'team' ? <TeamTab team={team} reload={async () => setTeam(await loadTeam())} isOwner={isOwner} isAdmin={isAdmin} me={me} /> : null}
       {tab === 'whatsapp' ? <WhatsAppConnect /> : null}
-      {tab === 'plan' ? <PlanTab plan={p0.plan} /> : null}
+      {tab === 'plan' ? <BillingPanel /> : null}
     </div>
   );
 }
@@ -91,18 +91,6 @@ function TeamTab({ team, reload, isOwner, isAdmin, me }: { team: Team; reload: (
             <Button type="submit" disabled={pending}>{pending ? <Loader2 className="size-4 animate-spin" /> : null}Create invitation</Button></form>)}
       </Modal>
       {toast ? <div role="status" className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-bg shadow-xl md:bottom-8">{toast}</div> : null}
-    </div>
-  );
-}
-
-function PlanTab({ plan }: { plan: string }) {
-  const rows = [['free', '₹0'], ['starter', '₹499'], ['growth', '₹1,299'], ['pro', '₹2,999']] as const;
-  return (
-    <div className="flex max-w-3xl flex-col gap-4">
-      <p className="text-sm text-muted">You are on the <strong className="text-ink">{PLAN_LIMITS[plan as 'free']?.label ?? plan}</strong> plan.</p>
-      <div className="grid gap-3 sm:grid-cols-2">{rows.map(([id, price]) => { const l = PLAN_LIMITS[id]; const cur = id === plan; return (
-        <div key={id} className={cn('card p-4', cur && 'border-brand ring-2 ring-brand/30')}><div className="flex items-baseline justify-between"><h3 className="font-display font-bold">{l.label}</h3><p className="font-display text-xl font-extrabold">{price}<span className="text-xs font-medium text-muted">/mo</span></p></div><p className="mt-1 text-sm text-muted">{l.users} {l.users === 1 ? 'user' : 'users'} · {l.contacts.toLocaleString('en-IN')} contacts</p>{cur ? <p className="mt-3 text-sm font-bold text-brand">Current plan</p> : <Button disabled size="sm" variant="outline" className="mt-3">Upgrade (payments coming soon)</Button>}</div>); })}</div>
-      <p className="text-xs text-muted">Online payment is not switched on yet. Prices exclude GST.</p>
     </div>
   );
 }

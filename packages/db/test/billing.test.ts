@@ -32,12 +32,12 @@ const rows = (tx: any, q: any) => tx.execute(q) as Promise<any[]>;
 describe('plan cannot be changed from the web role', () => {
   it('a direct UPDATE of tenants.plan_id is refused for the web role', async () => {
     await expect(as(T1, OWNER, (tx) => tx.execute(sql`update tenants set plan_id = 'pro' where id = ${T1}`))).rejects.toThrow(/permission denied/i);
-    const [t] = await admin.client.unsafe(`select plan_id from tenants where id = '${T1}'`);
+    const t = (await admin.client.unsafe(`select plan_id from tenants where id = '${T1}'`))[0]!;
     expect(t.plan_id).toBe('free');
   });
   it('the web role can still update the other workspace fields', async () => {
     await as(T1, OWNER, (tx) => tx.execute(sql`update tenants set name = ${'BIL renamed ' + tag} where id = ${T1}`));
-    const [t] = await admin.client.unsafe(`select name from tenants where id = '${T1}'`);
+    const t = (await admin.client.unsafe(`select name from tenants where id = '${T1}'`))[0]!;
     expect(t.name).toBe(`BIL renamed ${tag}`);
   });
   it('the web role cannot write subscriptions, invoices or billing events directly', async () => {
@@ -52,7 +52,7 @@ describe('begin_checkout', () => {
     await as(T1, OWNER, (tx) => begin(tx, 'growth', `sub_${tag}_1`));
     const r = await as(T1, OWNER, (tx) => rows(tx, sql`select plan, status, short_url, paid_count from subscriptions`));
     expect(r).toHaveLength(1); expect(r[0]).toMatchObject({ plan: 'growth', status: 'created', paid_count: 0 });
-    const [t] = await admin.client.unsafe(`select plan_id from tenants where id = '${T1}'`);
+    const t = (await admin.client.unsafe(`select plan_id from tenants where id = '${T1}'`))[0]!;
     expect(t.plan_id).toBe('free'); // starting checkout never grants the plan
   });
   it('refuses an agent', async () => {
