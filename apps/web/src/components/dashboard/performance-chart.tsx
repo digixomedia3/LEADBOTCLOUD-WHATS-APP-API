@@ -9,7 +9,7 @@ export function PerformanceChart({ data }: { data: Point[] }) {
   const gid = useId();
   const [hover, setHover] = useState<number | null>(null);
   const W = 640, H = 220, padL = 8, padR = 8, padT = 12, padB = 26;
-  const max = Math.max(...data.flatMap((d) => [d.sent, d.delivered, d.read])) * 1.1;
+  const max = Math.max(1, ...data.flatMap((d) => [d.sent, d.delivered, d.read])) * 1.1;
   const x = (i: number) => padL + (i / (data.length - 1)) * (W - padL - padR);
   const y = (v: number) => padT + (1 - v / max) * (H - padT - padB);
 

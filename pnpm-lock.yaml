@@ -181,6 +181,9 @@ importers:
       '@lbc/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@lbc/meta':
+        specifier: workspace:*
+        version: link:../../packages/meta
       '@lbc/shared':
         specifier: workspace:*
         version: link:../../packages/shared

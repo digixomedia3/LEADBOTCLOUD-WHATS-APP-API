@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Bell, ChevronsLeft, ChevronsRight, MoreHorizontal, Search, X } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight, MoreHorizontal, Search, X } from 'lucide-react';
 import { allNav, mobileTabs, navGroups, titleFor } from '@/lib/nav';
 import { cn } from '@/lib/utils';
+import { HeaderStatus } from './header-status';
 import { ThemeToggle } from '@/components/shell/theme-toggle';
 import { CommandPalette } from '@/components/shell/command-palette';
 import { AccountMenu, type WorkspaceInfo } from '@/components/shell/account-menu';
@@ -105,9 +106,8 @@ export function AppShell({ children, user, workspace, workspaces }: { children: 
           </button>
           <span className="ml-auto flex items-center gap-1 md:ml-0">
             <button onClick={() => setPalette(true)} aria-label="Search" className="flex size-11 items-center justify-center rounded-xl hover:bg-ink/5 md:hidden"><Search className="size-5" /></button>
-            <span className="hidden items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-xs font-semibold lg:flex"><span className="live-dot size-2 rounded-full bg-brand" />Number healthy</span>
+            <HeaderStatus />
             <ThemeToggle />
-            <button aria-label="Notifications" className="relative flex size-11 items-center justify-center rounded-xl hover:bg-ink/5"><Bell className="size-5" /><span className="absolute right-2.5 top-2.5 size-2 rounded-full bg-rose" /></button>
           </span>
         </header>
         <main className="mx-auto w-full max-w-[88rem] flex-1 px-4 py-5 md:px-8 md:py-8">{children}</main>

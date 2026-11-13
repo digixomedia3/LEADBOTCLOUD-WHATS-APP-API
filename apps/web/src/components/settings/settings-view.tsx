@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, Copy, Loader2, MessageCircle, Plug, Trash2, UserPlus } from 'lucide-react';
+import { Check, Copy, Loader2, Trash2, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input, Select } from '@/components/ui/form';
+import { WhatsAppConnect } from './whatsapp-connect';
 import { Modal } from '@/components/ui/modal';
 import { changeRole, inviteMember, loadTeam, removeMember, revokeInvite, saveProfile } from '@/app/(app)/settings/actions';
 import { PLAN_LIMITS } from '@lbc/shared';
@@ -24,7 +25,7 @@ export function SettingsView({ team: t0, profile: p0, role, me }: { team: Team; 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0" role="tablist">{tabs.map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={cn('min-h-11 shrink-0 rounded-full border px-4 text-sm font-semibold', tab === id ? 'grad-bg border-transparent text-white' : 'border-line bg-card text-muted')}>{l}</button>)}</div>
       {tab === 'workspace' ? <WorkspaceTab p={p0} canEdit={isAdmin} /> : null}
       {tab === 'team' ? <TeamTab team={team} reload={async () => setTeam(await loadTeam())} isOwner={isOwner} isAdmin={isAdmin} me={me} /> : null}
-      {tab === 'whatsapp' ? <WhatsAppTab /> : null}
+      {tab === 'whatsapp' ? <WhatsAppConnect /> : null}
       {tab === 'plan' ? <PlanTab plan={p0.plan} /> : null}
     </div>
   );
@@ -90,18 +91,6 @@ function TeamTab({ team, reload, isOwner, isAdmin, me }: { team: Team; reload: (
             <Button type="submit" disabled={pending}>{pending ? <Loader2 className="size-4 animate-spin" /> : null}Create invitation</Button></form>)}
       </Modal>
       {toast ? <div role="status" className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-bg shadow-xl md:bottom-8">{toast}</div> : null}
-    </div>
-  );
-}
-
-function WhatsAppTab() {
-  const steps = [['Create or choose your Meta Business account', 'Embedded Signup does this for you.'], ['Add and verify your WhatsApp number', 'A number that is not already on the WhatsApp app, or move it.'], ['Add a payment method', 'Meta bills message charges to your card. Billing in INR is required before 31 Dec 2026.'], ['Get your first template approved', 'Use a starter in Templates.']];
-  return (
-    <div className="flex max-w-2xl flex-col gap-4">
-      <div className="card p-5"><div className="flex items-center gap-3"><span className="flex size-11 items-center justify-center rounded-xl bg-amber/15 text-amber"><Plug className="size-5" /></span><div><h3 className="font-display text-lg font-bold">Not connected</h3><p className="text-sm text-muted">Connect your WhatsApp Business number to send real messages.</p></div></div>
-        <ol className="mt-5 space-y-3">{steps.map(([t, d], i) => <li key={t} className="flex gap-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-ink/10 text-xs font-bold">{i + 1}</span><div><p className="font-semibold">{t}</p><p className="text-sm text-muted">{d}</p></div></li>)}</ol>
-        <Button disabled className="mt-5 w-full sm:w-auto"><MessageCircle className="size-4" />Connect WhatsApp (coming soon)</Button>
-        <p className="mt-3 text-xs text-muted">This button turns on after the DigiXoMedia Meta app is approved as a Tech Provider. Until then the panel runs in test mode, so you can set everything up now.</p></div>
     </div>
   );
 }

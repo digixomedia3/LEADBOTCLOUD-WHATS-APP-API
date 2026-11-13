@@ -110,7 +110,7 @@ export const navGroups: NavGroup[] = [
         href: '/analytics',
         label: 'Analytics',
         Icon: BarChart3,
-        built: false,
+        built: true,
         blurb: 'See what works and what it costs.',
         bullets: ['Compare campaigns', 'Best time to send', 'Cost per message category'],
       },
