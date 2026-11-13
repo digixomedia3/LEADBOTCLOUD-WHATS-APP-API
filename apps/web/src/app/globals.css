@@ -258,3 +258,39 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
 }
+
+/* ---- Landing page ---- */
+/* Scroll reveal: pure CSS where the browser supports scroll-driven animation; everything is simply visible elsewhere. */
+@supports (animation-timeline: view()) {
+  .sr {
+    animation: fade-up both cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation-timeline: view();
+    animation-range: entry 0% entry 30%;
+  }
+}
+
+@keyframes wake-old { 0% { opacity: 1; } 30% { opacity: 0; } 90% { opacity: 1; } }
+@keyframes wake-new { 0% { opacity: 0; } 30% { opacity: 1; } 90% { opacity: 0; } }
+/* Hero: a contact list waking up. Each row flips from "Never" to a reply, staggered, looping. */
+.wake-old { opacity: 1; animation: wake-old 10s steps(1, end) infinite both; animation-delay: var(--d, 0s); }
+.wake-new { opacity: 0; animation: wake-new 10s steps(1, end) infinite both; animation-delay: var(--d, 0s); }
+
+/* Marquee of business types */
+@keyframes marquee { to { transform: translateX(-50%); } }
+.marquee-track { display: flex; width: max-content; animation: marquee 38s linear infinite; }
+.marquee:hover .marquee-track { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wake-old { opacity: 0; animation: none; }
+  .wake-new { opacity: 1; animation: none; }
+  .marquee-track { animation: none; }
+}
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* Range sliders: light track, brand thumb */
+input[type='range'] { -webkit-appearance: none; appearance: none; background: transparent; }
+input[type='range']::-webkit-slider-runnable-track { height: 6px; border-radius: 9999px; background: color-mix(in srgb, var(--ink) 14%, transparent); }
+input[type='range']::-moz-range-track { height: 6px; border-radius: 9999px; background: color-mix(in srgb, var(--ink) 14%, transparent); }
+input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; margin-top: -8px; width: 22px; height: 22px; border-radius: 9999px; background: var(--brand); border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
+input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius: 9999px; background: var(--brand); border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
