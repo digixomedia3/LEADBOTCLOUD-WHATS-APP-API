@@ -68,14 +68,14 @@ export function CampaignsView({ initial, templates, groups, canEdit }: { initial
               <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
                 {c.status === 'completed' ? <Button size="sm" variant="outline" onClick={() => start(async () => setReport(await campaignReport(c.id)))}>Report</Button> : null}
                 {canEdit && ['draft', 'scheduled', 'paused'].includes(c.status) ? <>
-                  <Button size="sm" disabled={pending} onClick={() => { if (confirm(`Send “${c.name}” now (test mode)?`)) start(async () => { const r = await sendCampaign(c.id); if (!r.ok) flash(r.error); else await refresh(`Test send done: ${r.data.sent} people.`); }); }}><Send className="size-4" />Send now</Button>
+                  <Button size="sm" disabled={pending} onClick={() => { if (confirm(live ? `Send “${c.name}” now to real customers?` : `Send “${c.name}” now (test mode)?`)) start(async () => { const r = await sendCampaign(c.id); if (!r.ok) flash(r.error); else await refresh(r.data.testMode ? `Test send done: ${r.data.sent} people.` : `Queued for ${r.data.sent} people. Sending starts within a minute.`); }); }}><Send className="size-4" />Send now</Button>
                   <Button size="sm" variant="ghost" onClick={() => { if (confirm('Cancel this campaign?')) start(async () => { const r = await cancelCampaign(c.id); if (!r.ok) flash(r.error); else await refresh('Cancelled.'); }); }}>Cancel</Button></> : null}
               </div>
             </article>); })}
         </div>
       )}
 
-      {wizard ? <Wizard templates={approved} groups={groups} onClose={() => setWizard(false)} onDone={(m) => { setWizard(false); void refresh(m); }} /> : null}
+      {wizard ? <Wizard live={live} templates={approved} groups={groups} onClose={() => setWizard(false)} onDone={(m) => { setWizard(false); void refresh(m); }} /> : null}
       <Modal open={!!report} onClose={() => setReport(null)} title={report ? report.c.name : 'Report'} wide>
         {report ? (
           <div className="flex flex-col gap-4">
@@ -91,7 +91,7 @@ export function CampaignsView({ initial, templates, groups, canEdit }: { initial
   );
 }
 
-function Wizard({ templates, groups, onClose, onDone }: { templates: TemplateRow[]; groups: GroupRow[]; onClose: () => void; onDone: (m: string) => void }) {
+function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; templates: TemplateRow[]; groups: GroupRow[]; onClose: () => void; onDone: (m: string) => void }) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [tid, setTid] = useState(templates[0]?.id ?? '');
@@ -208,7 +208,7 @@ function Wizard({ templates, groups, onClose, onDone }: { templates: TemplateRow
           </dl>
           <p className="text-xs text-muted">Meta charges this to your card. Some messages may be blocked by Meta’s per-person limit, and blocked ones are not charged.</p>
           {overCap ? <FormError>The estimate is above your spend cap of ₹{capNum}.</FormError> : null}
-          <div className="flex gap-2"><Button variant="outline" onClick={() => setStep(3)}>Back</Button><Button className="flex-1" disabled={pending || overCap} onClick={submit}>{pending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}{when === 'now' ? 'Send now (test)' : 'Schedule campaign'}</Button></div>
+          <div className="flex gap-2"><Button variant="outline" onClick={() => setStep(3)}>Back</Button><Button className="flex-1" disabled={pending || overCap} onClick={submit}>{pending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}{when === 'now' ? (live ? 'Send now' : 'Send now (test)') : 'Schedule campaign'}</Button></div>
         </div>
       ) : null}
     </Modal>
