@@ -417,4 +417,116 @@ export const renewals = pgTable(
   ],
 );
 
+/* ------------------------------------------------------------------ Meta connection (spec 3.1) */
+
+export const onboardingSessions = pgTable(
+  'onboarding_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    path: text('path').notNull().default('standard'),
+    esVersion: text('es_version'),
+    sessionInfo: jsonb('session_info'),
+    esEvent: text('es_event'),
+    cancelStep: text('cancel_step'),
+    esError: jsonb('es_error'),
+    codeReceivedAt: timestamp('code_received_at', { withTimezone: true }),
+    tokenExchangedAt: timestamp('token_exchanged_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('onboarding_tenant_idx').on(t.tenantId, t.createdAt), check('onboarding_path_chk', sql`${t.path} in ('standard','coexistence')`)],
+);
+
+/** One Messaging account (the old WABA) per tenant at MVP. business_token_enc is NOT readable by the web role (column privileges). */
+export const metaAccounts = pgTable(
+  'meta_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    businessId: text('business_id'),
+    messagingAccountId: text('messaging_account_id').notNull(),
+    businessTokenEnc: text('business_token_enc'),
+    tokenScopes: jsonb('token_scopes'),
+    tokenStatus: text('token_status').notNull().default('valid'),
+    tokenCheckedAt: timestamp('token_checked_at', { withTimezone: true }),
+    subscribedAppsOk: boolean('subscribed_apps_ok').notNull().default(false),
+    mmApiStatus: text('mm_api_status'),
+    disableMarketingOnCloudApi: boolean('disable_marketing_on_cloud_api'),
+    paymentMethodStatus: text('payment_method_status').notNull().default('unknown'),
+    healthState: text('health_state').notNull().default('ok'),
+    restrictionInfo: jsonb('restriction_info'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('meta_accounts_messaging_uq').on(t.messagingAccountId),
+    uniqueIndex('meta_accounts_tenant_uq').on(t.tenantId),
+    check('meta_accounts_token_chk', sql`${t.tokenStatus} in ('valid','invalid','revoked')`),
+    check('meta_accounts_pay_chk', sql`${t.paymentMethodStatus} in ('unknown','self_attested','confirmed','failing')`),
+    check('meta_accounts_health_chk', sql`${t.healthState} in ('ok','restricted','violation','disabled','scheduled_disable')`),
+  ],
+);
+
+export const phoneNumbers = pgTable(
+  'phone_numbers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    metaAccountId: uuid('meta_account_id').notNull().references(() => metaAccounts.id, { onDelete: 'cascade' }),
+    phoneNumberId: text('phone_number_id').notNull(),
+    displayPhoneNumber: text('display_phone_number'),
+    verifiedName: text('verified_name'),
+    nameStatus: text('name_status'),
+    codeVerificationStatus: text('code_verification_status'),
+    status: text('status'),
+    platformType: text('platform_type'),
+    accountMode: text('account_mode'),
+    isOnBizApp: boolean('is_on_biz_app'),
+    qualityRating: text('quality_rating'),
+    messagingLimitTier: text('messaging_limit_tier'),
+    throughputLevel: text('throughput_level'),
+    sendRateLimitMps: integer('send_rate_limit_mps'),
+    pinEnc: text('pin_enc'),
+    registeredAt: timestamp('registered_at', { withTimezone: true }),
+    lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('phone_numbers_pnid_uq').on(t.phoneNumberId), index('phone_numbers_tenant_idx').on(t.tenantId)],
+);
+
+/** Raw, append-only. Meta keeps no history, so we persist first and process later. Written by the worker only; no tenant can read it (one POST can hold several tenants). */
+export const webhookEvents = pgTable(
+  'webhook_events',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    signatureOk: boolean('signature_ok').notNull(),
+    wabaId: text('waba_id'),
+    phoneNumberId: text('phone_number_id'),
+    field: text('field'),
+    tenantId: uuid('tenant_id'),
+    dedupeKey: text('dedupe_key').notNull(),
+    payload: jsonb('payload').notNull(),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    processError: text('process_error'),
+    attempts: integer('attempts').notNull().default(0),
+  },
+  (t) => [uniqueIndex('webhook_events_dedupe_uq').on(t.dedupeKey), index('webhook_events_unprocessed_idx').on(t.processedAt, t.id)],
+);
+
+export const messageStatusEvents = pgTable(
+  'message_status_events',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    wamid: text('wamid').notNull(),
+    status: text('status').notNull(),
+    ts: timestamp('ts', { withTimezone: true }),
+    raw: jsonb('raw'),
+    webhookEventId: bigserial('webhook_event_id', { mode: 'number' }),
+  },
+  (t) => [uniqueIndex('mse_wamid_status_uq').on(t.wamid, t.status)],
+);
+
 export type Role = 'owner' | 'admin' | 'agent' | 'viewer';
