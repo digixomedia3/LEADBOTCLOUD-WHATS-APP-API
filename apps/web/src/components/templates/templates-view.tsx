@@ -92,7 +92,7 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
               ) : null}
               {t.status === 'pending' && !t.live ? (
                 <div className="rounded-xl border border-dashed border-amber/50 bg-amber/5 p-3 text-xs"><p className="mb-2 flex items-center gap-1.5 font-semibold text-amber"><FlaskConical className="size-3.5" />Test mode: no WhatsApp number is connected, so Meta has not seen this.</p>
-                  {canEdit ? <div className="flex gap-2"><Button size="sm" variant="soft" disabled={pending} onClick={() => start(async () => { const r = await simulateReview(t.id, 'approved'); if (!r.ok) flash(r.error); else await refresh('Marked approved (test).'); })}>Mark approved</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => start(async () => { const r = await simulateReview(t.id, 'rejected'); if (!r.ok) flash(r.error); else await refresh('Marked rejected (test).'); })}>Mark rejected</Button></div> : null}</div>
+                  {canEdit ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="soft" disabled={pending} onClick={() => start(async () => { const r = await simulateReview(t.id, 'approved'); if (!r.ok) flash(r.error); else await refresh('Marked approved (test).'); })}>Mark approved</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => start(async () => { const r = await simulateReview(t.id, 'rejected'); if (!r.ok) flash(r.error); else await refresh('Marked rejected (test).'); })}>Mark rejected</Button></div> : null}</div>
               ) : null}
               {canEdit ? (
                 <div className="mt-auto flex flex-wrap gap-2 border-t border-line pt-3">
