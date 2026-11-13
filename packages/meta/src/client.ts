@@ -6,6 +6,8 @@ import { errorPolicy, type ErrorPolicy, type GraphError } from '@lbc/shared';
  */
 export interface MetaConfig {
   graphVersion: string;
+  /** Test/mocking hook only. Production leaves this unset so requests go to graph.facebook.com. */
+  baseUrl?: string;
   appId?: string;
   appSecret?: string;
   /** Injected for tests. Defaults to global fetch. */
@@ -38,7 +40,7 @@ export class GraphClient {
   }
 
   url(path: string, query?: Record<string, string | number | undefined>): string {
-    const u = new URL(`https://graph.facebook.com/${this.cfg.graphVersion}/${path.replace(/^\/+/, '')}`);
+    const u = new URL(`${(this.cfg.baseUrl ?? 'https://graph.facebook.com').replace(/\/+$/, '')}/${this.cfg.graphVersion}/${path.replace(/^\/+/, '')}`);
     for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined) u.searchParams.set(k, String(v));
     return u.toString();
   }
