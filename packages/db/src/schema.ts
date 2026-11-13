@@ -281,13 +281,16 @@ export const templates = pgTable(
     categoryPending: text('category_pending'),
     pausedUntil: timestamp('paused_until', { withTimezone: true }),
     pauseCount: integer('pause_count').notNull().default(0),
+    submitRequestedAt: timestamp('submit_requested_at', { withTimezone: true }),
+    submitError: text('submit_error'),
+    submitAttempts: integer('submit_attempts').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('templates_tenant_name_lang_uq').on(t.tenantId, t.name, t.language),
     check('templates_category_chk', sql`${t.category} in ('marketing','utility','authentication')`),
-    check('templates_status_chk', sql`${t.status} in ('draft','pending','approved','rejected','paused')`),
+    check('templates_status_chk', sql`${t.status} in ('draft','pending','approved','rejected','paused','disabled','deleting')`),
   ],
 );
 

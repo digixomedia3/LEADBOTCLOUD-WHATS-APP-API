@@ -5,9 +5,10 @@ import Fastify from 'fastify';
 import { createDb } from '@lbc/db';
 import { GraphClient, verifyChallenge } from '@lbc/meta';
 import { loadConfig } from './config';
-import { ingestWebhook, markProcessed } from './receiver';
-import { handleAccountUpdate, handleInbound, handleStatus, handleTemplateStatus, routeTenant } from './handlers';
+import { ingestWebhook } from './receiver';
+import { processEvent } from './events';
 import { sendOne } from './send';
+import { deleteQueuedTemplates, submitPendingTemplates, syncTemplates, tenantsDueForSync } from './templates';
 import { dueCampaigns, launchCampaign, queuedMessageIds, rollupCampaigns } from './campaigns';
 
 /**
@@ -32,20 +33,7 @@ const sendWorker = new Worker('send', async (job: Job<{ tenantId: string; messag
 /** Event consumer: one webhook_events row per job. Unknown routing is stored and left unprocessed for review, never guessed. */
 const eventWorker = new Worker('events', async (job: Job<{ id: number }>) => {
   const row = (await db.execute(sql`select * from webhook_events where id = ${job.data.id}`) as unknown as Record<string, any>[])[0];
-  if (!row || row.processed_at) return 'done';
-  const payload = row.payload as Record<string, any>;
-  const route = await routeTenant(db, row.waba_id, row.phone_number_id);
-  if (route === 'unknown' || route === 'mismatch') { await markProcessed(db, row.id, route === 'unknown' ? 'unrouted: unknown WABA' : 'quarantined: phone number does not belong to this tenant'); return route; }
-  let out: string = 'ignored';
-  if (payload.kind === 'status') out = await handleStatus(db, route.tenantId, payload as never, job.attemptsMade);
-  else if (payload.kind === 'message') {
-    const r = await handleInbound(db, route.tenantId, row.phone_number_id, payload as never);
-    out = r.outcome;
-  } else if (payload.kind === 'template_status') out = await handleTemplateStatus(db, route.tenantId, payload as never);
-  else if (payload.kind === 'account_update') out = await handleAccountUpdate(db, route.tenantId, payload as never);
-  if (out === 'orphan_retry') throw new Error('message not found yet; will retry'); // BullMQ backs off
-  await markProcessed(db, row.id);
-  return out;
+  return row ? processEvent(db, row, job.attemptsMade) : 'done';
 }, { connection: redis, concurrency: 10 });
 for (const w of [sendWorker, eventWorker]) w.on('failed', (j, e) => console.error(`[${w.name}] job ${j?.id} failed: ${e.message}`));
 
@@ -66,6 +54,17 @@ async function tick() {
   }
   await rollupCampaigns(db);
 }
+/** Message formats: send new ones to Meta, remove deleted ones, and reconcile with Meta every 6 hours. Every 20 s is cheap: each step only looks at rows waiting for it. */
+async function templatesTick() {
+  const d = { db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY };
+  await submitPendingTemplates(d);
+  await deleteQueuedTemplates(d);
+  for (const tenantId of await tenantsDueForSync(db, 360)) {
+    try { const r = await syncTemplates(d, tenantId); if (r) console.log(`[templates] synced ${tenantId}: seen=${r.seen} updated=${r.updated} adopted=${r.adopted} imported=${r.imported} skipped=${r.skipped}`); }
+    catch (e) { console.error('[templates] sync failed', tenantId, (e as Error).message); }
+  }
+}
+const templatesTimer = setInterval(() => templatesTick().catch((e) => console.error('templates', e.message)), 20_000);
 const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
 
 const app = Fastify({ logger: { level: 'info', redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]'] } });
@@ -86,5 +85,5 @@ app.post('/webhooks/meta', async (req, reply) => {
 });
 
 await app.listen({ port: cfg.PORT, host: '0.0.0.0' });
-const stop = async () => { clearInterval(sweeper); clearInterval(launcher); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
+const stop = async () => { clearInterval(sweeper); clearInterval(launcher); clearInterval(templatesTimer); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop);

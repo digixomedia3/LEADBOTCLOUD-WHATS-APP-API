@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { AlertTriangle, CheckCircle2, Copy, FlaskConical, Loader2, Plus, Send, Trash2, X, XCircle } from 'lucide-react';
 import { explainRejection, lintTemplate, variablesIn, type Category } from '@lbc/shared';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ const CAT: Record<Category, { label: string; hint: string; price: string }> = {
   utility: { label: 'Updates', hint: 'Order, payment or booking updates the customer expects', price: '≈ ₹0.12' },
   authentication: { label: 'OTP', hint: 'One-time passwords', price: '≈ ₹0.12' },
 };
-const STATUS: Record<string, [string, string]> = { draft: ['Draft', 'bg-ink/10'], pending: ['In review', 'bg-amber/15 text-amber'], approved: ['Approved', 'bg-brand/15 text-brand'], rejected: ['Rejected', 'bg-rose/15 text-rose'], paused: ['Paused', 'bg-amber/15 text-amber'] };
+const STATUS: Record<string, [string, string]> = { draft: ['Draft', 'bg-ink/10'], pending: ['In review', 'bg-amber/15 text-amber'], approved: ['Approved', 'bg-brand/15 text-brand'], rejected: ['Rejected', 'bg-rose/15 text-rose'], paused: ['Paused', 'bg-amber/15 text-amber'], disabled: ['Turned off', 'bg-rose/15 text-rose'] };
 const QUALITY: Record<string, string> = { green: 'text-brand', yellow: 'text-amber', red: 'text-rose', unknown: 'text-muted' };
 
 const STARTERS: { title: string; d: Partial<DraftInput> }[] = [
@@ -39,6 +39,14 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
     const { listTemplates } = await import('@/app/(app)/templates/actions');
     setRows(await listTemplates()); if (m) flash(m);
   }
+  // While Meta is reviewing something, look for its answer every 15 s. Stops by itself once nothing is waiting.
+  const waiting = rows.some((r) => r.status === 'pending' && r.live);
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(() => { void refresh(); }, 15_000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waiting]);
   const shown = rows.filter((r) => filter === 'all' || r.status === filter);
   const counts = (s: string) => rows.filter((r) => r.status === s).length;
 
@@ -75,8 +83,14 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
               </div>
               <WaBubble header={t.headerText} body={t.body} footer={t.footer} buttons={t.buttons} values={t.samples} />
               {t.status === 'rejected' ? <p className="flex gap-2 rounded-xl bg-rose/10 p-3 text-xs text-rose"><XCircle className="size-4 shrink-0" />{explainRejection(t.rejectionReason)}</p> : null}
+              {t.status === 'draft' && t.submitError ? <p className="flex gap-2 rounded-xl bg-rose/10 p-3 text-xs text-rose"><XCircle className="size-4 shrink-0" />{t.submitError}</p> : null}
+              {t.status === 'paused' ? <p className="flex gap-2 rounded-xl bg-amber/10 p-3 text-xs text-amber"><XCircle className="size-4 shrink-0" />Meta paused this format because customers reacted badly. It can not be sent for a few hours, then it works again by itself.</p> : null}
+              {t.status === 'disabled' ? <p className="flex gap-2 rounded-xl bg-rose/10 p-3 text-xs text-rose"><XCircle className="size-4 shrink-0" />Meta turned this format off. Create a new one with different wording.</p> : null}
               {t.status === 'approved' ? <p className={cn('text-xs font-semibold', QUALITY[t.quality])}>Quality: {t.quality === 'unknown' ? 'not rated yet' : t.quality}</p> : null}
-              {t.status === 'pending' ? (
+              {t.status === 'pending' && t.live ? (
+                <p className="flex gap-2 rounded-xl bg-amber/10 p-3 text-xs text-amber"><Loader2 className="size-4 shrink-0 animate-spin" />Sent to WhatsApp for review. Meta usually answers within minutes, sometimes up to 24 hours. This page updates by itself.</p>
+              ) : null}
+              {t.status === 'pending' && !t.live ? (
                 <div className="rounded-xl border border-dashed border-amber/50 bg-amber/5 p-3 text-xs"><p className="mb-2 flex items-center gap-1.5 font-semibold text-amber"><FlaskConical className="size-3.5" />Test mode: no WhatsApp number is connected, so Meta has not seen this.</p>
                   {canEdit ? <div className="flex gap-2"><Button size="sm" variant="soft" disabled={pending} onClick={() => start(async () => { const r = await simulateReview(t.id, 'approved'); if (!r.ok) flash(r.error); else await refresh('Marked approved (test).'); })}>Mark approved</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => start(async () => { const r = await simulateReview(t.id, 'rejected'); if (!r.ok) flash(r.error); else await refresh('Marked rejected (test).'); })}>Mark rejected</Button></div> : null}</div>
               ) : null}
@@ -115,7 +129,7 @@ function Builder({ initial, others, onClose, onSaved }: { initial: DraftInput & 
     start(async () => {
       const r = await saveTemplate({ ...d, samples });
       if (!r.ok) { setError(r.error); return; }
-      if (submit) { const s = await submitTemplate(r.data.id); if (!s.ok) { setError(s.error); return; } onSaved('Submitted for review (test mode).'); } else onSaved('Draft saved.');
+      if (submit) { const s = await submitTemplate(r.data.id); if (!s.ok) { setError(s.error); return; } onSaved(s.data.testMode ? 'Submitted for review (test mode).' : 'Sent to WhatsApp for review. We will show the result here.'); } else onSaved('Draft saved.');
     });
   }
 

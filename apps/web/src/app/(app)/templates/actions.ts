@@ -5,6 +5,7 @@ import { desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { lintTemplate, type Category } from '@lbc/shared';
 import { templates } from '@lbc/db';
+import type { Tx } from '@lbc/db';
 import { Forbidden, assertRole, db, requireCtx, type Ctx, audit } from '@/lib/session';
 
 export type Result<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
@@ -21,16 +22,17 @@ async function guard(min: 'agent' | 'admin' = 'admin'): Promise<{ ctx: Ctx } | {
 
 export interface TemplateRow {
   id: string; name: string; language: string; category: Category; status: string; headerText: string | null; body: string; footer: string | null;
-  buttons: { type: 'quick_reply' | 'url' | 'phone' | 'copy_code'; text: string; value?: string }[]; samples: string[]; quality: string; rejectionReason: string | null; updatedAt: string;
+  buttons: { type: 'quick_reply' | 'url' | 'phone' | 'copy_code'; text: string; value?: string }[]; samples: string[]; quality: string; rejectionReason: string | null; updatedAt: string; submitError: string | null; live: boolean;
 }
 
 export async function listTemplates(): Promise<TemplateRow[]> {
   const ctx = await requireCtx();
   return db(ctx, async (tx) => {
-    const rows = await tx.select().from(templates).orderBy(desc(templates.updatedAt));
+    const live = await isLive(tx);
+    const rows = (await tx.select().from(templates).orderBy(desc(templates.updatedAt))).filter((r) => r.status !== 'deleting');
     return rows.map((r) => ({
       id: r.id, name: r.name, language: r.language, category: r.category as Category, status: r.status, headerText: r.headerText, body: r.body, footer: r.footer,
-      buttons: r.buttons as TemplateRow['buttons'], samples: r.samples as string[], quality: r.quality, rejectionReason: r.rejectionReason, updatedAt: r.updatedAt.toISOString(),
+      buttons: r.buttons as TemplateRow['buttons'], samples: r.samples as string[], quality: r.quality, rejectionReason: r.rejectionReason, updatedAt: r.updatedAt.toISOString(), submitError: r.submitError, live,
     }));
   });
 }
@@ -73,6 +75,12 @@ export async function saveTemplate(input: DraftInput): Promise<Result<{ id: stri
   });
 }
 
+/** True when a valid WhatsApp connection exists, so submissions go to Meta through the worker. */
+async function isLive(tx: Tx): Promise<boolean> {
+  const r = await tx.execute(sql`select exists(select 1 from meta_accounts where token_status = 'valid' and health_state = 'ok') as live`);
+  return (r as unknown as { live: boolean }[])[0]?.live === true;
+}
+
 /** Runs the pre-submit checker on the server (never trust the browser) and sends the format for review. */
 export async function submitTemplate(id: string): Promise<Result<{ testMode: boolean }>> {
   const g = await guard('admin'); if ('error' in g) return fail(g.error);
@@ -83,11 +91,13 @@ export async function submitTemplate(id: string): Promise<Result<{ testMode: boo
     const others = await tx.select({ name: templates.name, body: templates.body }).from(templates).where(sql`${templates.id} <> ${id}`);
     const r = lintTemplate({ name: t.name, category: t.category as Category, headerText: t.headerText ?? undefined, body: t.body, footer: t.footer ?? undefined, buttons: t.buttons as TemplateRow['buttons'], samples: t.samples as string[] }, others.map((o) => o.name), others.map((o) => o.body));
     if (r.blocked) return fail(r.issues.find((i) => i.level === 'block')!.message);
-    await tx.update(templates).set({ status: 'pending', rejectionReason: null, updatedAt: new Date() }).where(eq(templates.id, id));
-    await audit(tx, 'template.submitted', 'template', id);
+    const live = await isLive(tx);
+    await tx.update(templates).set({ status: 'pending', rejectionReason: null, updatedAt: new Date(), submitError: null, submitAttempts: 0, submitRequestedAt: live ? new Date() : null }).where(eq(templates.id, id));
+    await audit(tx, 'template.submitted', 'template', id, { live });
     revalidatePath('/templates');
-    // No WhatsApp number is connected yet, so nothing is sent to Meta. The review is simulated in test mode.
-    return { ok: true as const, data: { testMode: true } };
+    // Connected: the worker sends it to Meta within seconds and Meta's answer arrives by webhook or the next sync.
+    // Not connected: nothing leaves this server and the review is simulated in test mode.
+    return { ok: true as const, data: { testMode: !live } };
   });
 }
 
@@ -97,6 +107,7 @@ export async function simulateReview(id: string, outcome: 'approved' | 'rejected
   return db(g.ctx, async (tx) => {
     const [t] = await tx.select().from(templates).where(eq(templates.id, id));
     if (!t || t.status !== 'pending') return fail('Only formats in review can be decided.');
+    if (await isLive(tx)) return fail('Your number is connected, so Meta decides. Wait for its answer.');
     await tx.update(templates).set(outcome === 'approved'
       ? { status: 'approved', quality: 'green', rejectionReason: null, updatedAt: new Date() }
       : { status: 'rejected', rejectionReason: 'INVALID_FORMAT', updatedAt: new Date() }).where(eq(templates.id, id));
@@ -110,7 +121,9 @@ export async function deleteTemplate(id: string): Promise<Result> {
   return db(g.ctx, async (tx) => {
     const used = await tx.execute(sql`select 1 from campaigns where template_id = ${id} and status in ('scheduled','running') limit 1`);
     if ((used as unknown as unknown[]).length) return fail('A scheduled or running bulk send uses this message format.');
-    await tx.delete(templates).where(eq(templates.id, id));
+    const [cur] = await tx.select({ meta: templates.metaTemplateId }).from(templates).where(eq(templates.id, id));
+    if (cur?.meta) await tx.update(templates).set({ status: 'deleting', updatedAt: new Date() }).where(eq(templates.id, id)); // the worker removes it at Meta, then here
+    else await tx.delete(templates).where(eq(templates.id, id));
     await audit(tx, 'template.deleted', 'template', id);
     revalidatePath('/templates');
     return { ok: true as const, data: null };
