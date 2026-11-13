@@ -95,9 +95,13 @@ describe('Meta Lead Ads client', () => {
   it('url-encodes ids so a crafted leadgen id cannot reach another Graph path', async () => {
     const { c, calls } = mk([{ body: { id: 'x', field_data: [] } }]); await c.getLead('../me', 'PT'); expect(new URL(calls[0]!.url).pathname).toBe('/v26.0/..%2Fme');
   });
+  it('other Facebook errors (bad request, rate limit) do not force a re-connect', async () => {
+    const { c } = mk([{ status: 400, body: { error: { message: 'Unsupported get request', code: 100 } } }]);
+    const e = (await c.getLead('L', 'PT').catch((x: unknown) => x)) as ConnectorError; expect(e.needsReauth).toBe(false);
+  });
   it('surfaces an expired token as needing re-connection', async () => {
     const { c } = mk([{ status: 400, body: { error: { message: 'Error validating access token', code: 190 } } }]);
-    const e = (await c.getLead('L', 'PT').catch((x: unknown) => x)) as ConnectorError; expect(e).toBeInstanceOf(ConnectorError); expect(e.code).toBe('190'); expect(e.message).toMatch(/validating/);
+    const e = (await c.getLead('L', 'PT').catch((x: unknown) => x)) as ConnectorError; expect(e).toBeInstanceOf(ConnectorError); expect(e.code).toBe('190'); expect(e.message).toMatch(/validating/); expect(e.needsReauth).toBe(true); expect(e.retryable).toBe(false);
   });
 });
 

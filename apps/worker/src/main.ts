@@ -3,7 +3,8 @@ import { Redis } from 'ioredis';
 import { sql } from 'drizzle-orm';
 import Fastify from 'fastify';
 import { createDb } from '@lbc/db';
-import { GraphClient, verifyChallenge } from '@lbc/meta';
+import { GraphClient, verifyChallenge, verifySignature } from '@lbc/meta';
+import { GoogleClient, MetaLeadsClient } from '@lbc/connectors';
 import { loadConfig } from './config';
 import { ingestWebhook } from './receiver';
 import { ingestBilling, processBillingEvent } from './billing';
@@ -11,6 +12,7 @@ import { ImportSourceNotFound, importLeads, ingestLead, submitForm } from './lea
 import { makeLimiter } from '@lbc/shared';
 import { verifyInternal } from '@lbc/shared/internal-sign';
 import { processEvent } from './events';
+import { ingestMetaLeadgen, ingestShopify, pendingConnectorEvents, processConnectorEvent, syncSheets } from './connectors';
 import { sendOne } from './send';
 import { deleteQueuedTemplates, submitPendingTemplates, syncTemplates, tenantsDueForSync } from './templates';
 import { dueCampaigns, launchCampaign, queuedMessageIds, rollupCampaigns } from './campaigns';
@@ -23,6 +25,10 @@ const cfg = loadConfig();
 const { db, client } = createDb(cfg.DATABASE_URL_WORKER, { max: 10 });
 const redis = new Redis(cfg.REDIS_URL, { maxRetriesPerRequest: null });
 const graph = new GraphClient({ graphVersion: cfg.META_GRAPH_VERSION, baseUrl: cfg.META_GRAPH_BASE_URL, appId: cfg.META_APP_ID, appSecret: cfg.META_APP_SECRET });
+
+const metaLeads = cfg.META_APP_ID && cfg.META_APP_SECRET ? new MetaLeadsClient({ appId: cfg.META_APP_ID, appSecret: cfg.META_APP_SECRET, graphVersion: cfg.META_GRAPH_VERSION, baseUrl: cfg.META_GRAPH_BASE_URL }) : undefined;
+const google = cfg.GOOGLE_CLIENT_ID && cfg.GOOGLE_CLIENT_SECRET ? new GoogleClient({ clientId: cfg.GOOGLE_CLIENT_ID, clientSecret: cfg.GOOGLE_CLIENT_SECRET, tokenUrl: cfg.GOOGLE_TOKEN_URL, sheetsBase: cfg.GOOGLE_SHEETS_BASE }) : undefined;
+const connDeps = { db, tokenKey: cfg.TOKEN_ENCRYPTION_KEY, meta: metaLeads, google };
 
 export const sendQueue = new Queue('send', { connection: redis, defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 5000 } });
 const eventQueue = new Queue('events', { connection: redis, defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 5000, attempts: 6, backoff: { type: 'exponential', delay: 5000 } } });
@@ -71,6 +77,9 @@ async function templatesTick() {
     catch (e) { console.error('[templates] sync failed', tenantId, (e as Error).message); }
   }
 }
+/** Safety net: connector events that were stored but not finished (crash, Facebook outage) are retried, and sheets are read every 2 minutes. */
+const connectorTimer = setInterval(async () => { for (const id of await pendingConnectorEvents(db)) await processConnectorEvent(connDeps, id); }, 20_000);
+const sheetsTimer = setInterval(() => syncSheets(connDeps).then((r) => { if (r.rows || r.errors) console.log('[sheets]', JSON.stringify(r)); }).catch((e) => console.error('sheets', e.message)), 120_000);
 const templatesTimer = setInterval(() => templatesTick().catch((e) => console.error('templates', e.message)), 20_000);
 const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
 
@@ -85,9 +94,28 @@ app.get('/webhooks/meta', async (req, reply) => {
 });
 app.post('/webhooks/meta', async (req, reply) => {
   if (!cfg.META_APP_SECRET) return reply.code(503).send('not configured');
+  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  // Facebook Page events (Lead Ads) arrive on this same URL with the same signature. Verify first, then route by object type.
+  if (verifySignature(raw, req.headers['x-hub-signature-256'] as string | undefined, cfg.META_APP_SECRET)) {
+    let parsed: { object?: string } | null = null;
+    try { parsed = JSON.parse(raw.toString('utf8')); } catch { /* falls through to the WhatsApp path */ }
+    if (parsed?.object === 'page') {
+      for (const id of await ingestMetaLeadgen(db, parsed)) void processConnectorEvent(connDeps, id).catch((e) => req.log.error({ err: (e as Error).message }, 'connector event'));
+      return reply.code(200).send('ok');
+    }
+  }
   const r = await ingestWebhook(db, Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0), req.headers['x-hub-signature-256'] as string | undefined, cfg.META_APP_SECRET);
   if (r.status === 401) return reply.code(401).send('bad signature');
   await Promise.all(r.items.map((i) => eventQueue.add('event', { id: i.id }, { jobId: `ev-${i.id}` }))); // fast: store, enqueue, 200
+  return reply.code(200).send('ok');
+});
+
+app.post('/webhooks/shopify', async (req, reply) => {
+  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  const r = await ingestShopify(db, raw, req.headers, cfg.SHOPIFY_CLIENT_SECRET);
+  if (r.status === 503) return reply.code(503).send('not configured');
+  if (r.status === 401) return reply.code(401).send('bad signature');
+  for (const id of r.ids) void processConnectorEvent(connDeps, id).catch((e) => req.log.error({ err: (e as Error).message }, 'connector event'));
   return reply.code(200).send('ok');
 });
 
@@ -136,5 +164,5 @@ app.post('/internal/leads/import', async (req, reply) => {
 });
 
 await app.listen({ port: cfg.PORT, host: '0.0.0.0' });
-const stop = async () => { clearInterval(sweeper); clearInterval(launcher); clearInterval(templatesTimer); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close(), billingWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
+const stop = async () => { clearInterval(sweeper); clearInterval(launcher); clearInterval(templatesTimer); clearInterval(connectorTimer); clearInterval(sheetsTimer); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close(), billingWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop);

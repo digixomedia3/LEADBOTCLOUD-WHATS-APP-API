@@ -11,7 +11,7 @@ export class ConnectorError extends Error {
     this.name = 'ConnectorError';
   }
   /** The user must connect again: the grant was revoked or expired. Retrying will never help. */
-  get needsReauth() { return this.code === 'invalid_grant' || this.code === 'invalid_token' || this.status === 401 || this.status === 403; }
+  get needsReauth() { return this.code === 'invalid_grant' || this.code === 'invalid_token' || this.status === 401 || this.status === 403 || (this.provider.startsWith('meta') && ['190', '102', '463', '467'].includes(this.code ?? '')); }
   get retryable() { return this.status === 0 || this.status === 429 || this.status >= 500; }
 }
 

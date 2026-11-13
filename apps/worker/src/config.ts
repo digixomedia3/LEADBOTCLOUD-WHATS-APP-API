@@ -18,6 +18,14 @@ const schema = z.object({
   INTERNAL_API_SECRET: z.string().optional(),
   /** Where Fastify may trust X-Forwarded-For from (reverse proxy / tunnel), so per-IP limits see the real client. */
   TRUST_PROXY: z.enum(['true', 'false']).default('false'),
+  /** Shopify app (client id/secret) used to verify webhooks and, in the web app, to connect stores. */
+  SHOPIFY_CLIENT_ID: z.string().optional(),
+  SHOPIFY_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  /** Test hooks: point Google at a local fake. Never set in production. */
+  GOOGLE_TOKEN_URL: z.string().url().optional(),
+  GOOGLE_SHEETS_BASE: z.string().url().optional(),
   TOKEN_ENCRYPTION_KEY: z.string().min(1),
 });
 export type WorkerConfig = z.infer<typeof schema>;
