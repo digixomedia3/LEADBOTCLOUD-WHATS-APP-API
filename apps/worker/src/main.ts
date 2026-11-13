@@ -8,6 +8,7 @@ import { loadConfig } from './config';
 import { ingestWebhook, markProcessed } from './receiver';
 import { handleAccountUpdate, handleInbound, handleStatus, handleTemplateStatus, routeTenant } from './handlers';
 import { sendOne } from './send';
+import { dueCampaigns, launchCampaign, queuedMessageIds, rollupCampaigns } from './campaigns';
 
 /**
  * Process entry. Two jobs: (1) the HTTP receiver for Meta webhooks, (2) the queue consumers. They share one image but can be
@@ -50,11 +51,22 @@ for (const w of [sendWorker, eventWorker]) w.on('failed', (j, e) => console.erro
 
 /** Outbox sweeper: anything queued in the database but missing from Redis (a crash between the two) is re-enqueued. */
 async function sweepOutbox() {
-  const stuck = (await db.execute(sql`select id, tenant_id from messages where direction = 'out' and status = 'queued' and wamid is null and created_at < now() - interval '30 seconds' limit 500`)) as unknown as { id: string; tenant_id: string }[];
+  const stuck = (await db.execute(sql`select id, tenant_id from messages where direction = 'out' and status = 'queued' and wamid is null and created_at < now() - interval '3 seconds' limit 500`)) as unknown as { id: string; tenant_id: string }[];
   for (const m of stuck) await sendQueue.add('send', { tenantId: m.tenant_id, messageId: m.id }, { jobId: m.id }).catch(() => undefined);
   return stuck.length;
 }
-const sweeper = setInterval(() => sweepOutbox().catch((e) => console.error('sweep', e.message)), 30_000);
+const sweeper = setInterval(() => sweepOutbox().catch((e) => console.error('sweep', e.message)), 5_000);
+
+/** Launcher: every 15 s, expand campaigns that are due and queue their messages; then refresh campaign counts from the data. */
+async function tick() {
+  for (const c of await dueCampaigns(db)) {
+    const r = await launchCampaign(db, c.tenant_id, c.id);
+    if (r.status === 'running') for (const id of await queuedMessageIds(db, c.tenant_id, c.id)) await sendQueue.add('send', { tenantId: c.tenant_id, messageId: id }, { jobId: id }).catch(() => undefined);
+    console.log(`[launcher] campaign ${c.id}: ${r.status}${r.reason ? ' (' + r.reason + ')' : ''} queued=${r.queued} skipped=${r.skipped}`);
+  }
+  await rollupCampaigns(db);
+}
+const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
 
 const app = Fastify({ logger: { level: 'info', redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]'] } });
 app.removeAllContentTypeParsers();
@@ -74,5 +86,5 @@ app.post('/webhooks/meta', async (req, reply) => {
 });
 
 await app.listen({ port: cfg.PORT, host: '0.0.0.0' });
-const stop = async () => { clearInterval(sweeper); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
+const stop = async () => { clearInterval(sweeper); clearInterval(launcher); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop);

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { campaignRecipients, campaigns, templates } from '@lbc/db';
 import { Forbidden, assertRole, db, requireCtx, type Ctx, audit } from '@/lib/session';
 import { estimateCost, RATE_PAISE_X100 } from '@/lib/cost';
+import { variablesIn } from '@lbc/shared';
 
 export type Result<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
@@ -65,6 +66,8 @@ const input = z.object({
   scheduledAt: z.string().optional(),
   repeat: z.enum(['none', 'daily', 'weekly', 'monthly']).default('none'),
   spendCapRupees: z.number().min(0).max(10_000_000).optional(),
+  /** One entry per {{n}} in the body: '@name', '@fullname', '@phone' or fixed text. */
+  varMap: z.array(z.string().trim().min(1, 'Fill in every variable.').max(200)).max(20).default([]),
 });
 export type CampaignInput = z.input<typeof input>;
 
@@ -86,13 +89,15 @@ export async function createCampaign(raw: CampaignInput): Promise<Result<{ id: s
     if (t.status !== 'approved') return fail('Only approved message formats can be sent. Get this one approved first.');
     const groups = await tx.execute(sql`select id from contact_groups where id = any(${sql.raw(`ARRAY[${d.groupIds.map((i) => `'${i}'`).join(',')}]::uuid[]`)})`);
     if ((groups as unknown as unknown[]).length !== d.groupIds.length) return fail('One of the groups no longer exists.');
+    const needed = new Set(variablesIn(t.body)).size;
+    if (d.varMap.length !== needed) return fail(needed ? `This message format has ${needed} variable${needed > 1 ? 's' : ''}. Fill in each one.` : 'This message format has no variables.');
     const aud = await previewAudience(d.groupIds, t.category);
     if (aud.sendable === 0) return fail('No contact in these groups has agreed to messages, so there is nobody to send to.');
     const capPaise = d.spendCapRupees ? Math.round(d.spendCapRupees * 100) : null;
     if (capPaise !== null && aud.cost.totalPaise > capPaise) return fail(`The estimated cost ${aud.cost.totalLabel} is above your spend cap. Raise the cap or choose fewer people.`);
     const [row] = await tx.insert(campaigns).values({
       tenantId: g.ctx.tenantId, name: d.name, templateId: t.id, groupIds: d.groupIds, status: d.when === 'now' ? 'draft' : 'scheduled', scheduledAt: when, repeat: d.repeat,
-      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: g.ctx.user.id,
+      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: g.ctx.user.id, varMap: d.varMap,
     }).returning({ id: campaigns.id, status: campaigns.status });
     await audit(tx, 'campaign.created', 'campaign', row!.id, { audience: aud.sendable });
     revalidatePath('/campaigns');
@@ -106,9 +111,35 @@ function simulate(i: number): 'delivered' | 'read' | 'replied' | 'failed' {
   if (h < 5) return 'failed'; if (h < 12) return 'replied'; if (h < 55) return 'read'; return 'delivered';
 }
 
-/** TEST MODE: expands the audience into recipients and marks simulated results. Nothing is sent to WhatsApp until a number is connected. */
-export async function sendCampaign(id: string): Promise<Result<{ sent: number; testMode: true }>> {
+/** True when this workspace has a valid WhatsApp connection with a number, so sends go to the real queue. */
+export async function connectionState(): Promise<{ live: boolean }> {
+  const ctx = await requireCtx();
+  return db(ctx, async (tx) => {
+    const r = await tx.execute(sql`select exists(select 1 from meta_accounts a join phone_numbers p on p.meta_account_id = a.id where a.token_status = 'valid' and a.health_state = 'ok') as live`);
+    return { live: !!(r as unknown as { live: boolean }[])[0]?.live };
+  });
+}
+
+/**
+ * Hands a campaign to the real pipeline. The worker's launcher (every 15 s) expands it, re-checks every rule per contact, and sends.
+ * Nothing is sent from the web process.
+ */
+async function queueForWorker(id: string): Promise<Result<{ sent: number; testMode: false }>> {
   const g = await guard(); if ('error' in g) return fail(g.error);
+  return db(g.ctx, async (tx) => {
+    const r = await tx.execute(sql`update campaigns set status = 'scheduled', scheduled_at = least(coalesce(scheduled_at, now()), now()) where id = ${id} and status in ('draft','scheduled','paused') returning (counts->>'audience')::int as n`);
+    const row = (r as unknown as { n: number | null }[])[0];
+    if (!row) return fail('This campaign has already been sent.');
+    await audit(tx, 'campaign.queued', 'campaign', id, { audience: row.n });
+    revalidatePath('/campaigns');
+    return { ok: true as const, data: { sent: row.n ?? 0, testMode: false as const } };
+  });
+}
+
+/** TEST MODE: expands the audience into recipients and marks simulated results. Nothing is sent to WhatsApp until a number is connected. */
+export async function sendCampaign(id: string): Promise<Result<{ sent: number; testMode: boolean }>> {
+  const g = await guard(); if ('error' in g) return fail(g.error);
+  if ((await connectionState()).live) return queueForWorker(id);
   return db(g.ctx, async (tx) => {
     const [c] = await tx.select().from(campaigns).where(eq(campaigns.id, id));
     if (!c) return fail('Campaign not found.');

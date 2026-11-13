@@ -48,7 +48,7 @@ psql(f"insert into messages (id,tenant_id,conversation_id,direction,kind,body,st
 wenv = {**env, 'PORT': str(PORT), 'REDIS_URL': env.get('REDIS_URL', 'redis://127.0.0.1:6380'), 'TOKEN_ENCRYPTION_KEY': KEY, 'META_APP_SECRET': APP_SECRET,
         'META_WEBHOOK_VERIFY_TOKEN': 'vt-smoke', 'META_GRAPH_BASE_URL': f'http://127.0.0.1:{GPORT}', 'META_GRAPH_VERSION': 'v26.0'}
 log = open('/tmp/worker-smoke.log', 'w')
-proc = subprocess.Popen(['pnpm', '--filter', '@lbc/worker', 'exec', 'tsx', 'src/main.ts'], cwd=ROOT, env=wenv, stdout=log, stderr=log)
+proc = subprocess.Popen(['pnpm', '--filter', '@lbc/worker', 'exec', 'tsx', 'src/main.ts'], cwd=ROOT, env=wenv, stdout=log, stderr=log, start_new_session=True)
 def post(path, raw, sig=None):
     req = urllib.request.Request(f'http://127.0.0.1:{PORT}{path}', data=raw, method='POST', headers={'content-type': 'application/json', **({'x-hub-signature-256': sig} if sig else {})})
     try: return urllib.request.urlopen(req, timeout=5).status
@@ -122,9 +122,13 @@ try:
     b = hook(statuses=[{'id': 'wamid.UNKNOWN', 'status': 'sent', 'timestamp': ts}]).replace(waba.encode(), b'not-a-known-waba')
     check('event for an unknown WABA => 200 (stored, never guessed)', post('/webhooks/meta', b, sign(b)) == 200)
 finally:
-    proc.terminate()
+    import signal
+    try: os.killpg(proc.pid, signal.SIGTERM)
+    except Exception: pass
     try: proc.wait(10)
-    except Exception: proc.kill()
+    except Exception:
+        try: os.killpg(proc.pid, signal.SIGKILL)
+        except Exception: pass
     gs.shutdown()
     psql(f"delete from audit_log where tenant_id='{t}'")
     psql(f"delete from webhook_events where waba_id in ('{waba}','not-a-known-waba') or dedupe_key like '%{tag}%' or dedupe_key like '%wamid.UNKNOWN%' or dedupe_key like '%SMOKE%'")

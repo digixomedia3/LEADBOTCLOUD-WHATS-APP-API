@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Field, FormError, Input, Select } from '@/components/ui/form';
 import { Modal } from '@/components/ui/modal';
 import { WaBubble } from '@/components/ui/wa-bubble';
-import { cancelCampaign, campaignReport, createCampaign, listCampaigns, previewAudience, sendCampaign, type AudiencePreview, type CampaignReport, type CampaignRow } from '@/app/(app)/campaigns/actions';
+import { cancelCampaign, campaignReport, connectionState, createCampaign, listCampaigns, previewAudience, sendCampaign, type AudiencePreview, type CampaignReport, type CampaignRow } from '@/app/(app)/campaigns/actions';
 import type { TemplateRow } from '@/app/(app)/templates/actions';
 import type { GroupRow } from '@/app/(app)/contacts/actions';
 import { cn } from '@/lib/utils';
 import { inr } from '@/lib/cost';
+import { variablesIn } from '@lbc/shared';
 
 const STATUS: Record<string, [string, string]> = { draft: ['Draft', 'bg-ink/10'], scheduled: ['Scheduled', 'bg-indigo/15 text-indigo'], running: ['Sending', 'bg-amber/15 text-amber'], completed: ['Sent', 'bg-brand/15 text-brand'], paused: ['Paused', 'bg-amber/15 text-amber'], cancelled: ['Cancelled', 'bg-rose/15 text-rose'] };
 const pct = (a = 0, b = 0) => (b ? Math.round((a / b) * 100) : 0);
@@ -20,6 +21,8 @@ export function CampaignsView({ initial, templates, groups, canEdit }: { initial
   const [wizard, setWizard] = useState(false);
   const [report, setReport] = useState<CampaignReport | null>(null);
   const [toast, setToast] = useState('');
+  const [live, setLive] = useState(false);
+  useEffect(() => { void connectionState().then((c) => setLive(c.live)); }, []);
   const [pending, start] = useTransition();
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 4000); };
   const refresh = async (m?: string) => { setRows(await listCampaigns()); if (m) flash(m); };
@@ -34,7 +37,7 @@ export function CampaignsView({ initial, templates, groups, canEdit }: { initial
         {canEdit ? <Button onClick={() => setWizard(true)}><Plus className="size-4" />New bulk send</Button> : null}
       </div>
 
-      <p className="flex items-start gap-2 rounded-xl border border-dashed border-amber/50 bg-amber/5 p-3 text-sm"><FlaskConical className="mt-0.5 size-4 shrink-0 text-amber" /><span><strong>Test mode.</strong> No WhatsApp number is connected yet, so sending is simulated and nothing reaches customers. Connect your number in Settings to send for real.</span></p>
+      {live ? null : <p className="flex items-start gap-2 rounded-xl border border-dashed border-amber/50 bg-amber/5 p-3 text-sm"><FlaskConical className="mt-0.5 size-4 shrink-0 text-amber" /><span><strong>Test mode.</strong> No WhatsApp number is connected yet, so sending is simulated and nothing reaches customers. Connect your number in Settings to send for real.</span></p>}
 
       {rows.some((r) => r.status === 'completed') ? (
         <div className="grid grid-cols-3 gap-3">
@@ -97,6 +100,7 @@ function Wizard({ templates, groups, onClose, onDone }: { templates: TemplateRow
   const [at, setAt] = useState('');
   const [repeat, setRepeat] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
   const [cap, setCap] = useState('');
+  const [vars, setVars] = useState<string[]>([]);
   const [aud, setAud] = useState<AudiencePreview | null>(null);
   const [error, setError] = useState('');
   const [pending, start] = useTransition();
@@ -109,15 +113,18 @@ function Wizard({ templates, groups, onClose, onDone }: { templates: TemplateRow
     return () => { live = false; };
   }, [gids, tpl]);
 
+  const varCount = tpl ? new Set(variablesIn(tpl.body)).size : 0;
+  useEffect(() => { setVars((old) => Array.from({ length: varCount }, (_, i) => old[i] ?? (i === 0 ? '@name' : ''))); }, [varCount, tid]);
+  const varsOk = vars.length === varCount && vars.every((x) => x.trim().length > 0);
   const capNum = cap ? Number(cap) : undefined;
   const overCap = !!(aud && capNum && aud.cost.totalPaise > capNum * 100);
 
   function submit() {
     setError('');
     start(async () => {
-      const r = await createCampaign({ name, templateId: tid, groupIds: gids, when, scheduledAt: at ? new Date(at).toISOString() : undefined, repeat, spendCapRupees: capNum });
+      const r = await createCampaign({ name, templateId: tid, groupIds: gids, when, scheduledAt: at ? new Date(at).toISOString() : undefined, repeat, spendCapRupees: capNum, varMap: vars });
       if (!r.ok) { setError(r.error); return; }
-      if (when === 'now') { const s = await sendCampaign(r.data.id); if (!s.ok) { setError(s.error); return; } onDone(`Test send done: ${s.data.sent} people.`); } else onDone('Campaign scheduled.');
+      if (when === 'now') { const s = await sendCampaign(r.data.id); if (!s.ok) { setError(s.error); return; } onDone(s.data.testMode ? `Test send done: ${s.data.sent} people.` : `Queued for ${s.data.sent} people. Sending starts within a minute.`); } else onDone('Campaign scheduled.');
     });
   }
 
@@ -132,7 +139,28 @@ function Wizard({ templates, groups, onClose, onDone }: { templates: TemplateRow
           <div className="flex flex-col gap-4">
             <Field label="Name this bulk send"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="November renewal reminder" maxLength={120} autoFocus /></Field>
             <Field label="Message format"><Select value={tid} onChange={(e) => setTid(e.target.value)}>{templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></Field>
-            <Button disabled={name.trim().length < 2 || !tid} onClick={() => setStep(2)}>Next: who gets it</Button>
+            {varCount > 0 ? (
+              <div className="flex flex-col gap-3 rounded-xl border border-line p-3">
+                <p className="text-sm font-semibold">Fill in the blanks</p>
+                {vars.map((val, i) => {
+                  const preset = ['@name', '@fullname', '@phone'].includes(val);
+                  return (
+                    <div key={i} className="grid gap-1.5">
+                      <label className="text-xs font-semibold text-muted">{`{{${i + 1}}}`}</label>
+                      <Select value={preset ? val : 'fixed'} onChange={(e) => setVars((o) => o.map((x, j) => (j === i ? (e.target.value === 'fixed' ? '' : e.target.value) : x)))}>
+                        <option value="@name">Customer’s first name</option>
+                        <option value="@fullname">Customer’s full name</option>
+                        <option value="@phone">Customer’s phone number</option>
+                        <option value="fixed">Same text for everyone</option>
+                      </Select>
+                      {!preset ? <Input value={val} onChange={(e) => setVars((o) => o.map((x, j) => (j === i ? e.target.value : x)))} placeholder="e.g. 20% off until Sunday" maxLength={200} /> : null}
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-muted">If a customer has no name saved, we say “there”.</p>
+              </div>
+            ) : null}
+            <Button disabled={name.trim().length < 2 || !tid || !varsOk} onClick={() => setStep(2)}>Next: who gets it</Button>
           </div>
           {tpl ? <WaBubble header={tpl.headerText} body={tpl.body} footer={tpl.footer} buttons={tpl.buttons} values={tpl.samples} /> : null}
         </div>

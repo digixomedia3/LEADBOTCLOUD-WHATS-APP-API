@@ -310,6 +310,8 @@ export const campaigns = pgTable(
     createdBy: text('created_by'),
     pauseReason: text('pause_reason'),
     sendPolicy: text('send_policy').notNull().default('mm_fallback'),
+    varMap: jsonb('var_map').notNull().default(sql`'[]'::jsonb`),
+    launchedAt: timestamp('launched_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

@@ -72,7 +72,9 @@ export async function sendReply(conversationId: string, text: string): Promise<R
     if (!c.windowExpiresAt || c.windowExpiresAt.getTime() < Date.now()) return fail('The 24-hour reply window has closed. Send an approved message format to start the conversation again.');
     const [ct] = await tx.select({ s: contacts.consentStatus }).from(contacts).where(eq(contacts.id, c.contactId));
     if (ct?.s === 'stopped') return fail('This customer opted out. You cannot message them.');
-    const [m] = await tx.insert(messages).values({ tenantId: g.ctx.tenantId, conversationId, direction: 'out', body, status: 'sent', senderUserId: g.ctx.user.id }).returning({ id: messages.id });
+    // With a connected number the message is only QUEUED here; the worker sends it and webhooks move it to delivered / read.
+    const live = ((await tx.execute(sql`select exists(select 1 from meta_accounts a join phone_numbers p on p.meta_account_id = a.id where a.token_status = 'valid' and a.health_state = 'ok') as live`)) as unknown as { live: boolean }[])[0]?.live === true;
+    const [m] = await tx.insert(messages).values({ tenantId: g.ctx.tenantId, conversationId, direction: 'out', kind: 'text', body, status: live ? 'queued' : 'sent', senderUserId: g.ctx.user.id, phoneNumberId: c.phoneNumberId }).returning({ id: messages.id });
     await tx.update(conversations).set({ lastPreview: body.slice(0, 120), lastMessageAt: new Date(), assignedTo: c.assignedTo ?? g.ctx.user.id }).where(eq(conversations.id, conversationId));
     revalidatePath('/chats');
     return { ok: true as const, data: { id: m!.id } };
