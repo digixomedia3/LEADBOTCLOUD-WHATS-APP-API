@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { CONSENT_SOURCES, normalizePhone, planLimits } from '@lbc/shared';
-import { auditLog, contactConsentEvents, contactGroupMembers, contactGroups, contacts } from '@lbc/db';
-import { Forbidden, assertRole, db, requireCtx, type Ctx } from '@/lib/session';
+import { contactConsentEvents, contactGroupMembers, contactGroups, contacts } from '@lbc/db';
+import { Forbidden, assertRole, db, requireCtx, type Ctx, audit } from '@/lib/session';
 import { toCsv, type ParsedRow } from '@/lib/contacts/import';
 
 export type Result<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
@@ -223,7 +223,7 @@ export async function deleteGroup(id: string): Promise<Result> {
   const g = await guard('admin'); if ('error' in g) return fail(g.error);
   return db(g.ctx, async (tx) => {
     await tx.delete(contactGroups).where(eq(contactGroups.id, id)); // members cascade; contacts are kept
-    await tx.insert(auditLog).values({ tenantId: g.ctx.tenantId, actorUserId: g.ctx.user.id, actorType: 'user', action: 'group.deleted', entity: 'contact_group', entityId: id });
+    await audit(tx, 'group.deleted', 'contact_group', id);
     revalidatePath('/contacts');
     return { ok: true as const, data: null };
   });
@@ -266,7 +266,7 @@ export async function bulkAction(ids: string[], action: BulkAction): Promise<Res
       if (g.ctx.role === 'admin' || g.ctx.role === 'owner') {
         const del = await tx.delete(contacts).where(inArray(contacts.id, p.data)).returning({ id: contacts.id });
         affected = del.length;
-        await tx.insert(auditLog).values({ tenantId: g.ctx.tenantId, actorUserId: g.ctx.user.id, actorType: 'user', action: 'contacts.deleted', entity: 'contact', after: { count: affected } });
+        await audit(tx, 'contacts.deleted', 'contact', undefined, { count: affected });
       }
     }
     revalidatePath('/contacts');
@@ -300,7 +300,7 @@ export async function exportContacts(opts: { ids?: string[]; group?: string }): 
     if (opts.ids?.length) conds.push(inArray(contacts.id, opts.ids.slice(0, 20000)));
     if (opts.group) conds.push(sql`exists (select 1 from contact_group_members m where m.contact_id = ${contacts.id} and m.group_id = ${opts.group})`);
     const rows = await tx.select().from(contacts).where(conds.length ? and(...conds) : undefined).orderBy(desc(contacts.createdAt)).limit(50000);
-    await tx.insert(auditLog).values({ tenantId: g.ctx.tenantId, actorUserId: g.ctx.user.id, actorType: 'user', action: 'contacts.exported', entity: 'contact', after: { count: rows.length } });
+    await audit(tx, 'contacts.exported', 'contact', undefined, { count: rows.length });
     const csv = toCsv([['Name', 'Phone', 'Email', 'Tags', 'Permission', 'Source', 'Added'], ...rows.map((r) => [r.name, r.phoneE164, r.email, r.tags.join('; '), r.consentStatus === 'allowed' ? 'Opted in' : r.consentStatus === 'stopped' ? 'Opted out' : 'Not recorded', r.consentSource, r.createdAt.toISOString().slice(0, 10)])]);
     return { ok: true as const, data: { csv, count: rows.length } };
   });

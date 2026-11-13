@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { safeNext } from '@/lib/safe-next';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
@@ -10,6 +11,7 @@ import { Field, FormError, Input } from '@/components/ui/form';
 
 export function SignupForm() {
   const router = useRouter();
+  const next = useSearchParams().get('next');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -25,7 +27,7 @@ export function SignupForm() {
       setError(error.status === 429 ? 'Too many attempts. Wait a minute and try again.' : error.status === 422 || /exist/i.test(error.message ?? '') ? 'An account with this email already exists. Try logging in instead.' : 'We could not create your account. Please check the details and try again.');
       return;
     }
-    router.push('/onboarding');
+    router.push(next && safeNext(next, '') ? `/onboarding?next=${encodeURIComponent(next)}` : '/onboarding');
     router.refresh();
   }
 
@@ -36,7 +38,7 @@ export function SignupForm() {
       <Field label="Work email"><Input name="email" type="email" autoComplete="email" required placeholder="you@business.com" /></Field>
       <Field label="Password" hint="At least 8 characters."><Input name="password" type="password" autoComplete="new-password" required minLength={8} /></Field>
       <Button type="submit" disabled={busy} className="mt-1 w-full">{busy ? <Loader2 className="size-4 animate-spin" /> : null}Create account</Button>
-      <p className="text-center text-sm text-muted">Already have an account? <Link href="/login" className="font-semibold text-brand">Log in</Link></p>
+      <p className="text-center text-sm text-muted">Already have an account? <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="font-semibold text-brand">Log in</Link></p>
     </form>
   );
 }

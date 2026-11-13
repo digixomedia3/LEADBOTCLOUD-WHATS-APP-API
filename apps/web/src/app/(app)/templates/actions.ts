@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { lintTemplate, type Category } from '@lbc/shared';
-import { auditLog, templates } from '@lbc/db';
-import { Forbidden, assertRole, db, requireCtx, type Ctx } from '@/lib/session';
+import { templates } from '@lbc/db';
+import { Forbidden, assertRole, db, requireCtx, type Ctx, audit } from '@/lib/session';
 
 export type Result<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
@@ -84,7 +84,7 @@ export async function submitTemplate(id: string): Promise<Result<{ testMode: boo
     const r = lintTemplate({ name: t.name, category: t.category as Category, headerText: t.headerText ?? undefined, body: t.body, footer: t.footer ?? undefined, buttons: t.buttons as TemplateRow['buttons'], samples: t.samples as string[] }, others.map((o) => o.name), others.map((o) => o.body));
     if (r.blocked) return fail(r.issues.find((i) => i.level === 'block')!.message);
     await tx.update(templates).set({ status: 'pending', rejectionReason: null, updatedAt: new Date() }).where(eq(templates.id, id));
-    await tx.insert(auditLog).values({ tenantId: g.ctx.tenantId, actorUserId: g.ctx.user.id, actorType: 'user', action: 'template.submitted', entity: 'template', entityId: id });
+    await audit(tx, 'template.submitted', 'template', id);
     revalidatePath('/templates');
     // No WhatsApp number is connected yet, so nothing is sent to Meta. The review is simulated in test mode.
     return { ok: true as const, data: { testMode: true } };
@@ -109,9 +109,9 @@ export async function deleteTemplate(id: string): Promise<Result> {
   const g = await guard('admin'); if ('error' in g) return fail(g.error);
   return db(g.ctx, async (tx) => {
     const used = await tx.execute(sql`select 1 from campaigns where template_id = ${id} and status in ('scheduled','running') limit 1`);
-    if ((used as unknown as unknown[]).length) return fail('A scheduled or running campaign uses this format.');
+    if ((used as unknown as unknown[]).length) return fail('A scheduled or running bulk send uses this message format.');
     await tx.delete(templates).where(eq(templates.id, id));
-    await tx.insert(auditLog).values({ tenantId: g.ctx.tenantId, actorUserId: g.ctx.user.id, actorType: 'user', action: 'template.deleted', entity: 'template', entityId: id });
+    await audit(tx, 'template.deleted', 'template', id);
     revalidatePath('/templates');
     return { ok: true as const, data: null };
   });

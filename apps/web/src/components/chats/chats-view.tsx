@@ -80,7 +80,7 @@ export function ChatsView({ initial, team, quick, me, canReply }: { initial: Con
                 {canReply ? <Button size="sm" variant="outline" disabled={pending} onClick={() => start(async () => { await setStatus(c.id, c.status === 'open' ? 'resolved' : 'open'); setThread(await openConversation(c.id)); void refreshList(); flash(c.status === 'open' ? 'Marked resolved.' : 'Reopened.'); })}><CheckCircle2 className="size-4" /><span className="hidden sm:inline">{c.status === 'open' ? 'Resolve' : 'Reopen'}</span></Button> : null}
               </header>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#efe7dd] p-4 dark:bg-[#0b141a]">
-                {thread.messages.length === 0 ? <p className="py-8 text-center text-sm text-muted">No messages yet. {c.windowOpen ? '' : 'Send an approved template from a campaign to reach this customer.'}</p> : null}
+                {thread.messages.length === 0 ? <p className="py-8 text-center text-sm text-muted">No messages yet. {c.windowOpen ? '' : 'Send an approved message format to reach this customer.'}</p> : null}
                 {thread.messages.map((m) => (
                   <div key={m.id} className={cn('flex', m.direction === 'in' ? 'justify-start' : 'justify-end')}>
                     <div className={cn('max-w-[82%] rounded-xl px-3 py-2 text-[14px] leading-snug shadow-sm', m.direction === 'in' && 'rounded-tl-none bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]', m.direction === 'out' && 'rounded-tr-none bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]', m.direction === 'note' && 'border border-amber/50 bg-amber/15 text-ink')}>

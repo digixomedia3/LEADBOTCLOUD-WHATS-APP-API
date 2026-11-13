@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { safeNext } from '@/lib/safe-next';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
@@ -10,6 +11,7 @@ import { Field, FormError, Input } from '@/components/ui/form';
 
 export function LoginForm() {
   const router = useRouter();
+  const next = useSearchParams().get('next');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -23,7 +25,7 @@ export function LoginForm() {
       setError(error.status === 429 ? 'Too many attempts. Wait a minute and try again.' : 'That email or password is not right. Check it and try again.');
       return;
     }
-    router.push('/dashboard');
+    router.push(safeNext(next, '/dashboard'));
     router.refresh();
   }
 
@@ -33,7 +35,7 @@ export function LoginForm() {
       <Field label="Email"><Input name="email" type="email" autoComplete="email" required placeholder="you@business.com" /></Field>
       <Field label="Password"><Input name="password" type="password" autoComplete="current-password" required minLength={8} /></Field>
       <Button type="submit" disabled={busy} className="mt-1 w-full">{busy ? <Loader2 className="size-4 animate-spin" /> : null}Log in</Button>
-      <p className="text-center text-sm text-muted">New here? <Link href="/signup" className="font-semibold text-brand">Create your account</Link></p>
+      <p className="text-center text-sm text-muted">New here? <Link href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"} className="font-semibold text-brand">Create your account</Link></p>
     </form>
   );
 }

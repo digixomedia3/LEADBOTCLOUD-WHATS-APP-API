@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { auditLog, campaignRecipients, campaigns, templates } from '@lbc/db';
-import { Forbidden, assertRole, db, requireCtx, type Ctx } from '@/lib/session';
+import { campaignRecipients, campaigns, templates } from '@lbc/db';
+import { Forbidden, assertRole, db, requireCtx, type Ctx, audit } from '@/lib/session';
 import { estimateCost, RATE_PAISE_X100 } from '@/lib/cost';
 
 export type Result<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
@@ -59,7 +59,7 @@ export async function previewAudience(groupIds: string[], category: string): Pro
 
 const input = z.object({
   name: z.string().trim().min(2, 'Give the campaign a name.').max(120),
-  templateId: z.string().uuid('Choose an approved template.'),
+  templateId: z.string().uuid('Choose an approved message format.'),
   groupIds: z.array(z.string().uuid()).min(1, 'Choose at least one group.').max(50),
   when: z.enum(['now', 'later']),
   scheduledAt: z.string().optional(),
@@ -82,8 +82,8 @@ export async function createCampaign(raw: CampaignInput): Promise<Result<{ id: s
   }
   return db(g.ctx, async (tx) => {
     const [t] = await tx.select().from(templates).where(eq(templates.id, d.templateId));
-    if (!t) return fail('That template was not found.');
-    if (t.status !== 'approved') return fail('Only approved templates can be sent. Get this one approved first.');
+    if (!t) return fail('That message format was not found.');
+    if (t.status !== 'approved') return fail('Only approved message formats can be sent. Get this one approved first.');
     const groups = await tx.execute(sql`select id from contact_groups where id = any(${sql.raw(`ARRAY[${d.groupIds.map((i) => `'${i}'`).join(',')}]::uuid[]`)})`);
     if ((groups as unknown as unknown[]).length !== d.groupIds.length) return fail('One of the groups no longer exists.');
     const aud = await previewAudience(d.groupIds, t.category);
@@ -94,7 +94,7 @@ export async function createCampaign(raw: CampaignInput): Promise<Result<{ id: s
       tenantId: g.ctx.tenantId, name: d.name, templateId: t.id, groupIds: d.groupIds, status: d.when === 'now' ? 'draft' : 'scheduled', scheduledAt: when, repeat: d.repeat,
       estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: g.ctx.user.id,
     }).returning({ id: campaigns.id, status: campaigns.status });
-    await tx.insert(auditLog).values({ tenantId: g.ctx.tenantId, actorUserId: g.ctx.user.id, actorType: 'user', action: 'campaign.created', entity: 'campaign', entityId: row!.id, after: { audience: aud.sendable } });
+    await audit(tx, 'campaign.created', 'campaign', row!.id, { audience: aud.sendable });
     revalidatePath('/campaigns');
     return { ok: true as const, data: { id: row!.id, status: row!.status } };
   });
@@ -114,7 +114,7 @@ export async function sendCampaign(id: string): Promise<Result<{ sent: number; t
     if (!c) return fail('Campaign not found.');
     if (!['draft', 'scheduled', 'paused'].includes(c.status)) return fail('This campaign has already been sent.');
     const [t] = c.templateId ? await tx.select().from(templates).where(eq(templates.id, c.templateId)) : [];
-    if (!t || t.status !== 'approved') return fail('The template is no longer approved.');
+    if (!t || t.status !== 'approved') return fail('The message format is no longer approved.');
     const rows = await tx.execute(sql`
       select distinct on (c.id) c.id, c.phone_e164, c.name, c.consent_status
       from contacts c join contact_group_members m on m.contact_id = c.id
@@ -133,7 +133,7 @@ export async function sendCampaign(id: string): Promise<Result<{ sent: number; t
     const counts = { audience: sendable.length, sent: sendable.length, delivered: sendable.length - n('failed'), read: n('read') + n('replied'), replied: n('replied'), failed: n('failed'), skipped: skip.length, optedOut: skipped.filter((r) => r.consent_status === 'stopped').length, testMode: 1 };
     const nextAt = c.repeat === 'none' ? null : new Date((c.scheduledAt ?? now).getTime() + ({ daily: 1, weekly: 7, monthly: 30 }[c.repeat as 'daily'] ?? 1) * 86_400_000);
     await tx.update(campaigns).set({ status: 'completed', startedAt: now, completedAt: now, counts, estCostPaise: est.totalPaise, ...(nextAt ? {} : {}) }).where(eq(campaigns.id, id));
-    await tx.insert(auditLog).values({ tenantId: g.ctx.tenantId, actorUserId: g.ctx.user.id, actorType: 'user', action: 'campaign.sent_test', entity: 'campaign', entityId: id, after: counts });
+    await audit(tx, 'campaign.sent_test', 'campaign', id, counts);
     revalidatePath('/campaigns');
     return { ok: true as const, data: { sent: sendable.length, testMode: true as const } };
   });

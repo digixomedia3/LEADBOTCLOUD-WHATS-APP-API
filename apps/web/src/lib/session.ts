@@ -74,3 +74,8 @@ export async function createWorkspaceFor(userId: string, name: string, vertical:
     return (r as unknown as { id: string }[])[0]!.id;
   });
 }
+
+/** Append-only audit trail. Goes through the write_audit() database function, because the app role cannot INSERT into audit_log. */
+export async function audit(tx: Tx, action: string, entity: string, entityId?: string, after?: unknown) {
+  await tx.execute(sql`select public.write_audit(${action}, ${entity}, ${entityId ?? ''}, ${after === undefined ? null : JSON.stringify(after)}::jsonb)`);
+}

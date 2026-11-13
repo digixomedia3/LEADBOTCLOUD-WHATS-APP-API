@@ -45,8 +45,8 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><h2 className="font-display text-2xl font-extrabold">Templates</h2><p className="text-sm text-muted">Official WhatsApp message formats. Only approved ones can be sent in campaigns.</p></div>
-        {canEdit ? <Button onClick={() => setEditing({ ...empty })}><Plus className="size-4" />New template</Button> : null}
+        <div><h2 className="font-display text-2xl font-extrabold">Message formats</h2><p className="text-sm text-muted">Official WhatsApp message formats. Only approved ones can be sent to customers.</p></div>
+        {canEdit ? <Button onClick={() => setEditing({ ...empty })}><Plus className="size-4" />New message format</Button> : null}
       </div>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0" role="tablist">
@@ -84,7 +84,7 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
                 <div className="mt-auto flex flex-wrap gap-2 border-t border-line pt-3">
                   {t.status !== 'pending' ? <Button size="sm" variant="outline" onClick={() => setEditing({ id: t.id, status: t.status, name: t.name, language: t.language as 'en', category: t.category, headerText: t.headerText ?? '', body: t.body, footer: t.footer ?? '', buttons: t.buttons, samples: t.samples })}>Edit</Button> : null}
                   <Button size="sm" variant="ghost" onClick={() => start(async () => { const r = await duplicateTemplate(t.id); if (!r.ok) flash(r.error); else await refresh('Copied as a draft.'); })}><Copy className="size-4" />Copy</Button>
-                  <Button size="sm" variant="ghost" aria-label={`Delete ${t.name}`} onClick={() => { if (confirm(`Delete “${t.name}”?`)) start(async () => { const r = await deleteTemplate(t.id); if (!r.ok) flash(r.error); else await refresh('Deleted.'); }); }}><Trash2 className="size-4 text-rose" /></Button>
+                  <Button size="sm" variant="ghost" aria-label={`Delete ${t.name}`} onClick={() => { if (confirm(`Delete the message format “${t.name}”?`)) start(async () => { const r = await deleteTemplate(t.id); if (!r.ok) flash(r.error); else await refresh('Deleted.'); }); }}><Trash2 className="size-4 text-rose" /></Button>
                 </div>
               ) : null}
             </article>); })}
@@ -120,7 +120,7 @@ function Builder({ initial, others, onClose, onSaved }: { initial: DraftInput & 
   }
 
   return (
-    <Modal open onClose={onClose} title={d.id ? 'Edit template' : 'New template'} wide>
+    <Modal open onClose={onClose} title={d.id ? 'Edit message format' : 'New message format'} wide>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="flex flex-col gap-4">
           <FormError>{error}</FormError>
