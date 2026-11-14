@@ -10,6 +10,9 @@ export interface LocalTemplate {
   language: string;
   category: 'marketing' | 'utility' | 'authentication';
   headerText?: string | null;
+  /** Picture, video or PDF header. `headerHandle` is the Resumable Upload handle Meta needs as the sample when the template is created. */
+  headerMedia?: 'image' | 'video' | 'document' | null;
+  headerHandle?: string | null;
   body: string;
   footer?: string | null;
   buttons: { type: 'quick_reply' | 'url' | 'phone' | 'copy_code'; text: string; value?: string }[];
@@ -25,7 +28,11 @@ export function buildTemplatePayload(t: LocalTemplate): { name: string; language
   if (t.category === 'authentication') throw new TemplateBuildError('One-time-code formats are not supported yet.');
   const components: unknown[] = [];
 
-  if (t.headerText) {
+  if (t.headerMedia) {
+    if (t.headerText) throw new TemplateBuildError('Use either a text header or a picture, video or PDF, not both.');
+    if (!t.headerHandle) throw new TemplateBuildError('The header file has not been uploaded to WhatsApp yet.');
+    components.push({ type: 'HEADER', format: t.headerMedia.toUpperCase(), example: { header_handle: [t.headerHandle] } });
+  } else if (t.headerText) {
     if (vars(t.headerText).length) throw new TemplateBuildError('A variable in the header is not supported yet. Move it into the message text.');
     components.push({ type: 'HEADER', format: 'TEXT', text: t.headerText });
   }

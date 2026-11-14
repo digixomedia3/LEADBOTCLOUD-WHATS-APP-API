@@ -113,6 +113,45 @@ export class GraphClient {
   markRead(phoneNumberId: string, token: string, messageId: string) { return this.request<{ success: boolean }>('POST', `${phoneNumberId}/messages`, { token, body: { messaging_product: 'whatsapp', status: 'read', message_id: messageId } }); }
 
   // ---- Templates (spec 7.1) ----
+  /**
+   * Resumable Upload (Meta "Upload a file"): 1) POST /<APP_ID>/uploads?file_name&file_length&file_type -> {id: "upload:<session>"};
+   * 2) POST /upload:<session> with header `Authorization: OAuth <token>` and `file_offset: 0` and the raw bytes -> {h: "<handle>"}.
+   * The handle is the sample for a template's media header. Valid types: image/jpeg, image/png, video/mp4, application/pdf.
+   */
+  async uploadTemplateSample(token: string, file: { name: string; mime: string; bytes: Uint8Array }): Promise<string> {
+    if (!this.cfg.appId) throw new Error('META_APP_ID is required');
+    if (!['image/jpeg', 'image/png', 'video/mp4', 'application/pdf'].includes(file.mime)) throw new Error('Unsupported header file type');
+    const s = await this.request<{ id?: string }>('POST', `${this.cfg.appId}/uploads`, { token, query: { file_name: file.name, file_length: file.bytes.length, file_type: file.mime } });
+    if (!s?.id || !/^upload:/.test(s.id)) throw new MetaError(502, { message: 'Meta did not start an upload session.' }, 'uploads');
+    const f = this.cfg.fetchImpl ?? fetch;
+    const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), this.cfg.timeoutMs ?? 60_000);
+    let res: Response;
+    try { res = await f(this.url(s.id), { method: 'POST', headers: { Authorization: `OAuth ${token}`, file_offset: '0' }, body: file.bytes as BodyInit, signal: ctl.signal }); }
+    catch (e) { throw new MetaUnknownOutcome('upload', e); } finally { clearTimeout(timer); }
+    const text = await res.text(); let json: { h?: string; error?: GraphError } = {};
+    try { json = text ? JSON.parse(text) : {}; } catch { /* non-JSON */ }
+    if (!res.ok) throw new MetaError(res.status, json.error ?? { message: `HTTP ${res.status}` }, 'upload');
+    if (!json.h) throw new MetaError(502, { message: 'Meta did not return a file handle.' }, 'upload');
+    return json.h;
+  }
+
+  /** Upload media to a sending number (Cloud API Media): multipart with messaging_product, file and type. Returns the media id (valid 30 days). */
+  async uploadMedia(phoneNumberId: string, token: string, file: { name: string; mime: string; bytes: Uint8Array }): Promise<string> {
+    const f = this.cfg.fetchImpl ?? fetch;
+    const form = new FormData();
+    form.set('messaging_product', 'whatsapp'); form.set('type', file.mime);
+    form.set('file', new Blob([file.bytes as BlobPart], { type: file.mime }), file.name);
+    const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), this.cfg.timeoutMs ?? 60_000);
+    let res: Response;
+    try { res = await f(this.url(`${phoneNumberId}/media`), { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form, signal: ctl.signal }); }
+    catch (e) { throw new MetaUnknownOutcome('media', e); } finally { clearTimeout(timer); }
+    const text = await res.text(); let json: { id?: string; error?: GraphError } = {};
+    try { json = text ? JSON.parse(text) : {}; } catch { /* non-JSON */ }
+    if (!res.ok) throw new MetaError(res.status, json.error ?? { message: `HTTP ${res.status}` }, 'media');
+    if (!json.id) throw new MetaError(502, { message: 'Meta did not return a media id.' }, 'media');
+    return json.id;
+  }
+
   createTemplate(wabaId: string, token: string, body: unknown) { return this.request<{ id: string; status: string; category: string }>('POST', `${wabaId}/message_templates`, { token, body }); }
   listTemplates(wabaId: string, token: string, after?: string) {
     return this.request<{ data: RemoteTemplate[]; paging?: { cursors?: { after?: string }; next?: string } }>('GET', `${wabaId}/message_templates`, { token, query: { fields: 'name,status,category,language,components,quality_score', limit: 100, after } });

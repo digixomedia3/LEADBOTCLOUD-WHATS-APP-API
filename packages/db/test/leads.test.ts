@@ -236,3 +236,37 @@ describe('oauth states: single use, bound to the tenant AND the signed-in user',
     await expect(as(T1, U1, (tx) => tx.execute(sql`select * from connector_events`))).rejects.toThrow(/permission denied/i);
   });
 });
+
+describe('template_assets: a workspace’s header files stay its own', () => {
+  let A1 = '', TPL1 = '';
+  beforeAll(async () => {
+    TPL1 = (await admin.client.unsafe(`insert into templates (tenant_id, name, language, category, body) values ('${T1}', 'asset_t_${tag}', 'en', 'marketing', 'Hello there friend') returning id`))[0]!.id as string;
+    A1 = (await admin.client.unsafe(`insert into template_assets (tenant_id, template_id, kind, mime, file_name, size_bytes, sha256, data) values ('${T1}', '${TPL1}', 'image', 'image/png', 'a.png', 4, 'x', decode('89504e47', 'hex')) returning id`))[0]!.id as string;
+  });
+  it('the owner workspace can read and replace its file', async () => {
+    expect(await as(T1, U1, (tx) => rows(tx, sql`select id from template_assets where id = ${A1}`))).toHaveLength(1);
+    expect(await as(T1, U1, (tx) => rows(tx, sql`update template_assets set file_name = 'b.png' where id = ${A1} returning id`))).toHaveLength(1);
+  });
+  it('another workspace sees nothing, changes nothing, deletes nothing', async () => {
+    expect(await as(T2, U2, (tx) => rows(tx, sql`select id from template_assets`))).toHaveLength(0);
+    expect(await as(T2, U2, (tx) => rows(tx, sql`update template_assets set file_name = 'evil' where id = ${A1} returning id`))).toHaveLength(0);
+    expect(await as(T2, U2, (tx) => rows(tx, sql`delete from template_assets where id = ${A1} returning id`))).toHaveLength(0);
+    expect((await admin.client.unsafe(`select file_name from template_assets where id = '${A1}'`))[0]!.file_name).toBe('b.png');
+  });
+  it('cannot insert a file for someone else’s workspace', async () => {
+    await expect(as(T2, U2, (tx) => tx.execute(sql`insert into template_assets (tenant_id, kind, mime, file_name, size_bytes, sha256, data) values (${T1}, 'image', 'image/png', 'x.png', 4, 'x', decode('89504e47', 'hex'))`))).rejects.toThrow(/row-level security/i);
+  });
+  it('the database refuses unsupported types, oversize files and a size that does not match the bytes', async () => {
+    const ins = (mime: string, size: number, hex = '89504e47') => admin.client.unsafe(`insert into template_assets (tenant_id, kind, mime, file_name, size_bytes, sha256, data) values ('${T1}', 'image', '${mime}', 'x', ${size}, 'x', decode('${hex}', 'hex'))`);
+    await expect(ins('image/gif', 4)).rejects.toThrow(/template_assets_mime_chk/); await expect(ins('image/png', 5)).rejects.toThrow(/template_assets_size_chk/);
+    await expect(ins('image/png', 99_999_999)).rejects.toThrow(/template_assets_size_chk/); await expect(ins('image/png', 0, '')).rejects.toThrow(/template_assets_size_chk/);
+  });
+  it('one template has one header file', async () => {
+    await expect(admin.client.unsafe(`insert into template_assets (tenant_id, template_id, kind, mime, file_name, size_bytes, sha256, data) values ('${T1}', '${TPL1}', 'image', 'image/png', 'dup.png', 4, 'x', decode('89504e47', 'hex'))`)).rejects.toThrow(/template_assets_template_uq/);
+  });
+  it('deleting the template removes its file; header types are limited to the known set', async () => {
+    await expect(admin.client.unsafe(`update templates set header_type = 'gif' where id = '${TPL1}'`)).rejects.toThrow(/templates_header_type_chk/);
+    await admin.client.unsafe(`delete from templates where id = '${TPL1}'`);
+    expect(await admin.client.unsafe(`select 1 from template_assets where id = '${A1}'`)).toHaveLength(0);
+  });
+});

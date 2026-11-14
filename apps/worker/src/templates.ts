@@ -41,7 +41,30 @@ export async function submitPendingTemplates(d: TplDeps, limit = 20): Promise<{ 
     const claimed = rows(await d.db.execute(sql`update templates set submit_attempts = submit_attempts + 1 where id = ${id} and tenant_id = ${tenantId} and status = 'pending' and meta_template_id is null returning submit_attempts`))[0];
     if (!claimed) continue;
 
-    const local: LocalTemplate = { name: String(t.name), language: String(t.language), category: String(t.category) as LocalTemplate['category'], headerText: (t.header_text as string | null) ?? null, body: String(t.body), footer: (t.footer as string | null) ?? null, buttons: (t.buttons as LocalTemplate['buttons']) ?? [], samples: (t.samples as string[]) ?? [] };
+    // A picture, video or PDF header: Meta needs a sample uploaded through the Resumable Upload API first. The handle is kept, so a retry never re-uploads.
+    let headerHandle: string | null = null;
+    const htype = String(t.header_type ?? 'none');
+    if (['image', 'video', 'document'].includes(htype)) {
+      const asset = rows(await d.db.execute(sql`select id, mime, file_name, data, meta_handle, meta_handle_at from template_assets where template_id = ${id} and tenant_id = ${tenantId}`))[0];
+      if (!asset) { await d.db.execute(sql`update templates set status = 'draft', submit_error = 'The header file is missing. Choose it again.', updated_at = now() where id = ${id} and tenant_id = ${tenantId}`); failed++; continue; }
+      headerHandle = (asset.meta_handle as string | null) ?? null;
+      if (!headerHandle) {
+        try {
+          headerHandle = await d.graph.uploadTemplateSample(acc.token, { name: String(asset.file_name), mime: String(asset.mime), bytes: new Uint8Array(asset.data as Buffer) });
+          await d.db.execute(sql`update template_assets set meta_handle = ${headerHandle}, meta_handle_at = now() where id = ${asset.id as string} and tenant_id = ${tenantId}`);
+        } catch (e) {
+          if (e instanceof MetaUnknownOutcome) { waiting++; continue; }
+          if (e instanceof MetaError) {
+            if (e.isTransient || e.policy.retry === 'retry' || e.policy.retry === 'retry_delay') { waiting++; continue; }
+            await d.db.execute(sql`update templates set status = 'draft', submit_error = ${('Meta did not accept the header file: ' + (e.graph.error_data?.details ?? e.message)).slice(0, 300)}, updated_at = now() where id = ${id} and tenant_id = ${tenantId}`);
+            if (e.policy.action === 'reconnect') await d.db.execute(sql`update meta_accounts set token_status = 'invalid', updated_at = now() where tenant_id = ${tenantId}`);
+            failed++; continue;
+          }
+          throw e;
+        }
+      }
+    }
+    const local: LocalTemplate = { headerMedia: ['image', 'video', 'document'].includes(htype) ? (htype as 'image') : null, headerHandle, name: String(t.name), language: String(t.language), category: String(t.category) as LocalTemplate['category'], headerText: (t.header_text as string | null) ?? null, body: String(t.body), footer: (t.footer as string | null) ?? null, buttons: (t.buttons as LocalTemplate['buttons']) ?? [], samples: (t.samples as string[]) ?? [] };
     let payload;
     try { payload = buildTemplatePayload(local); }
     catch (e) {

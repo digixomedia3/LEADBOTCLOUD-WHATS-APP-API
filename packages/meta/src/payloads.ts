@@ -82,3 +82,21 @@ export function rerouteFor(code: number | undefined): Endpoint | null {
   if (code === 131055 || code === 134100) return 'messages'; // template is no longer marketing
   return null;
 }
+
+/**
+ * Header media for a template send. Meta recommends sending the id of media uploaded to the sending number (links also work but cost a public fetch).
+ * Documents carry a file name. Shape: components[].type "header", parameters[].type image|video|document with an id (Meta "Template media" docs).
+ */
+export function headerMediaParam(kind: 'image' | 'video' | 'document', mediaId: string, fileName?: string): TemplateComponent {
+  if (!/^\d{5,30}$/.test(mediaId)) throw new Error('Header media id looks wrong');
+  const media: Record<string, string> = { id: mediaId };
+  if (kind === 'document' && fileName) media.filename = fileName.slice(0, 120);
+  return { type: 'header', parameters: [{ type: kind, [kind]: media }] };
+}
+
+/** Copy-code button. The code is sent with every message (Meta: coupon_code, up to 15 characters). `index` is the button's position in the template. */
+export function copyCodeParam(index: number, code: string): TemplateComponent {
+  const c = code.trim();
+  if (!c || c.length > 15) throw new Error('A copy-code button needs a code of 1 to 15 characters');
+  return { type: 'button', sub_type: 'copy_code', index: String(index), parameters: [{ type: 'coupon_code', coupon_code: c }] };
+}

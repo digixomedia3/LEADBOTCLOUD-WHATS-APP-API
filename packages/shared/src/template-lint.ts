@@ -8,6 +8,10 @@ export interface TemplateDraft {
   name: string;
   category: Category;
   headerText?: string;
+  /** A picture, video or PDF at the top. Mutually exclusive with headerText. */
+  headerMedia?: 'image' | 'video' | 'document';
+  /** True once a file has been chosen for the media header. */
+  hasHeaderFile?: boolean;
   body: string;
   footer?: string;
   buttons: { type: 'quick_reply' | 'url' | 'phone' | 'copy_code'; text: string; value?: string }[];
@@ -36,6 +40,11 @@ export function lintTemplate(d: TemplateDraft, existingNames: string[] = [], exi
   else if (existingNames.includes(d.name)) add('block', 'name', 'You already have a format with this name.');
 
   // Header
+  if (d.headerMedia) {
+    if (d.headerText) add('block', 'header', 'Use either a text header or a picture, video or PDF, not both.');
+    if (!d.hasHeaderFile) add('block', 'header', `Choose the ${d.headerMedia === 'document' ? 'PDF' : d.headerMedia} file for the header.`);
+    if (d.category === 'authentication') add('block', 'header', 'One-time-code messages cannot have a header.');
+  }
   if (d.headerText) {
     if (d.headerText.length > LIMITS.header) add('block', 'header', `The header can be ${LIMITS.header} characters at most (now ${d.headerText.length}).`);
     if (variablesIn(d.headerText).length > 1) add('block', 'header', 'The header can have only one variable.');

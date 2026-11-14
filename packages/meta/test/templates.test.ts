@@ -63,3 +63,21 @@ describe('remote mapping', () => {
     expect(r([{ type: 'FOOTER', text: 'only footer' }])).toBeNull();
   });
 });
+
+describe('media headers', () => {
+  const base2 = { name: 'offer_pic', language: 'en', category: 'marketing' as const, body: 'Hi {{1}}, see our festival range.', buttons: [], samples: ['Asha'] };
+  it('builds an IMAGE/VIDEO/DOCUMENT header with the uploaded handle as the sample', () => {
+    for (const kind of ['image', 'video', 'document'] as const) {
+      const p = buildTemplatePayload({ ...base2, headerMedia: kind, headerHandle: '4::aW-handle' });
+      expect(p.components[0]).toEqual({ type: 'HEADER', format: kind.toUpperCase(), example: { header_handle: ['4::aW-handle'] } });
+    }
+  });
+  it('refuses a media header with no handle, with text as well, or on a one-time-code format', () => {
+    expect(() => buildTemplatePayload({ ...base2, headerMedia: 'image' })).toThrow(/not been uploaded/);
+    expect(() => buildTemplatePayload({ ...base2, headerMedia: 'image', headerHandle: 'h', headerText: 'Hi' })).toThrow(/either/i);
+    expect(() => buildTemplatePayload({ ...base2, category: 'authentication', headerMedia: 'image', headerHandle: 'h' })).toThrow();
+  });
+  it('a template with a media header is not imported blindly from Meta (no file to resend)', () => {
+    expect(parseRemoteTemplate({ name: 'x', status: 'APPROVED', category: 'MARKETING', language: 'en', components: [{ type: 'HEADER', format: 'IMAGE', example: { header_handle: ['h'] } }, { type: 'BODY', text: 'Hello there friend' }] } as never)).toBeNull();
+  });
+});

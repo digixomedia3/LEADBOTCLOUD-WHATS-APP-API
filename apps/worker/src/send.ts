@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { backoffMs, errorPolicy, type ErrorPolicy } from '@lbc/shared';
-import { GraphClient, MetaError, MetaUnknownOutcome, bodyParams, chooseEndpoint, decryptSecret, rerouteFor, templateMessage, textMessage, withProductPolicy, type SendResponse, type TemplateCategory } from '@lbc/meta';
+import { GraphClient, MetaError, MetaUnknownOutcome, bodyParams, copyCodeParam, headerMediaParam, chooseEndpoint, decryptSecret, rerouteFor, templateMessage, textMessage, withProductPolicy, type SendResponse, type TemplateCategory } from '@lbc/meta';
 import type { Db } from '@lbc/db';
 
 type Row = Record<string, unknown>;
@@ -52,6 +52,7 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
   if (tenant?.status === 'suspended' || tenant?.status === 'offboarded') return skip(db, tenantId, messageId, recipientId, 'This workspace is not active.');
 
   const isTemplate = !!m.template_name;
+  let tpl: Row | null = null;
   const category = (m.template_category as string | null)?.toUpperCase() as TemplateCategory | undefined;
 
   if (contact.consent_status === 'stopped') return skip(db, tenantId, messageId, recipientId, 'Customer opted out');
@@ -63,8 +64,9 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
     if (!open) return skip(db, tenantId, messageId, recipientId, 'The 24-hour reply window is closed. Send an approved message format.');
   }
   if (isTemplate) {
-    const t = rows(await db.execute(sql`select status from templates where tenant_id = ${tenantId} and name = ${m.template_name} and language = ${m.template_language} limit 1`))[0];
+    const t = rows(await db.execute(sql`select id, status, header_type, buttons from templates where tenant_id = ${tenantId} and name = ${m.template_name} and language = ${m.template_language} limit 1`))[0];
     if (!t || t.status !== 'approved') return skip(db, tenantId, messageId, recipientId, 'The message format is not approved right now.');
+    tpl = t;
   }
 
   const ph = rows(await db.execute(sql`select phone_number_id, status from phone_numbers where tenant_id = ${tenantId} and (phone_number_id = ${m.phone_number_id} or ${m.phone_number_id}::text is null) order by created_at limit 1`))[0];
@@ -77,12 +79,27 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
 
   const token = decryptSecret(String(acc.business_token_enc), d.tokenKey);
   const to = String(contact.phone_e164);
-  const payload = (m.payload ?? {}) as { params?: string[]; names?: string[]; text?: string };
+  const payload = (m.payload ?? {}) as { params?: string[]; names?: string[]; text?: string; code?: string };
+
+  // A template with a picture/video/PDF header needs a media id for THIS sending number. Uploaded once, then reused for 25 days (Meta keeps media 30).
+  let headerMediaId: string | null = null;
+  if (isTemplate && tpl && ['image', 'video', 'document'].includes(String(tpl.header_type))) {
+    try { headerMediaId = await mediaIdFor(d, tenantId, String(tpl.id), phoneNumberId, token); }
+    catch (e) {
+      if (e instanceof MetaUnknownOutcome || (e instanceof MetaError && (e.isTransient || errorPolicy(e.code).retry !== 'no'))) {
+        await db.execute(sql`update messages set status = 'queued' where id = ${messageId} and tenant_id = ${tenantId}`);
+        return { kind: 'retry', delayMs: 15_000 };
+      }
+      if (e instanceof MetaError) return handleSendError(d, tenantId, messageId, recipientId, e);
+      await db.execute(sql`update messages set status = 'failed', failed_at = now(), error_detail = ${JSON.stringify({ build_error: String((e as Error).message) })}::jsonb where id = ${messageId} and tenant_id = ${tenantId}`);
+      return { kind: 'failed', message: 'The header file could not be prepared.', action: 'dlq', known: false };
+    }
+  }
 
   let body: object;
   try {
     body = isTemplate
-      ? templateMessage({ to, name: String(m.template_name), language: String(m.template_language ?? 'en'), components: payload.params?.length ? [bodyParams(payload.params, payload.names)] : undefined, messageId })
+      ? templateMessage({ to, name: String(m.template_name), language: String(m.template_language ?? 'en'), components: templateComponents(payload, tpl, headerMediaId), messageId })
       : textMessage({ to, body: String(m.body), messageId });
   } catch (e) {
     await db.execute(sql`update messages set status = 'failed', failed_at = now(), error_detail = ${JSON.stringify({ build_error: String((e as Error).message) })}::jsonb where id = ${messageId} and tenant_id = ${tenantId}`);
@@ -161,3 +178,41 @@ async function handleSendError(d: SendDeps, tenantId: string, messageId: string,
 }
 
 export const _note = MARKETING_COOLDOWN_NOTE;
+
+const MEDIA_TTL_DAYS = 25;
+/** The media id of a template's header file for one sending number. Cached per number; re-uploaded when older than MEDIA_TTL_DAYS. */
+const inflight = new Map<string, Promise<string>>();
+/** One upload at a time per (template, number): twenty parallel sends of the same campaign share one upload instead of making twenty. */
+export function mediaIdFor(d: SendDeps, tenantId: string, templateId: string, phoneNumberId: string, token: string): Promise<string> {
+  const key = `${tenantId}:${templateId}:${phoneNumberId}`;
+  const running = inflight.get(key);
+  if (running) return running;
+  const p = mediaIdForUncached(d, tenantId, templateId, phoneNumberId, token).finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+async function mediaIdForUncached(d: SendDeps, tenantId: string, templateId: string, phoneNumberId: string, token: string): Promise<string> {
+  const a = rows(await d.db.execute(sql`select id, mime, file_name, kind, data, media_ids from template_assets where template_id = ${templateId} and tenant_id = ${tenantId}`))[0];
+  if (!a) throw new Error('The header file is missing');
+  const cached = ((a.media_ids ?? {}) as Record<string, { id: string; at: string }>)[phoneNumberId];
+  const fresh = cached && Date.now() - new Date(cached.at).getTime() < MEDIA_TTL_DAYS * 86_400_000;
+  if (fresh) return cached.id;
+  const id = await d.graph.uploadMedia(phoneNumberId, token, { name: String(a.file_name), mime: String(a.mime), bytes: new Uint8Array(a.data as Buffer) });
+  await d.db.execute(sql`update template_assets set media_ids = jsonb_set(media_ids, ARRAY[${phoneNumberId}]::text[], ${JSON.stringify({ id, at: new Date().toISOString() })}::jsonb, true) where id = ${a.id as string} and tenant_id = ${tenantId}`);
+  return id;
+}
+
+/** Header media, body variables and the copy-code button, in the order Meta documents. */
+export function templateComponents(payload: { params?: string[]; names?: string[]; code?: string }, tpl: Row | null, headerMediaId: string | null) {
+  const out: ReturnType<typeof bodyParams>[] = [];
+  const kind = tpl ? String(tpl.header_type) : 'none';
+  if (headerMediaId && (kind === 'image' || kind === 'video' || kind === 'document')) out.push(headerMediaParam(kind, headerMediaId, kind === 'document' ? 'Document.pdf' : undefined));
+  if (payload.params?.length) out.push(bodyParams(payload.params, payload.names));
+  const buttons = (tpl?.buttons ?? []) as { type: string }[];
+  const copyAt = buttons.findIndex((b) => b.type === 'copy_code');
+  if (copyAt >= 0) {
+    if (!payload.code) throw new Error('This format has a copy-code button but no code was given');
+    out.push(copyCodeParam(copyAt, payload.code));
+  }
+  return out.length ? out : undefined;
+}
