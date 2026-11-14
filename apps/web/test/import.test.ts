@@ -57,6 +57,15 @@ describe('parsePasted', () => {
   });
 });
 
+describe('toCsv: phone numbers', () => {
+  it('keeps a real phone number readable but still escapes anything else that starts with a plus', () => {
+    expect(toCsv([['+919876543210']])).toBe('+919876543210');
+    for (const evil of ['+91 98765 43210', '+1+1', '+91987654321a', '+9198765432101234567', '+12345', '++919876543210', '+91\t1', '+91=1', '+919876543210\n=1+1'])
+      expect(toCsv([[evil]]).replace(/^"/, '').startsWith("'"), evil).toBe(true);
+    for (const f of ['=1+1', '-1', '@x', '=HYPERLINK("http://evil")']) expect(toCsv([[f]]).replace(/^"/, '').startsWith("'"), f).toBe(true);
+  });
+});
+
 describe('toCsv', () => {
   it('quotes fields and neutralises spreadsheet formulas', () => {
     expect(toCsv([['a,b', 'say "hi"', '=SUM(A1)', '+91 1']])).toBe(`"a,b","say ""hi""",'=SUM(A1),'+91 1`);

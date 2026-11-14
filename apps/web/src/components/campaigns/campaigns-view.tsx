@@ -1,12 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, useTransition } from 'react';
 import { AlertTriangle, Calendar, CheckCircle2, FlaskConical, Loader2, Megaphone, Plus, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input, Select } from '@/components/ui/form';
 import { Modal } from '@/components/ui/modal';
 import { WaBubble } from '@/components/ui/wa-bubble';
-import { cancelCampaign, campaignReport, connectionState, createCampaign, listCampaigns, previewAudience, sendCampaign, type AudiencePreview, type CampaignReport, type CampaignRow } from '@/app/(app)/campaigns/actions';
+import { cancelCampaign, connectionState, createCampaign, listCampaigns, previewAudience, sendCampaign, type AudiencePreview, type CampaignRow } from '@/app/(app)/campaigns/actions';
 import type { TemplateRow } from '@/app/(app)/templates/actions';
 import type { GroupRow } from '@/app/(app)/contacts/actions';
 import { cn } from '@/lib/utils';
@@ -19,7 +20,6 @@ const pct = (a = 0, b = 0) => (b ? Math.round((a / b) * 100) : 0);
 export function CampaignsView({ initial, templates, groups, canEdit }: { initial: CampaignRow[]; templates: TemplateRow[]; groups: GroupRow[]; canEdit: boolean }) {
   const [rows, setRows] = useState(initial);
   const [wizard, setWizard] = useState(false);
-  const [report, setReport] = useState<CampaignReport | null>(null);
   const [toast, setToast] = useState('');
   const [live, setLive] = useState(false);
   useEffect(() => { void connectionState().then((c) => setLive(c.live)); }, []);
@@ -66,7 +66,7 @@ export function CampaignsView({ initial, templates, groups, canEdit }: { initial
                 </div>
               ) : <p className="mt-2 text-sm text-muted">{(c.counts.audience ?? 0).toLocaleString('en-IN')} people · estimated {inr(c.estCostPaise)} incl. GST</p>}
               <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
-                {c.status === 'completed' ? <Button size="sm" variant="outline" onClick={() => start(async () => setReport(await campaignReport(c.id)))}>Report</Button> : null}
+                {['completed', 'running', 'paused'].includes(c.status) ? <Button asChild size="sm" variant="outline"><Link href={`/campaigns/${c.id}`}>Report</Link></Button> : null}
                 {canEdit && ['draft', 'scheduled', 'paused'].includes(c.status) ? <>
                   <Button size="sm" disabled={pending} onClick={() => { if (confirm(live ? `Send “${c.name}” now to real customers?` : `Send “${c.name}” now (test mode)?`)) start(async () => { const r = await sendCampaign(c.id); if (!r.ok) flash(r.error); else await refresh(r.data.testMode ? `Test send done: ${r.data.sent} people.` : `Queued for ${r.data.sent} people. Sending starts within a minute.`); }); }}><Send className="size-4" />Send now</Button>
                   <Button size="sm" variant="ghost" onClick={() => { if (confirm('Cancel this campaign?')) start(async () => { const r = await cancelCampaign(c.id); if (!r.ok) flash(r.error); else await refresh('Cancelled.'); }); }}>Cancel</Button></> : null}
@@ -76,16 +76,6 @@ export function CampaignsView({ initial, templates, groups, canEdit }: { initial
       )}
 
       {wizard ? <Wizard live={live} templates={approved} groups={groups} onClose={() => setWizard(false)} onDone={(m) => { setWizard(false); void refresh(m); }} /> : null}
-      <Modal open={!!report} onClose={() => setReport(null)} title={report ? report.c.name : 'Report'} wide>
-        {report ? (
-          <div className="flex flex-col gap-4">
-            <p className="flex items-center gap-2 rounded-xl bg-amber/10 p-3 text-sm text-amber"><FlaskConical className="size-4" />These are simulated test results.</p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">{[['Sent', report.c.counts.sent], ['Delivered', report.c.counts.delivered], ['Read', report.c.counts.read], ['Replied', report.c.counts.replied], ['Skipped', report.c.counts.skipped]].map(([k, v]) => <div key={k as string} className="rounded-xl border border-line p-3 text-center"><p className="font-display text-2xl font-extrabold tabular">{(Number(v) || 0).toLocaleString('en-IN')}</p><p className="text-xs text-muted">{k as string}</p></div>)}</div>
-            <p className="text-sm text-muted">Estimated cost <strong className="text-ink">{inr(report.c.estCostPaise)}</strong> incl. GST. {report.c.counts.optedOut ? `${report.c.counts.optedOut} people who opted out were skipped.` : ''}</p>
-            {[['Skipped', report.skipped], ['Failed', report.failed]].map(([t, list]) => (list as CampaignReport['failed']).length ? (
-              <div key={t as string}><h4 className="mb-1 text-sm font-bold">{t as string}</h4><ul className="max-h-40 divide-y divide-line overflow-y-auto rounded-xl border border-line text-sm">{(list as CampaignReport['failed']).map((r, i) => <li key={i} className="flex justify-between gap-3 px-3 py-2"><span className="truncate">{r.name ?? r.phone}</span><span className="shrink-0 text-muted">{r.reason}</span></li>)}</ul></div>) : null)}
-          </div>) : null}
-      </Modal>
       {toast ? <div role="status" className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-bg shadow-xl md:bottom-8">{toast}</div> : null}
     </div>
   );

@@ -51,6 +51,7 @@ Only the tools a key is allowed to use are even listed.
 | `list_templates` | `GET /api/v1/templates` | templates:read |
 | `preview_audience` | — | campaigns:read |
 | `list_campaigns` / `get_campaign` | `GET /api/v1/campaigns`, `/{id}` | campaigns:read |
+| `campaign_report` | `GET /api/v1/campaigns/{id}/report` | campaigns:read |
 | `create_campaign` | `POST /api/v1/campaigns` | campaigns:write |
 | `cancel_campaign` | `POST /api/v1/campaigns/{id}/cancel` | campaigns:write |
 | `start_campaign` | `POST /api/v1/campaigns/{id}/send` | campaigns:send |

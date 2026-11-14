@@ -111,17 +111,4 @@ export async function cancelCampaign(id: string): Promise<Result> {
   return r;
 }
 
-export interface CampaignReport { c: CampaignRow; failed: { name: string | null; phone: string; reason: string | null }[]; skipped: { name: string | null; phone: string; reason: string | null }[] }
-export async function campaignReport(id: string): Promise<CampaignReport | null> {
-  const ctx = await requireCtx();
-  const all = await listCampaigns();
-  const c = all.find((x) => x.id === id);
-  if (!c) return null;
-  return db(ctx, async (tx) => {
-    const rs = await tx.select().from(campaignRecipients).where(eq(campaignRecipients.campaignId, id)).limit(2000);
-    const pick = (s: string) => rs.filter((r) => r.state === s).slice(0, 100).map((r) => ({ name: r.name, phone: r.phoneE164, reason: r.reason }));
-    return { c, failed: pick('failed'), skipped: pick('skipped') };
-  });
-}
-
 export async function rateInfo() { return { marketing: RATE_PAISE_X100.marketing, utility: RATE_PAISE_X100.utility }; }

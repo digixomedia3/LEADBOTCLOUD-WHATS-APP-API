@@ -5,6 +5,7 @@ import { CONSENT_SOURCES } from '@lbc/shared';
 import { hasScope, type ApiScope } from '@lbc/shared/api-keys';
 import { cancelCampaignFor, createCampaignFor, previewAudienceFor, sendCampaignViaKey, campaignInput } from '@/lib/core/campaigns';
 import { addContactFor, addToGroupFor, campaignStatusFor, createGroupFor, listApprovedTemplatesFor, listCampaignsFor, listGroupsFor, searchContactsFor } from '@/lib/core/contacts';
+import { campaignReportFor } from '@/lib/core/campaign-report';
 import type { ActorCtx } from '@/lib/tenant-db';
 
 type Out = { content: { type: 'text'; text: string }[]; isError?: boolean };
@@ -67,6 +68,10 @@ export function buildServer(ctx: ActorCtx): McpServer {
       guarded('campaigns:read', async (a: { limit?: number }) => res(await listCampaignsFor(ctx, a.limit ?? 20))));
     server.registerTool('get_campaign', { description: 'Status and results (sent, delivered, read, replied, failed) of one campaign.', inputSchema: { campaignId: z.string().uuid() }, annotations: { readOnlyHint: true } },
       guarded('campaigns:read', async (a: { campaignId: string }) => res(await campaignStatusFor(ctx, a.campaignId))));
+    server.registerTool('campaign_report', {
+      description: 'Full report for one campaign: the funnel (sent, delivered, read, replied) with rates, where everyone ended up, why some were skipped or failed, and the cost. If "simulated" is true no real WhatsApp message was sent. Cost is an estimate of what Meta charges, not an invoice.',
+      inputSchema: { campaignId: z.string().uuid() }, annotations: { readOnlyHint: true },
+    }, guarded('campaigns:read', async (a: { campaignId: string }) => res(await campaignReportFor(ctx, a.campaignId))));
     server.registerTool('preview_audience', {
       description: 'Shows how many people a campaign would reach and the estimated cost, WITHOUT creating or sending anything. Always do this and show the user before starting a send.',
       inputSchema: { groupIds: z.array(z.string().uuid()).min(1).max(50), category: z.enum(['marketing', 'utility']).describe('The category of the template you plan to use') },

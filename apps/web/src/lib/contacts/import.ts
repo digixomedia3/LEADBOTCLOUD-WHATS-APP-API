@@ -91,7 +91,9 @@ export function parsePasted(text: string): string[][] {
 export function toCsv(rows: (string | number | null | undefined)[][]): string {
   const esc = (v: unknown) => {
     let s = String(v ?? '');
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // block spreadsheet formula injection
+    // Block spreadsheet formula injection: a cell that starts with = + - @ (or a tab/return) is shown as plain text.
+    // The one exception is a real phone number, "+" then digits only, which cannot carry a formula and must stay readable.
+    if (/^[=+\-@\t\r]/.test(s) && !/^\+\d{6,15}$/.test(s)) s = `'${s}`;
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return rows.map((r) => r.map(esc).join(',')).join('\r\n');
