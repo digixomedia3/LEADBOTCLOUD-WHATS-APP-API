@@ -87,7 +87,7 @@ describe('segment rules pick exactly the right people', () => {
     expect(await who(T1, seg('all', { type: 'added', op: 'within', days: 7 }))).toEqual(['lead_new', 'vip']);
     expect(await who(T1, seg('all', { type: 'added', op: 'before', days: 150 }))).toEqual(['old_chat']);
   });
-  it('bulk send outcomes: received / read / replied / not read / not replied / failed', async () => {
+  it('campaign outcomes: received / read / replied / not read / not replied / failed', async () => {
     const c = (op: 'received' | 'read' | 'replied' | 'not_read' | 'not_replied' | 'failed') => who(T1, seg('all', { type: 'campaign', op, campaignId: CAMP1 }));
     expect(await c('received')).toEqual(['only_delivered', 'read_it', 'replied']);
     expect(await c('read')).toEqual(['read_it', 'replied']);
@@ -107,7 +107,7 @@ describe('combining rules and groups', () => {
     expect(await who(T1, seg('all', a, b))).toEqual(['vip']);
     expect(await who(T1, seg('any', a, b))).toEqual(['lead_won', 'old_chat', 'vip']);
   });
-  it('the classic retarget: got the bulk send and did not read it', async () => {
+  it('the classic retarget: got the campaign and did not read it', async () => {
     expect(await who(T1, seg('all', { type: 'campaign', op: 'not_read', campaignId: CAMP1 }, { type: 'last_inbound', op: 'never' }))).toEqual(['only_delivered']);
   });
   it('a fixed group and a segment together give the union, each person once', async () => {
@@ -124,7 +124,7 @@ describe('a broken or hostile segment can never widen or leak an audience', () =
     }
   });
   it('no groups at all selects nobody', async () => { expect(await who(T1, [])).toEqual([]); });
-  it('rules that name ANOTHER workspace’s source or bulk send match nobody in this one', async () => {
+  it('rules that name ANOTHER workspace’s source or campaign match nobody in this one', async () => {
     expect(await who(T1, seg('all', { type: 'lead_source', op: 'is', sourceId: SRC2 }))).toEqual([]);
     expect(await who(T1, seg('all', { type: 'campaign', op: 'read', campaignId: CAMP2 }))).toEqual([]);
     expect(await who(T2, seg('all', { type: 'campaign', op: 'read', campaignId: CAMP1 }))).toEqual([]);

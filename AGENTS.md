@@ -48,7 +48,7 @@ Our edge, which every feature must serve:
 
 ## 5. UX rules
 - **Mobile-first:** design for 360px width first, then desktop. Test every screen at 360px.
-- **No Meta jargon in the UI.** Use the vocabulary table in master spec §A5.1 (e.g. "Message format", not "Template"; "Send to customers", not "Broadcast").
+- **No Meta jargon in the UI.** Use the vocabulary table in master spec §A5.1 (e.g. "Template" and "Campaigns", not "Broadcast").
 - **All user-facing text goes in `packages/shared/i18n/en.json`** (keys, not inline strings) so Hindi can be added later.
 - One main action per screen. Big buttons. Plain sentences. Every empty state explains what to do next.
 - Every error shows: what happened + what to do next, in plain words.

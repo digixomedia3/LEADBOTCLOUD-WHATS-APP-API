@@ -80,7 +80,7 @@ export async function remindNow(id: string): Promise<Result> {
     if (!r) return fail('Not found.');
     if (r.consent !== 'allowed') return fail('This customer has not agreed to messages, so no reminder can be sent.');
     const [t] = (await tx.execute(sql`select id from templates where category = 'marketing' and status = 'approved' limit 1`)) as unknown as { id: string }[];
-    if (!t) return fail('You need an approved Promotional message format first. Create one in Templates (there is a Renewal reminder starter).');
+    if (!t) return fail('You need an approved Promotional template first. Create one in Templates (there is a Renewal reminder starter).');
     await tx.update(renewals).set({ lastReminderAt: new Date() }).where(eq(renewals.id, id));
     revalidatePath('/renewals');
     return { ok: true as const, data: null };

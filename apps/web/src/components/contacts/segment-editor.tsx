@@ -12,7 +12,7 @@ import { loadSegment, previewSegment, saveSegment, segmentOptions, type SegmentO
 type Draft = SegmentRule & { _k: number };
 const TYPES: { v: SegmentRule['type']; label: string }[] = [
   { v: 'tag', label: 'Tag' }, { v: 'lead_status', label: 'Lead status' }, { v: 'lead_source', label: 'Lead source' },
-  { v: 'last_inbound', label: 'Last message from them' }, { v: 'added', label: 'When added' }, { v: 'campaign', label: 'A previous bulk send' },
+  { v: 'last_inbound', label: 'Last message from them' }, { v: 'added', label: 'When added' }, { v: 'campaign', label: 'A previous campaign' },
 ];
 const OUTCOMES: { v: Extract<SegmentRule, { type: 'campaign' }>['op']; label: string }[] = [
   { v: 'received', label: 'received it' }, { v: 'read', label: 'read it' }, { v: 'replied', label: 'replied to it' },
@@ -120,7 +120,7 @@ function RuleControls({ r, opts, set }: { r: SegmentRule; opts: SegmentOptions; 
     case 'last_inbound': return (<><Select aria-label="When" className="sm:w-48" value={r.op} onChange={(e) => set({ op: e.target.value as 'within', days: r.days ?? 30 })}><option value="within">messaged you in the last</option><option value="not_within">has not messaged you in the last</option><option value="never">has never messaged you</option></Select>
       {r.op !== 'never' ? <>{num(r.days, (n) => set({ days: n }))}<span className="text-sm text-muted">days</span></> : null}</>);
     case 'added': return (<><Select aria-label="When" className="sm:w-48" value={r.op} onChange={(e) => set({ op: e.target.value as 'within' })}><option value="within">was added in the last</option><option value="before">was added more than</option></Select>{num(r.days, (n) => set({ days: n }))}<span className="text-sm text-muted">{r.op === 'before' ? 'days ago' : 'days'}</span></>);
-    case 'campaign': return (<><Select aria-label="Bulk send" className="min-w-0 flex-1" value={r.campaignId} onChange={(e) => set({ campaignId: e.target.value })}>{opts.campaigns.length === 0 ? <option value="">No bulk sends yet</option> : null}{opts.campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
+    case 'campaign': return (<><Select aria-label="Campaign" className="min-w-0 flex-1" value={r.campaignId} onChange={(e) => set({ campaignId: e.target.value })}>{opts.campaigns.length === 0 ? <option value="">No campaigns yet</option> : null}{opts.campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
       <Select aria-label="Outcome" className="sm:w-56" value={r.op} onChange={(e) => set({ op: e.target.value as 'read' })}>{OUTCOMES.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}</Select></>);
   }
 }

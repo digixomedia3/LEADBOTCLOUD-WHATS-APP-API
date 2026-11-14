@@ -18,9 +18,9 @@ const PAUSE_TEXT: Record<string, [string, string]> = {
   reconnect: ['Sending paused: WhatsApp needs to be reconnected', 'Your connection expired. Reconnect to continue.'],
   account_restricted: ['Sending paused: Meta restricted your account', 'Check Meta Business Support. Campaigns resume after you start them again.'],
   payment_banner: ['Sending paused: payment problem at Meta', 'Meta could not charge your card. Update the payment method in Meta.'],
-  template_paused: ['Sending paused: message format paused by Meta', 'Meta paused the format for low quality. It resumes by itself after the pause.'],
-  template_disabled: ['Sending stopped: message format disabled by Meta', 'Create a new message format and use it for this send.'],
-  template_not_approved: ['Sending paused: message format not approved', 'Pick an approved message format.'],
+  template_paused: ['Sending paused: template paused by Meta', 'Meta paused the format for low quality. It resumes by itself after the pause.'],
+  template_disabled: ['Sending stopped: template disabled by Meta', 'Create a new template and use it for this send.'],
+  template_not_approved: ['Sending paused: template not approved', 'Pick an approved template.'],
   spend_cap: ['Sending paused: spend cap reached', 'The estimated cost is above your cap. Raise the cap or choose fewer people.'],
   not_connected: ['Sending paused: no WhatsApp number connected', 'Connect your number in Settings.'],
   disconnected: ['Sending stopped: WhatsApp was disconnected', 'Reconnect in Settings.'],
@@ -58,7 +58,7 @@ export async function getHeaderState(): Promise<HeaderState> {
     const tpl = rows(await tx.execute(sql`select id, name, status, rejection_reason from templates where (status in ('rejected','paused','disabled')) and updated_at > now() - interval '14 days' order by updated_at desc limit 4`));
     for (const t of tpl) {
       const s = String(t.status);
-      alerts.push({ id: `tpl-${t.id}`, severity: s === 'rejected' ? 'warning' : 'warning', title: s === 'rejected' ? `Message format “${t.name}” was rejected` : s === 'paused' ? `Message format “${t.name}” was paused by Meta` : `Message format “${t.name}” was disabled by Meta`, detail: s === 'rejected' ? 'Open it to see the reason and fix it.' : 'It cannot be used until Meta allows it again.', href: '/templates', action: 'Open' });
+      alerts.push({ id: `tpl-${t.id}`, severity: s === 'rejected' ? 'warning' : 'warning', title: s === 'rejected' ? `Template “${t.name}” was rejected` : s === 'paused' ? `Template “${t.name}” was paused by Meta` : `Template “${t.name}” was disabled by Meta`, detail: s === 'rejected' ? 'Open it to see the reason and fix it.' : 'It cannot be used until Meta allows it again.', href: '/templates', action: 'Open' });
     }
     const unread = num(rows(await tx.execute(sql`select coalesce(sum(unread),0)::int n from conversations where status = 'open' and unread > 0`))[0]?.n);
     if (unread > 0) alerts.push({ id: 'unread', severity: 'info', title: `${unread} unread ${unread === 1 ? 'message' : 'messages'}`, detail: 'Customers are waiting for a reply.', href: '/chats', action: 'Open chats' });

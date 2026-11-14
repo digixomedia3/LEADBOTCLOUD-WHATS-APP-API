@@ -60,7 +60,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         href: '/campaigns',
-        label: 'Send to customers',
+        label: 'Campaigns',
         Icon: Megaphone,
         built: true,
         blurb: 'Create, schedule and track WhatsApp campaigns.',

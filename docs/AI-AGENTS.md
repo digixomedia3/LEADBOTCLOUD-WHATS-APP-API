@@ -1,6 +1,6 @@
 # LeadBotCloud for AI agents (Claude, Hermes, scripts)
 
-An AI assistant can run your workspace for you: add contacts, build a segment, prepare a bulk send, check how it did. You stay in control with three things: **permissions**, **money limits**, and **a switch-off button**.
+An AI assistant can run your workspace for you: add contacts, build a segment, prepare a campaign, check how it did. You stay in control with three things: **permissions**, **money limits**, and **a switch-off button**.
 
 ## 1. Make a key
 Settings → **AI assistants** → **New key**. Only the owner or an admin can. The key is shown **once**. We store only a fingerprint (SHA-256), so a lost key cannot be recovered: switch it off and make a new one.
@@ -9,9 +9,9 @@ Settings → **AI assistants** → **New key**. Only the owner or an admin can. 
 |---|---|
 | `contacts:read` | See contacts and groups |
 | `contacts:write` | Add contacts and groups |
-| `templates:read` | See approved message formats |
-| `campaigns:read` | See bulk sends, their results, and preview an audience |
-| `campaigns:write` | Create and cancel bulk sends. **Does not send them** |
+| `templates:read` | See approved templates |
+| `campaigns:read` | See campaigns, their results, and preview an audience |
+| `campaigns:write` | Create and cancel campaigns. **Does not send them** |
 | `campaigns:send` | Start sending to customers. **Costs money** |
 
 A new key gets everything **except** `campaigns:send`. With the default, an assistant can prepare a campaign and you press Send yourself in the panel.
@@ -48,7 +48,7 @@ Only the tools a key is allowed to use are even listed.
 | `add_contact` | `POST /api/v1/contacts` | contacts:write |
 | `create_group` | `POST /api/v1/groups` | contacts:write |
 | `add_contacts_to_group` | `POST /api/v1/groups/{id}/members` | contacts:write |
-| `list_message_formats` | `GET /api/v1/formats` | templates:read |
+| `list_templates` | `GET /api/v1/templates` | templates:read |
 | `preview_audience` | — | campaigns:read |
 | `list_campaigns` / `get_campaign` | `GET /api/v1/campaigns`, `/{id}` | campaigns:read |
 | `create_campaign` | `POST /api/v1/campaigns` | campaigns:write |

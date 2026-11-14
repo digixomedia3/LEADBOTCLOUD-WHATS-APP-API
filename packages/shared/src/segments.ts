@@ -33,7 +33,7 @@ export function describeRule(r: SegmentRule, names: { campaigns?: Record<string,
     case 'last_inbound': return r.op === 'never' ? 'has never messaged you' : r.op === 'within' ? `messaged you in the last ${r.days} days` : `has not messaged you in the last ${r.days} days`;
     case 'added': return r.op === 'within' ? `was added in the last ${r.days} days` : `was added more than ${r.days} days ago`;
     case 'campaign': {
-      const n = names.campaigns?.[r.campaignId] ?? 'a bulk send';
+      const n = names.campaigns?.[r.campaignId] ?? 'a campaign';
       const t: Record<(typeof CAMPAIGN_OUTCOMES)[number], string> = { received: `received “${n}”`, read: `read “${n}”`, replied: `replied to “${n}”`, not_read: `got “${n}” but did not read it`, not_replied: `got “${n}” but did not reply`, failed: `did not receive “${n}” (failed)` };
       return t[r.op];
     }

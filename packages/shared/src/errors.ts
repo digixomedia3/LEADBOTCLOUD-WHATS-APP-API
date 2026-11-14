@@ -39,7 +39,7 @@ const H = {
 const TOKEN = P('no', 'reconnect', 'Your WhatsApp connection expired. Tap Reconnect to continue.', H[190]);
 const PERMISSION = P('no', 'reconnect', "We don't have permission for this action. Please reconnect WhatsApp.");
 const PARAM = P('no', 'dlq', "This message couldn't be sent because of a setup error. Our team is notified.");
-const TEMPLATE_PARAM = P('no', 'fix_template', "The message details don't match the message format. Check the variables.");
+const TEMPLATE_PARAM = P('no', 'fix_template', "The message details don't match the template. Check the variables.");
 const TRANSIENT = P('retry', 'wait', "WhatsApp is temporarily unavailable. We'll retry.", null, 'transient');
 const REG = P('no', 'info', 'Number setup needs attention.');
 
@@ -65,7 +65,7 @@ const TABLE: Record<number, ErrorPolicy> = {
   131037: P('no', 'alert_ops', "Your business name isn't approved yet."),
   131042: P('no', 'payment_banner', "Meta couldn't charge your card. Update your payment method in Meta to continue.", H[131042]),
   131045: P('no', 'register_number', 'Your number setup is incomplete. Fixing…'),
-  131047: P('no', 'suggest_template', "It's been over 24 hours since this customer messaged. Use an approved message format.", H[131047]),
+  131047: P('no', 'suggest_template', "It's been over 24 hours since this customer messaged. Use an approved template.", H[131047]),
   131049: P('retry_delay', 'hold_contact_24h', 'Meta limited marketing messages to this customer today. Not charged. Try after 24 hours.', H[131049]),
   131050: P('no_user', 'opt_out_contact', 'This customer turned off your promotional messages.', H[131050]),
   131051: P('no', 'fix_template', "This message type isn't supported."),
@@ -76,23 +76,23 @@ const TABLE: Record<number, ErrorPolicy> = {
   131060: P('no', 'info', "A message from this customer couldn't be shown."),
   131062: P('no', 'info', "This message needs the customer's phone number."),
   131063: P('no', 'reroute_mm', null),
-  131064: P('retry_delay', 'pause_tenant', 'Meta temporarily limited your messages because message formats were in the wrong category.', null, 'long'),
+  131064: P('retry_delay', 'pause_tenant', 'Meta temporarily limited your messages because templates were in the wrong category.', null, 'long'),
   132000: TEMPLATE_PARAM, 132005: TEMPLATE_PARAM, 132012: TEMPLATE_PARAM, 132018: TEMPLATE_PARAM,
-  132001: P('no', 'resync_templates', "This message format isn't approved in this language yet.", H[132001]),
-  132007: P('no', 'fix_template', 'This message format breaks WhatsApp rules. Please edit it.'),
-  132015: P('no', 'pause_campaign_24h', 'This message format is paused by Meta for low quality. It resumes automatically.', H[132015]),
-  132016: P('no', 'fix_template', 'This message format was disabled by Meta. Create a new one.'),
+  132001: P('no', 'resync_templates', "This template isn't approved in this language yet.", H[132001]),
+  132007: P('no', 'fix_template', 'This template breaks WhatsApp rules. Please edit it.'),
+  132015: P('no', 'pause_campaign_24h', 'This template is paused by Meta for low quality. It resumes automatically.', H[132015]),
+  132016: P('no', 'fix_template', 'This template was disabled by Meta. Create a new one.'),
   132068: P('no', 'fix_template', "This form can't be sent right now."),
   132069: P('retry_delay', 'wait', "This form can't be sent right now."),
-  2388019: P('no', 'fix_template', "You've reached Meta's message format limit. Delete unused ones."),
-  2388024: P('no', 'fix_template', 'A message format with this name already exists.'),
+  2388019: P('no', 'fix_template', "You've reached Meta's template limit. Delete unused ones."),
+  2388024: P('no', 'fix_template', 'A template with this name already exists.'),
   134101: P('retry_delay', 'wait', null, null, 'mm_sync'),
   134102: P('no', 'info', "Marketing setup isn't finished on Meta."),
   1752041: P('no', 'noop', null),
   133000: REG, 133005: REG, 133006: REG, 133008: P('retry_delay', 'info', 'Number setup needs attention.'), 133009: P('retry_delay', 'info', 'Number setup needs attention.'), 133010: REG, 133015: P('retry_delay', 'info', 'Number setup needs attention.'),
   2593107: P('no', 'info', "Chat history import didn't complete."), 2593108: P('no', 'info', "Chat history import didn't complete."), 2593109: P('no', 'info', "Chat history import didn't complete."),
   // 470 = legacy re-engagement; the spec treats it as 131047 and marks this [INFERRED].
-  470: P('no', 'suggest_template', "It's been over 24 hours since this customer messaged. Use an approved message format.", H[131047]),
+  470: P('no', 'suggest_template', "It's been over 24 hours since this customer messaged. Use an approved template.", H[131047]),
 };
 // 200–299 are permission errors (spec: "200–299").
 for (let c = 200; c <= 299; c++) TABLE[c] ??= PERMISSION;

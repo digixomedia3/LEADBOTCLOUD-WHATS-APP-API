@@ -257,7 +257,7 @@ export const contactConsentEvents = pgTable(
   ],
 );
 
-/** Message formats (WhatsApp templates). Status follows Meta's lifecycle; until a number is connected, approval is simulated in test mode. */
+/** Templates (WhatsApp message templates). Status follows Meta's lifecycle; until a number is connected, approval is simulated in test mode. */
 export const templates = pgTable(
   'templates',
   {

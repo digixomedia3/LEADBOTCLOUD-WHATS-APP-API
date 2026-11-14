@@ -76,7 +76,7 @@ export function WhatsAppConnect() {
   }
 
   async function off() {
-    if (!confirm('Disconnect WhatsApp? Sending stops straight away and running campaigns pause. Your contacts, chats and message formats stay.')) return;
+    if (!confirm('Disconnect WhatsApp? Sending stops straight away and running campaigns pause. Your contacts, chats and templates stay.')) return;
     setBusy('disconnecting'); const r = await disconnect(); setBusy('');
     if (!r.ok) setError(r.error); else { setOk(null); await reload(); }
   }

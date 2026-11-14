@@ -69,7 +69,7 @@ export async function sendReply(conversationId: string, text: string): Promise<R
   return db(g.ctx, async (tx) => {
     const [c] = await tx.select().from(conversations).where(eq(conversations.id, conversationId));
     if (!c) return fail('Conversation not found.');
-    if (!c.windowExpiresAt || c.windowExpiresAt.getTime() < Date.now()) return fail('The 24-hour reply window has closed. Send an approved message format to start the conversation again.');
+    if (!c.windowExpiresAt || c.windowExpiresAt.getTime() < Date.now()) return fail('The 24-hour reply window has closed. Send an approved template to start the conversation again.');
     const [ct] = await tx.select({ s: contacts.consentStatus }).from(contacts).where(eq(contacts.id, c.contactId));
     if (ct?.s === 'stopped') return fail('This customer opted out. You cannot message them.');
     // With a connected number the message is only QUEUED here; the worker sends it and webhooks move it to delivered / read.

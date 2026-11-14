@@ -147,7 +147,7 @@ export async function deleteTemplate(id: string): Promise<Result> {
   const g = await guard('admin'); if ('error' in g) return fail(g.error);
   return db(g.ctx, async (tx) => {
     const used = await tx.execute(sql`select 1 from campaigns where template_id = ${id} and status in ('scheduled','running') limit 1`);
-    if ((used as unknown as unknown[]).length) return fail('A scheduled or running bulk send uses this message format.');
+    if ((used as unknown as unknown[]).length) return fail('A scheduled or running campaign uses this template.');
     const [cur] = await tx.select({ meta: templates.metaTemplateId }).from(templates).where(eq(templates.id, id));
     if (cur?.meta) await tx.update(templates).set({ status: 'deleting', updatedAt: new Date() }).where(eq(templates.id, id)); // the worker removes it at Meta, then here
     else await tx.delete(templates).where(eq(templates.id, id));

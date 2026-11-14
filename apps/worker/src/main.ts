@@ -67,7 +67,7 @@ async function tick() {
   }
   await rollupCampaigns(db);
 }
-/** Message formats: send new ones to Meta, remove deleted ones, and reconcile with Meta every 6 hours. Every 20 s is cheap: each step only looks at rows waiting for it. */
+/** Templates: send new ones to Meta, remove deleted ones, and reconcile with Meta every 6 hours. Every 20 s is cheap: each step only looks at rows waiting for it. */
 async function templatesTick() {
   const d = { db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY };
   await submitPendingTemplates(d);

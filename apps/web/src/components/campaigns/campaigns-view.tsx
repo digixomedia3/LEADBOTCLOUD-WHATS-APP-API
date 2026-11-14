@@ -33,8 +33,8 @@ export function CampaignsView({ initial, templates, groups, canEdit }: { initial
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><h2 className="font-display text-2xl font-extrabold">Send to customers</h2><p className="text-sm text-muted">Send an approved message format to groups. You see the cost and who is skipped before you send.</p></div>
-        {canEdit ? <Button onClick={() => setWizard(true)}><Plus className="size-4" />New bulk send</Button> : null}
+        <div><h2 className="font-display text-2xl font-extrabold">Campaigns</h2><p className="text-sm text-muted">Send an approved template to groups. You see the cost and who is skipped before you send.</p></div>
+        {canEdit ? <Button onClick={() => setWizard(true)}><Plus className="size-4" />New campaign</Button> : null}
       </div>
 
       {live ? null : <p className="flex items-start gap-2 rounded-xl border border-dashed border-amber/50 bg-amber/5 p-3 text-sm"><FlaskConical className="mt-0.5 size-4 shrink-0 text-amber" /><span><strong>Test mode.</strong> No WhatsApp number is connected yet, so sending is simulated and nothing reaches customers. Connect your number in Settings to send for real.</span></p>}
@@ -48,8 +48,8 @@ export function CampaignsView({ initial, templates, groups, canEdit }: { initial
       {rows.length === 0 ? (
         <div className="card flex flex-col items-center p-10 text-center">
           <Megaphone className="mb-3 size-10 text-muted" /><p className="font-semibold">No campaigns yet</p>
-          <p className="mt-1 max-w-sm text-sm text-muted">{approved.length === 0 ? 'First create a message format and get it approved. Then you can send it to a group.' : 'Create your first campaign. It takes about a minute.'}</p>
-          {canEdit && approved.length > 0 ? <Button className="mt-4" onClick={() => setWizard(true)}><Plus className="size-4" />New bulk send</Button> : null}
+          <p className="mt-1 max-w-sm text-sm text-muted">{approved.length === 0 ? 'First create a template and get it approved. Then you can send it to a group.' : 'Create your first campaign. It takes about a minute.'}</p>
+          {canEdit && approved.length > 0 ? <Button className="mt-4" onClick={() => setWizard(true)}><Plus className="size-4" />New campaign</Button> : null}
         </div>
       ) : (
         <div className="grid gap-3">
@@ -57,7 +57,7 @@ export function CampaignsView({ initial, templates, groups, canEdit }: { initial
             <article key={c.id} className="card card-hover p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0"><h3 className="truncate font-display text-lg font-bold">{c.name}</h3>
-                  <p className="text-xs text-muted">{c.templateName ?? 'Message format deleted'} · {c.groupNames.join(', ') || 'No group'}{c.scheduledAt ? ` · ${new Date(c.scheduledAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST` : ''}</p></div>
+                  <p className="text-xs text-muted">{c.templateName ?? 'Template deleted'} · {c.groupNames.join(', ') || 'No group'}{c.scheduledAt ? ` · ${new Date(c.scheduledAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST` : ''}</p></div>
                 <span className={cn('rounded-full px-2.5 py-1 text-xs font-bold', sc)}>{sl}</span>
               </div>
               {c.status === 'completed' ? (
@@ -135,15 +135,15 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
 
   const steps = ['Template', 'Audience', 'Schedule', 'Review'];
   return (
-    <Modal open onClose={onClose} title="New bulk send" wide>
+    <Modal open onClose={onClose} title="New campaign" wide>
       <ol className="mb-5 grid grid-cols-4 gap-1.5 text-center text-[11px] font-semibold">{steps.map((s, i) => <li key={s} className={cn('rounded-full px-1 py-1.5', i + 1 === step ? 'grad-bg text-white' : i + 1 < step ? 'bg-brand/15 text-brand' : 'bg-ink/5 text-muted')}>{i + 1}. {s}</li>)}</ol>
       <FormError>{error}</FormError>
 
       {step === 1 ? (
         <div className="mt-3 grid gap-5 md:grid-cols-[1fr_20rem]">
           <div className="flex flex-col gap-4">
-            <Field label="Name this bulk send"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="November renewal reminder" maxLength={120} autoFocus /></Field>
-            <Field label="Message format"><Select value={tid} onChange={(e) => setTid(e.target.value)}>{templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></Field>
+            <Field label="Name this campaign"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="November renewal reminder" maxLength={120} autoFocus /></Field>
+            <Field label="Template"><Select value={tid} onChange={(e) => setTid(e.target.value)}>{templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></Field>
             {varCount > 0 ? (
               <div className="flex flex-col gap-3 rounded-xl border border-line p-3">
                 <p className="text-sm font-semibold">Fill in the blanks</p>
@@ -213,7 +213,7 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
       {step === 4 && aud && tpl ? (
         <div className="mt-3 flex flex-col gap-4">
           <dl className="divide-y divide-line rounded-2xl border border-line text-sm">
-            {[['Campaign', name], ['Message format', tpl.name], ['People', aud.sendable.toLocaleString('en-IN')], ['When', when === 'now' ? 'Right now' : `${new Date(at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} IST${repeat !== 'none' ? `, repeats ${repeat}` : ''}`]].map(([k, v]) => <div key={k} className="flex justify-between gap-4 px-4 py-2.5"><dt className="text-muted">{k}</dt><dd className="text-right font-semibold">{v}</dd></div>)}
+            {[['Campaign', name], ['Template', tpl.name], ['People', aud.sendable.toLocaleString('en-IN')], ['When', when === 'now' ? 'Right now' : `${new Date(at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} IST${repeat !== 'none' ? `, repeats ${repeat}` : ''}`]].map(([k, v]) => <div key={k} className="flex justify-between gap-4 px-4 py-2.5"><dt className="text-muted">{k}</dt><dd className="text-right font-semibold">{v}</dd></div>)}
             <div className="px-4 py-3"><div className="flex justify-between"><dt className="text-muted">{aud.cost.messages.toLocaleString('en-IN')} × ₹{aud.cost.ratePerMessage.toFixed(4)}</dt><dd className="tabular">{aud.cost.baseLabel}</dd></div>
               <div className="flex justify-between"><dt className="text-muted">GST 18%</dt><dd className="tabular">{aud.cost.gstLabel}</dd></div>
               <div className="mt-1 flex justify-between text-base font-bold"><dt>Estimated total</dt><dd className="grad-text font-display text-xl tabular">{aud.cost.totalLabel}</dd></div></div>

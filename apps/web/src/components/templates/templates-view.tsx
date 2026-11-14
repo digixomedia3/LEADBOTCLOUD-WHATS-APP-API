@@ -53,7 +53,7 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><h2 className="font-display text-2xl font-extrabold">Templates</h2><p className="text-sm text-muted">Official WhatsApp message formats. Only approved ones can be sent to customers.</p></div>
+        <div><h2 className="font-display text-2xl font-extrabold">Templates</h2><p className="text-sm text-muted">Official WhatsApp templates. Only approved ones can be sent to customers.</p></div>
         {canEdit ? <Button onClick={() => setEditing({ ...empty })}><Plus className="size-4" />New template</Button> : null}
       </div>
 
@@ -98,7 +98,7 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
                 <div className="mt-auto flex flex-wrap gap-2 border-t border-line pt-3">
                   {t.status !== 'pending' ? <Button size="sm" variant="outline" onClick={() => setEditing({ id: t.id, status: t.status, name: t.name, language: t.language as 'en', category: t.category, headerText: t.headerText ?? '', headerMedia: t.headerMedia, assetId: t.assetId, assetName: t.assetName, offer: t.offer, body: t.body, footer: t.footer ?? '', buttons: t.buttons, samples: t.samples })}>Edit</Button> : null}
                   <Button size="sm" variant="ghost" onClick={() => start(async () => { const r = await duplicateTemplate(t.id); if (!r.ok) flash(r.error); else await refresh('Copied as a draft.'); })}><Copy className="size-4" />Copy</Button>
-                  <Button size="sm" variant="ghost" aria-label={`Delete ${t.name}`} onClick={() => { if (confirm(`Delete the message format “${t.name}”?`)) start(async () => { const r = await deleteTemplate(t.id); if (!r.ok) flash(r.error); else await refresh('Deleted.'); }); }}><Trash2 className="size-4 text-rose" /></Button>
+                  <Button size="sm" variant="ghost" aria-label={`Delete ${t.name}`} onClick={() => { if (confirm(`Delete the template “${t.name}”?`)) start(async () => { const r = await deleteTemplate(t.id); if (!r.ok) flash(r.error); else await refresh('Deleted.'); }); }}><Trash2 className="size-4 text-rose" /></Button>
                 </div>
               ) : null}
             </article>); })}

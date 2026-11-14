@@ -107,7 +107,7 @@ export async function addToGroupFor(ctx: ActorCtx, groupId: string, contactIds: 
 }
 
 export interface TemplateSummary { id: string; name: string; language: string; category: string; body: string; variables: number; needsOfferCode: boolean; needsOfferEnd: boolean }
-/** Approved message formats only, with what a campaign must supply. */
+/** Approved templates only, with what a campaign must supply. */
 export async function listApprovedTemplatesFor(ctx: ActorCtx): Promise<Result<TemplateSummary[]>> {
   const { variablesIn } = await import('@lbc/shared');
   return db(ctx, async (tx) => {

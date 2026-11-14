@@ -34,7 +34,7 @@ export async function previewAudienceFor(ctx: ActorCtx, groupIds: string[], cate
 
 export const campaignInput = z.object({
   name: z.string().trim().min(2, 'Give the campaign a name.').max(120),
-  templateId: z.string().uuid('Choose an approved message format.'),
+  templateId: z.string().uuid('Choose an approved template.'),
   groupIds: z.array(z.string().uuid()).min(1, 'Choose at least one group.').max(50),
   when: z.enum(['now', 'later']),
   scheduledAt: z.string().optional(),
@@ -63,13 +63,13 @@ export async function createCampaignFor(ctx: ActorCtx, raw: CampaignInput): Prom
   }
   return db(ctx, async (tx) => {
     const [t] = await tx.select().from(templates).where(eq(templates.id, d.templateId));
-    if (!t) return fail('That message format was not found.');
-    if (t.status !== 'approved') return fail('Only approved message formats can be sent. Get this one approved first.');
+    if (!t) return fail('That template was not found.');
+    if (t.status !== 'approved') return fail('Only approved templates can be sent. Get this one approved first.');
     const groups = await tx.execute(sql`select id from contact_groups where id = any(${'{' + d.groupIds.join(',') + '}'}::uuid[])`);
     if ((groups as unknown as unknown[]).length !== d.groupIds.length) return fail('One of the groups no longer exists.');
     const hasCopy = ((t.buttons ?? []) as { type: string }[]).some((b) => b.type === 'copy_code');
     const offerCfg = t.offer as { hasExpiration?: boolean } | null;
-    if (hasCopy && !d.offerCode) return fail('This message format has a Copy code button. Enter the offer code.');
+    if (hasCopy && !d.offerCode) return fail('This template has a Copy code button. Enter the offer code.');
     let offerEnds: Date | null = null;
     if (offerCfg?.hasExpiration) {
       offerEnds = d.offerEndsAt ? new Date(d.offerEndsAt) : null;
@@ -81,7 +81,7 @@ export async function createCampaignFor(ctx: ActorCtx, raw: CampaignInput): Prom
       if (d.repeat !== 'none') return fail('A countdown offer cannot repeat, because it would run out. Send it once.');
     }
     const needed = new Set(variablesIn(t.body)).size;
-    if (d.varMap.length !== needed) return fail(needed ? `This message format has ${needed} variable${needed > 1 ? 's' : ''}. Fill in each one.` : 'This message format has no variables.');
+    if (d.varMap.length !== needed) return fail(needed ? `This template has ${needed} variable${needed > 1 ? 's' : ''}. Fill in each one.` : 'This template has no variables.');
     const aud = await previewAudienceFor(ctx, d.groupIds, t.category);
     if (aud.sendable === 0) return fail('No contact in these groups has agreed to messages, so there is nobody to send to.');
     const capPaise = d.spendCapRupees ? Math.round(d.spendCapRupees * 100) : null;
@@ -132,7 +132,7 @@ export async function cancelCampaignFor(ctx: ActorCtx, id: string): Promise<Resu
 void audit;
 
 /**
- * Starts a bulk send on behalf of an API key. Same pipeline as the panel (the worker re-checks every rule per contact), plus the key's own money limits:
+ * Starts a campaign on behalf of an API key. Same pipeline as the panel (the worker re-checks every rule per contact), plus the key's own money limits:
  *  - one send may not cost more than the key's per-send cap;
  *  - everything the key started in the last 24 hours may not cost more than three times that cap.
  * The checks and the status change happen under one lock per key, so two sends fired at the same moment cannot both pass.

@@ -5,9 +5,9 @@ export type ApiScope = (typeof API_SCOPES)[number];
 export const SCOPE_INFO: Record<ApiScope, { label: string; risk: 'read' | 'write' | 'spend' }> = {
   'contacts:read': { label: 'See contacts and groups', risk: 'read' },
   'contacts:write': { label: 'Add contacts and groups', risk: 'write' },
-  'templates:read': { label: 'See approved message formats', risk: 'read' },
-  'campaigns:read': { label: 'See bulk sends and how they did', risk: 'read' },
-  'campaigns:write': { label: 'Create and cancel bulk sends (does not send them)', risk: 'write' },
+  'templates:read': { label: 'See approved templates', risk: 'read' },
+  'campaigns:read': { label: 'See campaigns and how they did', risk: 'read' },
+  'campaigns:write': { label: 'Create and cancel campaigns (does not send them)', risk: 'write' },
   'campaigns:send': { label: 'Start sending to customers (costs money)', risk: 'spend' },
 };
 

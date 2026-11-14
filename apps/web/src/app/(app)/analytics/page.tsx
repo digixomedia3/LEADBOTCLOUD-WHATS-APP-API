@@ -36,7 +36,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       </div>
 
       {a.empty ? (
-        <div className="card flex flex-col items-center gap-3 p-10 text-center"><BarChart3 className="size-9 text-muted" /><p className="font-display text-lg font-bold">No activity in the last {r} days</p><p className="max-w-sm text-sm text-muted">Send a bulk send or get a reply and this page fills in with delivery, reading and cost figures.</p><Link href="/campaigns" className="grad-bg mt-1 inline-flex min-h-11 items-center rounded-full px-5 text-sm font-semibold text-white">Create campaign</Link></div>
+        <div className="card flex flex-col items-center gap-3 p-10 text-center"><BarChart3 className="size-9 text-muted" /><p className="font-display text-lg font-bold">No activity in the last {r} days</p><p className="max-w-sm text-sm text-muted">Send a campaign or get a reply and this page fills in with delivery, reading and cost figures.</p><Link href="/campaigns" className="grad-bg mt-1 inline-flex min-h-11 items-center rounded-full px-5 text-sm font-semibold text-white">Create campaign</Link></div>
       ) : (
         <>
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Totals">
@@ -91,8 +91,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           ) : null}
 
           <section className="card overflow-hidden">
-            <div className="p-5 pb-3"><h3 className="font-display text-lg font-bold">Your bulk sends</h3><p className="text-sm text-muted">Newest first</p></div>
-            {a.campaigns.length === 0 ? <p className="px-5 pb-5 text-sm text-muted">No bulk sends in this period.</p> : (
+            <div className="p-5 pb-3"><h3 className="font-display text-lg font-bold">Your campaigns</h3><p className="text-sm text-muted">Newest first</p></div>
+            {a.campaigns.length === 0 ? <p className="px-5 pb-5 text-sm text-muted">No campaigns in this period.</p> : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm">
                   <thead className="bg-card2 text-left text-xs text-muted"><tr>{['Name', 'Date', 'Sent', 'Delivered', 'Read', 'Replied', 'Not delivered', 'Est. cost'].map((h, i) => <th key={h} className={cn('px-4 py-2 font-semibold', i > 1 && 'text-right')}>{h}</th>)}</tr></thead>

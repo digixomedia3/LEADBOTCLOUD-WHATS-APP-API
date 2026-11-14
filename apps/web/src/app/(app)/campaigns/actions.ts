@@ -81,7 +81,7 @@ export async function sendCampaign(id: string): Promise<Result<{ sent: number; t
     if (!c) return fail('Campaign not found.');
     if (!['draft', 'scheduled', 'paused'].includes(c.status)) return fail('This campaign has already been sent.');
     const [t] = c.templateId ? await tx.select().from(templates).where(eq(templates.id, c.templateId)) : [];
-    if (!t || t.status !== 'approved') return fail('The message format is no longer approved.');
+    if (!t || t.status !== 'approved') return fail('The template is no longer approved.');
     const groups = await loadGroups(tx, g.ctx.tenantId, c.groupIds);
     const rows = await tx.execute(sql`select c.id, c.phone_e164, c.name, c.consent_status from contacts c where c.tenant_id = ${g.ctx.tenantId}::uuid and ${audienceWhere(g.ctx.tenantId, groups)} order by c.id`);
     const all = rows as unknown as { id: string; phone_e164: string; name: string | null; consent_status: string }[];

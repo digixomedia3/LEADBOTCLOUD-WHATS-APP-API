@@ -318,9 +318,9 @@ All UI strings from `packages/shared/i18n/{en,hi}.json` (keys, never inline). En
 
 | Meta term | UI says |
 |---|---|
-| Template | Message format |
-| Broadcast / campaign | Bulk send / Send to customers |
-| 24-hour customer service window | "Can reply free for Xh" / "Needs an approved message format" |
+| Template | Template |
+| Broadcast / campaign | Campaign |
+| 24-hour customer service window | "Can reply free for Xh" / "Needs an approved template" |
 | Opt-in / consent | Customer allowed messages |
 | Opt-out | Customer stopped messages |
 | WABA, phone number ID | WhatsApp connection |

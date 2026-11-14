@@ -37,6 +37,6 @@ export async function POST(req: NextRequest) {
     return ((await tx.execute(sql`insert into template_assets (tenant_id, kind, mime, file_name, size_bytes, sha256, data, created_by)
       values (${ctx.tenantId}, ${c.kind}, ${c.mime}, ${name}, ${c.size}, ${sha}, ${Buffer.from(bytes)}, ${ctx.user.id}) returning id`)) as unknown as { id: string }[])[0]!.id;
   });
-  if (!r) return json({ ok: false, error: 'You have reached the limit of saved header files. Delete unused message formats first.' }, 409);
+  if (!r) return json({ ok: false, error: 'You have reached the limit of saved header files. Delete unused templates first.' }, 409);
   return json({ ok: true, asset: { id: r, kind: c.kind, name, size: c.size } });
 }

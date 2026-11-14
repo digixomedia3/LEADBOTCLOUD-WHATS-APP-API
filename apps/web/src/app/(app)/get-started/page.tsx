@@ -19,7 +19,7 @@ export default async function GetStartedPage() {
       (select count(*) from automation_rules where active)::int as auto`)) as unknown as Record<string, number>[])[0]!) as Record<string, number>;
   const steps = [
     { done: (n.wa ?? 0) > 0, title: 'Connect your WhatsApp number', body: 'Link the number your customers already know.', href: '/settings', cta: 'Open settings' },
-    { done: (n.tpl ?? 0) > 0, title: 'Get a message format approved', body: 'WhatsApp must approve a template before you can message people first.', href: '/templates', cta: 'Open message formats' },
+    { done: (n.tpl ?? 0) > 0, title: 'Get a template approved', body: 'WhatsApp must approve a template before you can message people first.', href: '/templates', cta: 'Open templates' },
     { done: (n.contacts ?? 0) > 0, title: 'Add your customers', body: 'Paste numbers or upload a CSV. Only people who agreed to hear from you.', href: '/contacts', cta: 'Open contacts' },
     { done: (n.capture ?? 0) > 0, title: 'Start capturing leads', body: 'A hosted form, QR code or website button brings enquiries in on their own.', href: '/leads', cta: 'Open leads' },
     { done: (n.auto ?? 0) > 0, title: 'Turn on an automatic reply', body: 'A welcome or away message so nobody waits.', href: '/automation', cta: 'Open automation' },

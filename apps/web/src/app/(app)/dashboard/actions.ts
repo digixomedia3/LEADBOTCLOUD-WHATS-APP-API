@@ -110,7 +110,7 @@ export async function getDashboard(): Promise<Dashboard> {
       steps: [
         { label: 'Connect WhatsApp', href: '/settings', done: connected },
         { label: 'Add contacts', href: '/contacts', done: num(flags.contacts) > 0 },
-        { label: 'Get a message format approved', href: '/templates', done: num(flags.approved) > 0 },
+        { label: 'Get a template approved', href: '/templates', done: num(flags.approved) > 0 },
         { label: 'Send your first campaign', href: '/campaigns', done: num(flags.sentcampaigns) > 0 },
         { label: 'Turn on renewal reminders', href: '/renewals', done: num(flags.renewalsopen) > 0 },
       ],

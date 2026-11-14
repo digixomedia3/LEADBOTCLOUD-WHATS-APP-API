@@ -6,6 +6,7 @@ import { PLAN_LIMITS } from '@lbc/shared';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/shell/theme-toggle';
 import { SleepingCalc } from '@/components/marketing/sleeping-calc';
+import { ScrollReveal } from '@/components/marketing/scroll-reveal';
 import { Bubble, PhoneFrame, Reply_, Shot } from '@/components/marketing/bubbles';
 import { getSession } from '@/lib/session';
 import { cn } from '@/lib/utils';
@@ -35,17 +36,17 @@ const faqs: [string, string][] = [
   ['Is this the official WhatsApp Business Platform?', 'Yes. You connect your own WhatsApp Business account through Meta’s Embedded Signup. Your number, your account and your message history stay yours. Right now the connection step is being switched on, and the panel runs in a clearly marked test mode until then.'],
   ['What will I pay in total?', 'Our plan fee, plus GST, plus Meta’s own message charges, which Meta bills to your card. We add no markup on messages. The calculator above uses ₹0.8631 per promotional message and ₹0.115 per update, before 18% GST, from the July 2026 India rate card. Meta changes rates, so the live cost preview before every send is what counts.'],
   ['Why would some of my messages not arrive?', 'Meta limits how many promotional messages one person can receive from all businesses combined. Messages Meta blocks for this reason are not charged. We show them in your report instead of hiding them, so you can follow up another way.'],
-  ['What stops my number from being restricted?', 'Opted-out people are never messaged. We check your daily limit and quality rating before a send, warn you when a message format is likely to be rejected, and show the cost before you commit. We cannot promise Meta will never act on an account. Sending messages people welcome is what keeps a number healthy.'],
+  ['What stops my number from being restricted?', 'Opted-out people are never messaged. We check your daily limit and quality rating before a send, warn you when a template is likely to be rejected, and show the cost before you commit. We cannot promise Meta will never act on an account. Sending messages people welcome is what keeps a number healthy.'],
   ['Which businesses cannot use LeadBotCloud?', 'Crypto and trading, gambling, adult content and anything else WhatsApp’s Commerce Policy bans. Loans, insurance, healthcare and a few others go through a short review. We would rather say no at signup than see your number banned later.'],
-  ['What is the difference from the free WhatsApp Business app?', 'The app is for chatting. Its broadcast lists are capped, and only reach people who saved your number. The API route sends approved message formats to everyone who agreed, with a shared inbox for your team. It also has rules: approved formats, permission, and per-message charges.'],
+  ['What is the difference from the free WhatsApp Business app?', 'The app is for chatting. Its broadcast lists are capped, and only reach people who saved your number. The API route sends approved templates to everyone who agreed, with a shared inbox for your team. It also has rules: approved formats, permission, and per-message charges.'],
   ['Is my customer data safe from other businesses on the platform?', 'Each workspace is separated inside the database itself, not only in our code. We test that one business cannot read another’s contacts, chats or campaigns. Every export and delete is written to an audit log.'],
   ['Do I have to sign a contract?', 'No. Plans are monthly. Online payment is being switched on, so today you can try everything on the free plan without a card.'],
-  ['Who sets it up?', 'You can do it yourself: upload a file, choose a message format, send. Connecting your WhatsApp number is a guided checklist inside Settings.'],
+  ['Who sets it up?', 'You can do it yourself: upload a file, choose a template, send. Connecting your WhatsApp number is a guided checklist inside Settings.'],
 ];
 
 const plans = [
-  { id: 'free', price: '₹0', note: 'Try it properly', pts: ['Shared inbox', 'Message formats and the checker', '2 bulk sends a month', 'Auto-replies (3 rules)'] },
-  { id: 'starter', price: '₹499', note: 'One shop or team', pts: ['Unlimited bulk sends', 'Auto-replies', 'Ready-made message formats'] },
+  { id: 'free', price: '₹0', note: 'Try it properly', pts: ['Shared inbox', 'Templates and the checker', '2 campaigns a month', 'Auto-replies (3 rules)'] },
+  { id: 'starter', price: '₹499', note: 'One shop or team', pts: ['Unlimited campaigns', 'Auto-replies', 'Ready-made templates'] },
   { id: 'growth', price: '₹1,299', note: 'Most popular', hot: true, pts: ['Renewal reminders', 'Number health centre', 'Everything in Starter'] },
   { id: 'pro', price: '₹2,999', note: 'Bigger teams', pts: ['3 WhatsApp numbers', 'API access and webhooks', 'Priority support'] },
 ] as const;
@@ -58,6 +59,7 @@ export default async function Landing() {
   const cta = session ? { href: '/dashboard', label: 'Open your dashboard' } : { href: '/signup', label: 'Start free' };
   return (
     <div className="min-h-dvh overflow-x-clip">
+      <ScrollReveal />
       <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
           <Link href="/" className="flex min-h-11 items-center gap-2 font-display text-lg font-extrabold"><span className="grad-bg flex size-9 items-center justify-center rounded-xl text-white">L</span>LeadBotCloud</Link>
@@ -129,7 +131,7 @@ export default async function Landing() {
         <div className="mx-auto max-w-6xl px-4 py-20 sm:py-28">
           <div className="sr max-w-3xl"><Eyebrow>Why the list stays unused</Eyebrow><H2>Most of your list has never had a single message from you.</H2><p className="mt-4 text-lg text-white/70">It is not laziness. The usual tools were not made for it.</p></div>
           <div className="mt-12 grid gap-5 md:grid-cols-3">
-            {[[Users, 'Lists stop at 256', 'The free WhatsApp Business app caps a broadcast list, so a big list means many lists and a lot of copy-pasting.'], [UserCheck, 'Only people who saved your number', 'A broadcast from the app reaches only contacts who have your number saved. Everyone else never sees it.'], [Ban, 'Bulk sending from a normal number gets flagged', 'A personal or small-business number is not built for bulk sending, and WhatsApp can restrict it.']].map(([I, t, d], i) => { const Icon = I as typeof Users; return (
+            {[[Users, 'Lists stop at 256', 'The free WhatsApp Business app caps a broadcast list, so a big list means many lists and a lot of copy-pasting.'], [UserCheck, 'Only people who saved your number', 'A broadcast from the app reaches only contacts who have your number saved. Everyone else never sees it.'], [Ban, 'Campaigning from a normal number gets flagged', 'A personal or small-business number is not built for campaigning, and WhatsApp can restrict it.']].map(([I, t, d], i) => { const Icon = I as typeof Users; return (
               <div key={t as string} className="sr glass rounded-3xl p-6" style={{ ['--i' as string]: i }}><Icon className="mb-4 size-7 text-brand" /><h3 className="font-display text-xl font-bold">{t as string}</h3><p className="mt-2 text-sm text-white/70">{d as string}</p></div>); })}
           </div>
           <div className="sr mt-10 overflow-x-auto rounded-3xl border border-white/15 bg-white/5">
@@ -148,12 +150,12 @@ export default async function Landing() {
         <div className="mt-14 grid gap-14">
           {[
             { n: '1', t: 'Upload your contacts', d: 'Bring in every list as a file, or paste numbers. Tell us where each group agreed to hear from you. That one answer is saved as proof, with the date.', shot: { src: '/shots/contacts.webp', alt: 'Contacts screen', url: 'app.leadbotcloud.com/contacts' } },
-            { n: '2', t: 'Check the cost, then send', d: 'Pick an approved message format and the groups. You see how many people get it, who is skipped, and the cost with GST before you press send. Add a spend cap and we refuse to go over it.', shot: { src: '/shots/send.webp', alt: 'Send to customers screen with the report', url: 'app.leadbotcloud.com/campaigns' } },
+            { n: '2', t: 'Check the cost, then send', d: 'Pick an approved template and the groups. You see how many people get it, who is skipped, and the cost with GST before you press send. Add a spend cap and we refuse to go over it.', shot: { src: '/shots/send.webp', alt: 'Campaigns screen with the report', url: 'app.leadbotcloud.com/campaigns' } },
             { n: '3', t: 'Reply, renew, close', d: 'Replies land in a shared team inbox with assignment and private notes. Track who is due to renew, remind them, and mark the payment in one tap.', shot: { src: '/shots/chats.webp', alt: 'Shared team inbox', url: 'app.leadbotcloud.com/chats' } },
           ].map((s, i) => (
-            <div key={s.n} className={cn('sr grid items-center gap-8 lg:grid-cols-2', i % 2 ? 'lg:[&>*:first-child]:order-2' : '')}>
-              <div><span className="grad-bg mb-4 flex size-12 items-center justify-center rounded-2xl font-display text-xl font-extrabold text-white">{s.n}</span><h3 className="font-display text-2xl font-bold sm:text-3xl">{s.t}</h3><p className="mt-3 text-lg text-muted">{s.d}</p></div>
-              <Shot {...s.shot} />
+            <div key={s.n} className={cn('grid items-center gap-8 lg:grid-cols-2', i % 2 ? 'lg:[&>*:first-child]:order-2' : '')}>
+              <div className={cn('sr', i % 2 ? 'sr-right' : 'sr-left')}><span className="grad-bg mb-4 flex size-12 items-center justify-center rounded-2xl font-display text-xl font-extrabold text-white">{s.n}</span><h3 className="font-display text-2xl font-bold sm:text-3xl">{s.t}</h3><p className="mt-3 text-lg text-muted">{s.d}</p></div>
+              <div className={cn('sr min-w-0', i % 2 ? 'sr-left' : 'sr-right')} style={{ ['--i' as string]: 1 }}><Shot {...s.shot} /></div>
             </div>))}
         </div>
         <p className="mt-10 text-center text-sm text-muted">Screens are the real panel, shown with sample data. Sending is in test mode until your WhatsApp number is connected.</p>
@@ -199,11 +201,11 @@ export default async function Landing() {
         <div className="mx-auto max-w-6xl px-4 py-20 sm:py-28">
           <div className="sr max-w-3xl"><Eyebrow>Built to protect your number</Eyebrow><H2>The five checks that run before every send.</H2><p className="mt-4 text-lg text-white/70">Most panels let you send first and find out later. We show you first. Each of these is real and tested in the product today.</p></div>
           <ol className="mt-12 grid gap-4 md:grid-cols-2">
-            {[[UserCheck, 'Permission on record', 'Only people marked as having agreed are messaged. Everyone else is skipped, counted, and listed in your report.'], [Ban, 'STOP is honoured instantly', 'When a customer writes STOP, they are opted out and logged with the date. The reply box then refuses to message them.'], [IndianRupee, 'Cost before you commit', 'Messages × rate + 18% GST is shown first, with an optional spend cap. If the estimate is over your cap, nothing is sent.'], [MessageSquareWarning, 'A pre-check on message formats', 'It warns about the things that get formats rejected: variables at the start or end, missing samples, banned wording, and offers filed as updates.'], [Lock, 'Your data stays yours', 'Each business is separated at the database level, with isolation tests. Exports and deletions are written to an audit log.']].map(([I, t, d], i) => { const Icon = I as typeof Lock; return (
+            {[[UserCheck, 'Permission on record', 'Only people marked as having agreed are messaged. Everyone else is skipped, counted, and listed in your report.'], [Ban, 'STOP is honoured instantly', 'When a customer writes STOP, they are opted out and logged with the date. The reply box then refuses to message them.'], [IndianRupee, 'Cost before you commit', 'Messages × rate + 18% GST is shown first, with an optional spend cap. If the estimate is over your cap, nothing is sent.'], [MessageSquareWarning, 'A pre-check on templates', 'It warns about the things that get formats rejected: variables at the start or end, missing samples, banned wording, and offers filed as updates.'], [Lock, 'Your data stays yours', 'Each business is separated at the database level, with isolation tests. Exports and deletions are written to an audit log.']].map(([I, t, d], i) => { const Icon = I as typeof Lock; return (
               <li key={t as string} className={cn('sr glass flex gap-4 rounded-3xl p-6', i === 4 && 'md:col-span-2')} style={{ ['--i' as string]: i }}><span className="font-display text-3xl font-extrabold text-brand/80">{i + 1}</span><div><h3 className="flex items-center gap-2 font-display text-lg font-bold"><Icon className="size-5 text-brand" />{t as string}</h3><p className="mt-1.5 text-sm text-white/70">{d as string}</p></div></li>); })}
           </ol>
           <div className="sr mt-10 grid items-center gap-6 rounded-3xl border border-white/15 bg-white/5 p-6 md:grid-cols-[1fr_1fr] md:p-8">
-            <div><h3 className="font-display text-xl font-bold">What we do not promise</h3><ul className="mt-3 space-y-2 text-sm text-white/75">{['We cannot guarantee Meta will never restrict an account. We reduce the risk and tell you early.', 'We cannot make Meta deliver every message. Meta blocks some promotional messages by its own per-person limit, and blocked ones are not charged.', 'Approval of a message format is Meta’s decision, not ours.'].map((x) => <li key={x} className="flex gap-2"><X className="mt-0.5 size-4 shrink-0 text-amber" />{x}</li>)}</ul></div>
+            <div><h3 className="font-display text-xl font-bold">What we do not promise</h3><ul className="mt-3 space-y-2 text-sm text-white/75">{['We cannot guarantee Meta will never restrict an account. We reduce the risk and tell you early.', 'We cannot make Meta deliver every message. Meta blocks some promotional messages by its own per-person limit, and blocked ones are not charged.', 'Approval of a template is Meta’s decision, not ours.'].map((x) => <li key={x} className="flex gap-2"><X className="mt-0.5 size-4 shrink-0 text-amber" />{x}</li>)}</ul></div>
             <div className="rounded-2xl bg-white/10 p-5 text-sm"><p className="font-semibold">Where we are today</p><p className="mt-1 text-white/70">The panel is fully built and runs in a clearly marked test mode. Connecting your real WhatsApp number is being switched on as our Meta partner approval completes. Nothing here pretends otherwise.</p></div>
           </div>
         </div>
@@ -222,9 +224,9 @@ export default async function Landing() {
           <div className="sr mt-10 overflow-x-auto rounded-3xl border border-line bg-card">
             <table className="w-full min-w-[36rem] text-sm"><caption className="sr-only">WhatsApp Business app compared with LeadBotCloud</caption>
               <thead><tr className="border-b border-line text-left"><th className="px-5 py-4"><span className="sr-only">Feature</span></th><th className="px-5 py-4 font-display text-base font-bold">WhatsApp Business app</th><th className="grad-bg px-5 py-4 font-display text-base font-bold text-white">LeadBotCloud</th></tr></thead>
-              <tbody>{[['Broadcasts', 'Capped lists of 256', 'No list cap. Upload your whole list.'], ['Who receives it', 'Only people who saved your number', 'Everyone who agreed to messages'], ['Team', 'One phone and a few linked devices', 'Shared inbox with assignment and notes'], ['Cost view', 'None', 'Cost with GST shown before every send'], ['Opted-out people', 'You remember to skip them', 'Skipped automatically and logged'], ['Message formats', 'Free-form broadcasts', 'Meta-approved formats, with a rejection pre-check'], ['Bulk sending risk', 'Number can be flagged', 'Checks and limits built to protect your number']].map(([a, b, c]) => <tr key={a} className="border-b border-line last:border-0"><th scope="row" className="px-5 py-3.5 text-left font-semibold">{a}</th><td className="px-5 py-3.5 text-muted">{b}</td><td className="px-5 py-3.5 font-medium">{c}</td></tr>)}</tbody></table>
+              <tbody>{[['Broadcasts', 'Capped lists of 256', 'No list cap. Upload your whole list.'], ['Who receives it', 'Only people who saved your number', 'Everyone who agreed to messages'], ['Team', 'One phone and a few linked devices', 'Shared inbox with assignment and notes'], ['Cost view', 'None', 'Cost with GST shown before every send'], ['Opted-out people', 'You remember to skip them', 'Skipped automatically and logged'], ['Templates', 'Free-form broadcasts', 'Meta-approved formats, with a rejection pre-check'], ['Campaigning risk', 'Number can be flagged', 'Checks and limits built to protect your number']].map(([a, b, c]) => <tr key={a} className="border-b border-line last:border-0"><th scope="row" className="px-5 py-3.5 text-left font-semibold">{a}</th><td className="px-5 py-3.5 text-muted">{b}</td><td className="px-5 py-3.5 font-medium">{c}</td></tr>)}</tbody></table>
           </div>
-          <p className="mt-3 text-xs text-muted">The API route has rules of its own: approved message formats, recorded permission, and per-message charges from Meta.</p>
+          <p className="mt-3 text-xs text-muted">The API route has rules of its own: approved templates, recorded permission, and per-message charges from Meta.</p>
         </div>
       </section>
 
@@ -244,7 +246,7 @@ export default async function Landing() {
           <div className="sr text-center"><Eyebrow>Pricing</Eyebrow><H2>Simple monthly plans.</H2><p className="mx-auto mt-3 max-w-xl text-muted">Plan prices exclude GST. WhatsApp message charges are paid to Meta separately, at Meta’s rate with no markup from us.</p></div>
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {plans.map((p) => { const l = PLAN_LIMITS[p.id]; return (
-              <div key={p.id} className={cn('card relative flex flex-col p-6', 'hot' in p && 'border-brand ring-2 ring-brand/30')}>
+              <div key={p.id} style={{ ['--i' as string]: plans.indexOf(p) }} className={cn('sr sr-zoom card relative flex flex-col p-6', 'hot' in p && 'border-brand ring-2 ring-brand/30')}>
                 {'hot' in p ? <span className="grad-bg absolute -top-3 left-6 rounded-full px-3 py-1 text-xs font-bold text-white">Most popular</span> : null}
                 <h3 className="font-display text-lg font-bold">{l.label}</h3><p className="text-xs text-muted">{p.note}</p>
                 <p className="mt-4 font-display text-4xl font-extrabold">{p.price}<span className="text-sm font-medium text-muted">/month</span></p>

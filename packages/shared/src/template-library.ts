@@ -1,7 +1,7 @@
 import type { Category, TemplateDraft } from './template-lint';
 
 /**
- * Ready-made message formats. Every entry must pass lintTemplate with no blocking issue (enforced by test), so "Use this"
+ * Ready-made templates. Every entry must pass lintTemplate with no blocking issue (enforced by test), so "Use this"
  * never hands someone a draft that cannot be submitted. Wording is plain, specific and has an opt-out line on promotions.
  * Nothing here is pre-approved: Meta still reviews each one when it is submitted.
  */

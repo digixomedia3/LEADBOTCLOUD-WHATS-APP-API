@@ -61,11 +61,11 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
   if (contact.freq_cap_hold_until && new Date(String(contact.freq_cap_hold_until)) > now) return skip(db, tenantId, messageId, recipientId, 'Meta limited promotional messages to this customer today. Try after 24 hours.');
   if (!isTemplate) {
     const open = conv?.window_expires_at && new Date(String(conv.window_expires_at)) > now;
-    if (!open) return skip(db, tenantId, messageId, recipientId, 'The 24-hour reply window is closed. Send an approved message format.');
+    if (!open) return skip(db, tenantId, messageId, recipientId, 'The 24-hour reply window is closed. Send an approved template.');
   }
   if (isTemplate) {
     const t = rows(await db.execute(sql`select id, status, header_type, buttons, offer from templates where tenant_id = ${tenantId} and name = ${m.template_name} and language = ${m.template_language} limit 1`))[0];
-    if (!t || t.status !== 'approved') return skip(db, tenantId, messageId, recipientId, 'The message format is not approved right now.');
+    if (!t || t.status !== 'approved') return skip(db, tenantId, messageId, recipientId, 'The template is not approved right now.');
     tpl = t;
     // A countdown that has already run out must never be sent: the customer would get an offer that is over.
     const offer = t.offer as { hasExpiration?: boolean } | null;

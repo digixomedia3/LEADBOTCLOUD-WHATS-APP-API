@@ -53,7 +53,7 @@ export default async function DashboardPage() {
           <div className="max-w-xl">
             <p className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold"><Sparkles className="size-3.5 text-emerald-300" />{d.hello}, {d.workspace}</p>
             <h2 className="font-display text-3xl font-extrabold leading-tight md:text-4xl">{d.empty ? <>Let’s send your <span className="grad-text">first message</span></> : <>Your WhatsApp is <span className="grad-text">working for you</span></>}</h2>
-            <p className="mt-2 text-sm text-white/75 md:text-base">{d.empty ? 'Add contacts, get a message format approved, and send. Your numbers appear here as soon as you do.' : summary}</p>
+            <p className="mt-2 text-sm text-white/75 md:text-base">{d.empty ? 'Add contacts, get a template approved, and send. Your numbers appear here as soon as you do.' : summary}</p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Button asChild><Link href="/campaigns"><Send className="size-4" />Create campaign</Link></Button>
               <Button asChild variant="glass"><Link href="/contacts"><Upload className="size-4" />Import contacts</Link></Button>
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
 
           <section className="card reveal p-5 md:p-6" style={{ ['--i' as string]: 6 }}>
             <div className="mb-3 flex items-center justify-between"><h3 className="font-display flex items-center gap-2 text-lg font-bold"><CalendarClock className="size-5 text-indigo" />Scheduled campaigns</h3><Button asChild variant="soft" size="sm"><Link href="/campaigns"><Plus className="size-4" />New</Link></Button></div>
-            {d.scheduled.length === 0 ? <p className="rounded-2xl border border-dashed border-line p-4 text-sm text-muted">Nothing is scheduled. Pick a date when you create a bulk send and it shows up here.</p> : (
+            {d.scheduled.length === 0 ? <p className="rounded-2xl border border-dashed border-line p-4 text-sm text-muted">Nothing is scheduled. Pick a date when you create a campaign and it shows up here.</p> : (
               <ul className="flex flex-col gap-2">
                 {d.scheduled.map((s) => (
                   <li key={s.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-card2 p-3">

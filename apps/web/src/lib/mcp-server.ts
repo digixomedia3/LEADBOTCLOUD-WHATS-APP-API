@@ -21,7 +21,7 @@ export function buildServer(ctx: ActorCtx): McpServer {
   const server = new McpServer({ name: 'leadbotcloud', version: '1.0.0' }, {
     instructions:
       'Controls one LeadBotCloud WhatsApp workspace. Rules you must follow: (1) Only add a contact when the user has told you the person agreed to get WhatsApp messages and where; never invent consent. ' +
-      '(2) Creating a bulk send does not send it. Before starting a send, call preview_audience, tell the user who will receive it and what it costs, and get a clear yes. ' +
+      '(2) Creating a campaign does not send it. Before starting a send, call preview_audience, tell the user who will receive it and what it costs, and get a clear yes. ' +
       '(3) Customers who opted out are skipped automatically; do not try to work around that. (4) Report errors to the user in plain words.',
   });
   const allow = (s: ApiScope) => hasScope(scopes, s);
@@ -58,18 +58,18 @@ export function buildServer(ctx: ActorCtx): McpServer {
   }
 
   if (allow('templates:read')) {
-    server.registerTool('list_message_formats', { description: 'Lists APPROVED message formats you can send, with how many blanks each has and whether it needs an offer code or end time.', annotations: { readOnlyHint: true } },
+    server.registerTool('list_templates', { description: 'Lists APPROVED templates you can send, with how many blanks each has and whether it needs an offer code or end time.', annotations: { readOnlyHint: true } },
       guarded('templates:read', async () => res(await listApprovedTemplatesFor(ctx))));
   }
 
   if (allow('campaigns:read')) {
-    server.registerTool('list_campaigns', { description: 'Lists recent bulk sends and their status.', inputSchema: { limit: z.number().int().min(1).max(50).optional() }, annotations: { readOnlyHint: true } },
+    server.registerTool('list_campaigns', { description: 'Lists recent campaigns and their status.', inputSchema: { limit: z.number().int().min(1).max(50).optional() }, annotations: { readOnlyHint: true } },
       guarded('campaigns:read', async (a: { limit?: number }) => res(await listCampaignsFor(ctx, a.limit ?? 20))));
-    server.registerTool('get_campaign', { description: 'Status and results (sent, delivered, read, replied, failed) of one bulk send.', inputSchema: { campaignId: z.string().uuid() }, annotations: { readOnlyHint: true } },
+    server.registerTool('get_campaign', { description: 'Status and results (sent, delivered, read, replied, failed) of one campaign.', inputSchema: { campaignId: z.string().uuid() }, annotations: { readOnlyHint: true } },
       guarded('campaigns:read', async (a: { campaignId: string }) => res(await campaignStatusFor(ctx, a.campaignId))));
     server.registerTool('preview_audience', {
-      description: 'Shows how many people a bulk send would reach and the estimated cost, WITHOUT creating or sending anything. Always do this and show the user before starting a send.',
-      inputSchema: { groupIds: z.array(z.string().uuid()).min(1).max(50), category: z.enum(['marketing', 'utility']).describe('The category of the message format you plan to use') },
+      description: 'Shows how many people a campaign would reach and the estimated cost, WITHOUT creating or sending anything. Always do this and show the user before starting a send.',
+      inputSchema: { groupIds: z.array(z.string().uuid()).min(1).max(50), category: z.enum(['marketing', 'utility']).describe('The category of the template you plan to use') },
       annotations: { readOnlyHint: true },
     }, guarded('campaigns:read', async (a: { groupIds: string[]; category: 'marketing' | 'utility' }) => {
       const p = await previewAudienceFor(ctx, a.groupIds, a.category);
@@ -79,20 +79,20 @@ export function buildServer(ctx: ActorCtx): McpServer {
 
   if (allow('campaigns:write')) {
     server.registerTool('create_campaign', {
-      description: 'Creates a bulk send as a draft (when "now") or schedules it (when "later"). It does NOT send anything. Fill every blank of the message format in varMap ("@name" = customer first name).',
+      description: 'Creates a campaign as a draft (when "now") or schedules it (when "later"). It does NOT send anything. Fill every blank of the template in varMap ("@name" = customer first name).',
       inputSchema: {
         name: z.string().min(2).max(120), templateId: z.string().uuid(), groupIds: z.array(z.string().uuid()).min(1).max(50), when: z.enum(['now', 'later']),
         scheduledAt: z.string().optional().describe('ISO time, at least 5 minutes ahead, when "later"'), varMap: z.array(z.string().min(1).max(200)).max(20).optional(),
         spendCapRupees: z.number().min(0).optional(), offerCode: z.string().optional(), offerEndsAt: z.string().optional(),
       },
     }, guarded('campaigns:write', async (a: z.input<typeof campaignInput>) => res(await createCampaignFor(ctx, a))));
-    server.registerTool('cancel_campaign', { description: 'Cancels a bulk send that has not started.', inputSchema: { campaignId: z.string().uuid() }, annotations: { destructiveHint: true } },
+    server.registerTool('cancel_campaign', { description: 'Cancels a campaign that has not started.', inputSchema: { campaignId: z.string().uuid() }, annotations: { destructiveHint: true } },
       guarded('campaigns:write', async (a: { campaignId: string }) => res(await cancelCampaignFor(ctx, a.campaignId))));
   }
 
   if (allow('campaigns:send')) {
     server.registerTool('start_campaign', {
-      description: 'STARTS SENDING a bulk send to real customers and spends money. Only call after the user has seen the audience and cost and clearly said yes. Only works for campaigns created with this same key and within its money limits.',
+      description: 'STARTS SENDING a campaign to real customers and spends money. Only call after the user has seen the audience and cost and clearly said yes. Only works for campaigns created with this same key and within its money limits.',
       inputSchema: { campaignId: z.string().uuid(), userConfirmed: z.literal(true).describe('Must be true: the user has just approved this exact send.') },
       annotations: { destructiveHint: true, openWorldHint: true },
     }, guarded('campaigns:send', async (a: { campaignId: string }) => res(await sendCampaignViaKey(ctx, a.campaignId))));

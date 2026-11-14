@@ -153,7 +153,7 @@ describe('send pipeline (spec 4.5)', () => {
     fx = await fixture({ health: 'restricted' }); await template(fx);
     expect((await sendOne(deps(), fx.tenant, (await queued(fx)).id)) as any).toMatchObject({ kind: 'skipped' });
     fx = await fixture(); await template(fx, { status: 'paused' });
-    expect((await sendOne(deps(), fx.tenant, (await queued(fx)).id)) as any).toMatchObject({ kind: 'skipped', reason: 'The message format is not approved right now.' });
+    expect((await sendOne(deps(), fx.tenant, (await queued(fx)).id)) as any).toMatchObject({ kind: 'skipped', reason: 'The template is not approved right now.' });
     fx = await fixture(); await template(fx);
     await db.execute(sql`update contacts set freq_cap_hold_until = now() + interval '3 hours' where id = ${fx.contact}`);
     expect((await sendOne(deps(), fx.tenant, (await queued(fx)).id)) as any).toMatchObject({ kind: 'skipped' });

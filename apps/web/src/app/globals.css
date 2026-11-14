@@ -260,14 +260,18 @@ body {
 }
 
 /* ---- Landing page ---- */
-/* Scroll reveal: pure CSS where the browser supports scroll-driven animation; everything is simply visible elsewhere. */
-@supports (animation-timeline: view()) {
-  .sr {
-    animation: fade-up both cubic-bezier(0.2, 0.8, 0.2, 1);
-    animation-timeline: view();
-    animation-range: entry 0% entry 30%;
-  }
+/* Scroll reveal (homepage). <ScrollReveal /> adds .sr-on to <html> only after it has shown what is already on screen,
+   so nothing flashes, and without JavaScript (or with reduced motion) the page is simply visible. */
+.sr-on .sr {
+  transition: opacity 0.75s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.75s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition-delay: calc(var(--i, 0) * 90ms);
+  will-change: opacity, transform;
 }
+.sr-on .sr:not(.sr-in) { opacity: 0; transform: translate3d(0, 30px, 0); }
+.sr-on .sr-left:not(.sr-in) { transform: translate3d(-44px, 0, 0); }
+.sr-on .sr-right:not(.sr-in) { transform: translate3d(44px, 0, 0); }
+.sr-on .sr-zoom:not(.sr-in) { transform: scale(0.93); }
+
 
 @keyframes wake-old { 0% { opacity: 1; } 30% { opacity: 0; } 90% { opacity: 1; } }
 @keyframes wake-new { 0% { opacity: 0; } 30% { opacity: 1; } 90% { opacity: 0; } }

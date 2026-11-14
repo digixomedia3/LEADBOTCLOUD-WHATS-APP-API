@@ -126,7 +126,7 @@ describe('launching to a saved segment', () => {
     const s = await setup(plain); await addSeg(s, { match: 'any', rules: [{ type: 'added', op: 'within', days: 30 }] }, true);
     expect((await launchCampaign(db, s.t, s.camp)).queued).toBe(2); expect(await names(s.camp)).toEqual(['Asha:queued', 'Ravi:queued']);
   });
-  it('the retarget case: "got the last bulk send but did not read it"', async () => {
+  it('the retarget case: "got the last campaign but did not read it"', async () => {
     const s = await setup(plain); await launchCampaign(db, s.t, s.camp);
     await A(`update campaign_recipients set state = 'read' where campaign_id = '${s.camp}' and name = 'Asha'`); await A(`update campaign_recipients set state = 'delivered' where campaign_id = '${s.camp}' and name = 'Ravi'`);
     const camp2 = (await q(`insert into campaigns (tenant_id, name, template_id, group_ids, status, scheduled_at, var_map) values ('${s.t}', 'Retarget', '${s.tpl}', '{}', 'scheduled', now(), '["@name"]'::jsonb) returning id`))[0]!.id as string;

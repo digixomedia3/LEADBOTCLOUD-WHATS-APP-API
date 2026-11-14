@@ -14,7 +14,7 @@ async function adminCtx() {
   return ctx;
 }
 
-/** Names the rule pickers need: this workspace's bulk sends, lead sources and tags. */
+/** Names the rule pickers need: this workspace's campaigns, lead sources and tags. */
 export interface SegmentOptions { campaigns: { id: string; name: string }[]; sources: { id: string; name: string }[]; tags: string[] }
 export async function segmentOptions(): Promise<SegmentOptions> {
   const ctx = await requireCtx();
@@ -44,7 +44,7 @@ export async function previewSegment(filter: SegmentFilter): Promise<Result<Segm
 async function checkOwnership(tx: Parameters<Parameters<typeof db>[1]>[0], f: SegmentFilter): Promise<string | null> {
   const camp = [...new Set(f.rules.flatMap((r) => (r.type === 'campaign' ? [r.campaignId] : [])))];
   const src = [...new Set(f.rules.flatMap((r) => (r.type === 'lead_source' ? [r.sourceId] : [])))];
-  if (camp.length) { const n = (await tx.execute(sql`select count(*)::int n from campaigns where id = any(${'{' + camp.join(',') + '}'}::uuid[])`)) as unknown as { n: number }[]; if (n[0]!.n !== camp.length) return 'One of the bulk sends in your rules was not found.'; }
+  if (camp.length) { const n = (await tx.execute(sql`select count(*)::int n from campaigns where id = any(${'{' + camp.join(',') + '}'}::uuid[])`)) as unknown as { n: number }[]; if (n[0]!.n !== camp.length) return 'One of the campaigns in your rules was not found.'; }
   if (src.length) { const n = (await tx.execute(sql`select count(*)::int n from lead_sources where id = any(${'{' + src.join(',') + '}'}::uuid[])`)) as unknown as { n: number }[]; if (n[0]!.n !== src.length) return 'One of the lead sources in your rules was not found.'; }
   return null;
 }
