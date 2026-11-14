@@ -12,6 +12,8 @@ export interface TemplateDraft {
   headerMedia?: 'image' | 'video' | 'document';
   /** True once a file has been chosen for the media header. */
   hasHeaderFile?: boolean;
+  /** Limited-time offer: a short title above the message and, optionally, a countdown. Marketing only. */
+  offer?: { text: string; hasExpiration: boolean } | null;
   body: string;
   footer?: string;
   buttons: { type: 'quick_reply' | 'url' | 'phone' | 'copy_code'; text: string; value?: string }[];
@@ -20,7 +22,7 @@ export interface TemplateDraft {
 export interface Issue { level: 'block' | 'warn'; field: 'name' | 'header' | 'body' | 'footer' | 'buttons' | 'samples' | 'category'; message: string }
 export interface LintResult { issues: Issue[]; blocked: boolean; risk: 'low' | 'medium' | 'high'; suggestedCategory?: Category }
 
-export const LIMITS = { name: 512, header: 60, body: 1024, footer: 60, button: 25, url: 2000, buttons: 10, urlButtons: 2 } as const;
+export const LIMITS = { name: 512, header: 60, body: 1024, footer: 60, button: 25, url: 2000, buttons: 10, urlButtons: 2, offerTitle: 16, offerBody: 600 } as const;
 const VAR = /\{\{\s*(\d+)\s*\}\}/g;
 
 export function variablesIn(text: string): number[] {
@@ -98,6 +100,25 @@ export function lintTemplate(d: TemplateDraft, existingNames: string[] = [], exi
   if (firstQr !== -1 && kinds.slice(firstQr, lastQr + 1).includes(false)) add('block', 'buttons', 'Keep quick-reply buttons together, before or after the other buttons.');
   if (d.buttons.length > 3) add('warn', 'buttons', 'With more than 3 buttons, WhatsApp shows only 2 and hides the rest behind "See all options".');
 
+  // Limited-time offer (Meta "Limited-time offer templates": marketing only, no footer, header image/video only, copy-code first, URL button required)
+  if (d.offer) {
+    const o = d.offer;
+    if (d.category !== 'marketing') add('block', 'category', 'A limited-time offer must be a Promotional format.');
+    if (!o.text.trim()) add('block', 'body', 'Write the short offer title, for example “Weekend offer!”.');
+    else if (o.text.length > LIMITS.offerTitle) add('block', 'body', `The offer title can be ${LIMITS.offerTitle} characters at most (now ${o.text.length}).`);
+    if (d.footer) add('block', 'footer', 'Limited-time offers cannot have a footer. Remove it.');
+    if (d.headerText) add('block', 'header', 'A limited-time offer can have a picture or video header, but not a text header.');
+    if (d.headerMedia === 'document') add('block', 'header', 'A limited-time offer can have a picture or video header, not a PDF.');
+    if (body.length > LIMITS.offerBody) add('block', 'body', `With an offer, the message can be ${LIMITS.offerBody} characters at most (now ${body.length}).`);
+    const copyAt = d.buttons.findIndex((b) => b.type === 'copy_code');
+    if (o.hasExpiration && copyAt === -1) add('block', 'buttons', 'A countdown needs a Copy code button, because the countdown is for the offer code.');
+    if (copyAt > 0) add('block', 'buttons', 'Put the Copy code button first.');
+    if (!d.buttons.some((b) => b.type === 'url')) add('block', 'buttons', 'A limited-time offer needs a website button.');
+    if (d.buttons.some((b) => b.type === 'url' && /\{\{/.test(b.value ?? ''))) add('block', 'buttons', 'For now the website address of an offer must be complete, without a {{1}} part.');
+    const c = d.buttons.find((b) => b.type === 'copy_code');
+    if (c && !/^[A-Za-z0-9_-]{1,15}$/.test(c.value ?? '')) add('block', 'buttons', 'Give an example offer code of 1 to 15 letters or numbers, for example WEEKEND20.');
+  }
+
   // Category rules
   const all = [d.headerText, body, d.footer].filter(Boolean).join(' ');
   let suggested: Category | undefined;
@@ -111,7 +132,7 @@ export function lintTemplate(d: TemplateDraft, existingNames: string[] = [], exi
   }
   if (BANNED.test(all)) add('block', 'body', 'This wording is not allowed under WhatsApp’s Commerce Policy (shared accounts, guaranteed returns, betting, crypto or adult content).');
   if (d.category === 'marketing' && !d.buttons.some((b) => b.type === 'quick_reply' && /stop|unsubscribe|opt/i.test(b.text)) && !/stop/i.test(d.footer ?? '')) {
-    add('warn', 'buttons', 'Add a “Stop promotions” button or a footer such as “Reply STOP to opt out”. It protects your number’s quality.');
+    add('warn', 'buttons', d.offer ? 'Add a “Stop promotions” button after the others. An offer cannot have a footer, so the button is how people opt out.' : 'Add a “Stop promotions” button or a footer such as “Reply STOP to opt out”. It protects your number’s quality.');
   }
 
   // Near duplicates

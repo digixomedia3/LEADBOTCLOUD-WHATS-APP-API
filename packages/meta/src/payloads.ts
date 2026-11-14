@@ -5,7 +5,7 @@
 export type TemplateCategory = 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
 
 export interface TemplateParam { type: 'text'; text: string; parameter_name?: string }
-export interface TemplateComponent { type: 'header' | 'body' | 'button'; sub_type?: 'url' | 'quick_reply' | 'copy_code'; index?: string | number; parameters: unknown[] }
+export interface TemplateComponent { type: 'header' | 'body' | 'button' | 'limited_time_offer'; sub_type?: 'url' | 'quick_reply' | 'copy_code'; index?: string | number; parameters: unknown[] }
 
 const envelope = (to: string, callbackData?: string) => ({
   messaging_product: 'whatsapp' as const,
@@ -99,4 +99,10 @@ export function copyCodeParam(index: number, code: string): TemplateComponent {
   const c = code.trim();
   if (!c || c.length > 15) throw new Error('A copy-code button needs a code of 1 to 15 characters');
   return { type: 'button', sub_type: 'copy_code', index: String(index), parameters: [{ type: 'coupon_code', coupon_code: c }] };
+}
+
+/** The countdown of a limited-time offer, given per message as a Unix time in milliseconds (Meta: limited_time_offer.expiration_time_ms). */
+export function limitedTimeOfferParam(expirationMs: number): TemplateComponent {
+  if (!Number.isSafeInteger(expirationMs) || expirationMs <= 0) throw new Error('The offer expiry time looks wrong');
+  return { type: 'limited_time_offer', parameters: [{ type: 'limited_time_offer', limited_time_offer: { expiration_time_ms: expirationMs } }] };
 }

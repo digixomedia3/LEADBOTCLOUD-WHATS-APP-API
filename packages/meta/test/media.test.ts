@@ -49,3 +49,11 @@ describe('media for sending', () => {
     expect(() => copyCodeParam(0, '')).toThrow(); expect(() => copyCodeParam(0, 'ABCDEFGHIJKLMNOP')).toThrow();
   });
 });
+
+import { limitedTimeOfferParam } from '../src';
+describe('limited-time offer send parameter', () => {
+  it('carries the end time in milliseconds under limited_time_offer', () => {
+    expect(limitedTimeOfferParam(1698562800000)).toEqual({ type: 'limited_time_offer', parameters: [{ type: 'limited_time_offer', limited_time_offer: { expiration_time_ms: 1698562800000 } }] });
+  });
+  it('refuses a missing, zero, negative or fractional time', () => { for (const bad of [0, -5, NaN, 1.5, Infinity]) expect(() => limitedTimeOfferParam(bad)).toThrow(); });
+});

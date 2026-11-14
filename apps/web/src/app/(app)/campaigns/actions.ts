@@ -68,6 +68,10 @@ const input = z.object({
   spendCapRupees: z.number().min(0).max(10_000_000).optional(),
   /** One entry per {{n}} in the body: '@name', '@fullname', '@phone' or fixed text. */
   varMap: z.array(z.string().trim().min(1, 'Fill in every variable.').max(200)).max(20).default([]),
+  /** For a format with a Copy code button: the code every recipient gets (1 to 15 letters, numbers, - or _). */
+  offerCode: z.string().trim().regex(/^[A-Za-z0-9_-]{1,15}$/, 'The offer code can be 1 to 15 letters or numbers.').optional(),
+  /** For a format with a countdown: when the offer ends (ISO time). */
+  offerEndsAt: z.string().optional(),
 });
 export type CampaignInput = z.input<typeof input>;
 
@@ -89,6 +93,19 @@ export async function createCampaign(raw: CampaignInput): Promise<Result<{ id: s
     if (t.status !== 'approved') return fail('Only approved message formats can be sent. Get this one approved first.');
     const groups = await tx.execute(sql`select id from contact_groups where id = any(${sql.raw(`ARRAY[${d.groupIds.map((i) => `'${i}'`).join(',')}]::uuid[]`)})`);
     if ((groups as unknown as unknown[]).length !== d.groupIds.length) return fail('One of the groups no longer exists.');
+    const hasCopy = ((t.buttons ?? []) as { type: string }[]).some((b) => b.type === 'copy_code');
+    const offerCfg = t.offer as { hasExpiration?: boolean } | null;
+    if (hasCopy && !d.offerCode) return fail('This message format has a Copy code button. Enter the offer code.');
+    let offerEnds: Date | null = null;
+    if (offerCfg?.hasExpiration) {
+      offerEnds = d.offerEndsAt ? new Date(d.offerEndsAt) : null;
+      if (!offerEnds || Number.isNaN(offerEnds.getTime())) return fail('This offer has a countdown. Choose when the offer ends.');
+      // The countdown must still be running when the LAST message goes out; a repeating send keeps the same end time, so it must outlive the first run.
+      const firstRun = when ?? new Date();
+      if (offerEnds.getTime() < firstRun.getTime() + 60 * 60_000) return fail('The offer must end at least an hour after the message is sent.');
+      if (offerEnds.getTime() > firstRun.getTime() + 60 * 86_400_000) return fail('The offer can end at most 60 days after the message is sent.');
+      if (d.repeat !== 'none') return fail('A countdown offer cannot repeat, because it would run out. Send it once.');
+    }
     const needed = new Set(variablesIn(t.body)).size;
     if (d.varMap.length !== needed) return fail(needed ? `This message format has ${needed} variable${needed > 1 ? 's' : ''}. Fill in each one.` : 'This message format has no variables.');
     const aud = await previewAudience(d.groupIds, t.category);
@@ -97,7 +114,7 @@ export async function createCampaign(raw: CampaignInput): Promise<Result<{ id: s
     if (capPaise !== null && aud.cost.totalPaise > capPaise) return fail(`The estimated cost ${aud.cost.totalLabel} is above your spend cap. Raise the cap or choose fewer people.`);
     const [row] = await tx.insert(campaigns).values({
       tenantId: g.ctx.tenantId, name: d.name, templateId: t.id, groupIds: d.groupIds, status: d.when === 'now' ? 'draft' : 'scheduled', scheduledAt: when, repeat: d.repeat,
-      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: g.ctx.user.id, varMap: d.varMap,
+      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: g.ctx.user.id, varMap: d.varMap, offerCode: hasCopy ? d.offerCode! : null, offerExpiresAt: offerEnds,
     }).returning({ id: campaigns.id, status: campaigns.status });
     await audit(tx, 'campaign.created', 'campaign', row!.id, { audience: aud.sendable });
     revalidatePath('/campaigns');

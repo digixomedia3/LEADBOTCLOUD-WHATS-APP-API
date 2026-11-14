@@ -31,7 +31,7 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
       return { campaignId, queued: 0, skipped: 0, status, reason };
     };
 
-    const t = rows(await tx.execute(sql`select id, name, language, category, status, body from templates where id = ${claimed.template_id} and tenant_id = ${tenantId}`))[0];
+    const t = rows(await tx.execute(sql`select id, name, language, category, status, body, buttons, offer from templates where id = ${claimed.template_id} and tenant_id = ${tenantId}`))[0];
     if (!t || t.status !== 'approved') return fail('template_not_approved');
     const acc = rows(await tx.execute(sql`select token_status, health_state, payment_method_status from meta_accounts where tenant_id = ${tenantId} limit 1`))[0];
     if (!acc) return fail('not_connected');
@@ -40,6 +40,13 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     if (acc.payment_method_status === 'failing') return fail('payment_banner');
     const ph = rows(await tx.execute(sql`select phone_number_id from phone_numbers where tenant_id = ${tenantId} order by created_at limit 1`))[0];
     if (!ph) return fail('not_connected');
+
+    // An offer needs its code (if it has a copy-code button) and its end time (if it has a countdown). Both come from the campaign and are checked now.
+    const hasCopy = ((t.buttons ?? []) as { type: string }[]).some((b) => b.type === 'copy_code');
+    const offer = t.offer as { hasExpiration?: boolean } | null;
+    if (hasCopy && !claimed.offer_code) return fail('offer_code_missing');
+    const offerEnds = claimed.offer_expires_at ? new Date(String(claimed.offer_expires_at)).getTime() : null;
+    if (offer?.hasExpiration && (!offerEnds || offerEnds <= Date.now() + 60_000)) return fail(offerEnds ? 'offer_ended' : 'offer_time_missing');
 
     const groupIds = claimed.group_ids as string[];
     // Drizzle expands a JS array into separate parameters; a Postgres array must be passed as one literal (UUIDs only, validated).
@@ -77,7 +84,7 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
       if (!cr) continue; // already expanded (a retry of this function): never create a second message
       const conv = rows(await tx.execute(sql`insert into conversations (tenant_id, contact_id, phone_number_id, status, unread) values (${tenantId}, ${c.id}, ${ph.phone_number_id}, 'open', 0) on conflict (tenant_id, contact_id) do update set phone_number_id = coalesce(conversations.phone_number_id, excluded.phone_number_id) returning id`))[0]!;
       await tx.execute(sql`insert into messages (tenant_id, conversation_id, direction, kind, body, status, template_name, template_language, template_category, payload, phone_number_id, campaign_recipient_id)
-        values (${tenantId}, ${conv.id}, 'out', 'template', ${t.name}, 'queued', ${t.name}, ${t.language}, ${category}, ${JSON.stringify({ params })}::jsonb, ${ph.phone_number_id}, ${cr.id})`);
+        values (${tenantId}, ${conv.id}, 'out', 'template', ${t.name}, 'queued', ${t.name}, ${t.language}, ${category}, ${JSON.stringify({ params, ...(claimed.offer_code ? { code: claimed.offer_code } : {}), ...(offer?.hasExpiration && offerEnds ? { offerExpiresMs: offerEnds } : {}) })}::jsonb, ${ph.phone_number_id}, ${cr.id})`);
     }
     await tx.execute(sql`update campaigns set counts = ${JSON.stringify(counts)}::jsonb, est_cost_paise = ${est.totalPaise} where id = ${campaignId} and tenant_id = ${tenantId}`);
 
@@ -85,8 +92,8 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     const step = NEXT_MS[String(claimed.repeat)];
     if (step) {
       const base = claimed.scheduled_at ? new Date(String(claimed.scheduled_at)) : new Date();
-      await tx.execute(sql`insert into campaigns (tenant_id, name, template_id, group_ids, status, scheduled_at, repeat, spend_cap_paise, var_map, send_policy, created_by)
-        values (${tenantId}, ${claimed.name}, ${claimed.template_id}, ${groupLit}::uuid[], 'scheduled', ${new Date(base.getTime() + step).toISOString()}::timestamptz, ${claimed.repeat}, ${cap}, ${JSON.stringify(varMap)}::jsonb, ${claimed.send_policy}, ${claimed.created_by})`);
+      await tx.execute(sql`insert into campaigns (tenant_id, name, template_id, group_ids, status, scheduled_at, repeat, spend_cap_paise, var_map, send_policy, created_by, offer_code, offer_expires_at)
+        values (${tenantId}, ${claimed.name}, ${claimed.template_id}, ${groupLit}::uuid[], 'scheduled', ${new Date(base.getTime() + step).toISOString()}::timestamptz, ${claimed.repeat}, ${cap}, ${JSON.stringify(varMap)}::jsonb, ${claimed.send_policy}, ${claimed.created_by}, ${claimed.offer_code ?? null}, ${claimed.offer_expires_at ? new Date(String(claimed.offer_expires_at)).toISOString() : null}::timestamptz)`);
     }
     return { campaignId, queued: sendable.length, skipped: skipped.length, status: 'running' };
   });

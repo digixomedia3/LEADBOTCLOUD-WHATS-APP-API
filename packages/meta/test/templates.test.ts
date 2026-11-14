@@ -81,3 +81,25 @@ describe('media headers', () => {
     expect(parseRemoteTemplate({ name: 'x', status: 'APPROVED', category: 'MARKETING', language: 'en', components: [{ type: 'HEADER', format: 'IMAGE', example: { header_handle: ['h'] } }, { type: 'BODY', text: 'Hello there friend' }] } as never)).toBeNull();
   });
 });
+
+describe('limited-time offer payload', () => {
+  const lto = { name: 'weekend_offer', language: 'en', category: 'marketing' as const, body: 'Good news {{1}}! Use code {{2}} for 20% off.', samples: ['Asha', 'WEEKEND20'], offer: { text: 'Weekend offer!', hasExpiration: true }, headerMedia: 'image' as const, headerHandle: '4::h', buttons: [{ type: 'copy_code' as const, text: 'Copy code', value: 'WEEKEND20' }, { type: 'url' as const, text: 'Shop now', value: 'https://shop.example.com/o' }] };
+  it('puts limited_time_offer between the header and the body, with the documented fields', () => {
+    const p = buildTemplatePayload(lto);
+    expect(p.components.map((c) => (c as { type: string }).type)).toEqual(['HEADER', 'limited_time_offer', 'BODY', 'BUTTONS']);
+    expect(p.components[1]).toEqual({ type: 'limited_time_offer', limited_time_offer: { text: 'Weekend offer!', has_expiration: true } });
+    expect((p.components[3] as { buttons: unknown[] }).buttons[0]).toEqual({ type: 'COPY_CODE', example: 'WEEKEND20' });
+  });
+  it('refuses every combination Meta documents as unsupported', () => {
+    expect(() => buildTemplatePayload({ ...lto, category: 'utility' })).toThrow(/Promotional/); expect(() => buildTemplatePayload({ ...lto, footer: 'Reply STOP' })).toThrow(/footer/);
+    expect(() => buildTemplatePayload({ ...lto, headerMedia: 'document' })).toThrow(/picture or video/); expect(() => buildTemplatePayload({ ...lto, buttons: [lto.buttons[1]!] })).toThrow(/Copy code/);
+    expect(() => buildTemplatePayload({ ...lto, buttons: [lto.buttons[1]!, lto.buttons[0]!] })).toThrow(/first/); expect(() => buildTemplatePayload({ ...lto, buttons: [lto.buttons[0]!] })).toThrow(/website button/);
+    expect(() => buildTemplatePayload({ ...lto, offer: { text: 'x'.repeat(17), hasExpiration: true } })).toThrow(/16/);
+  });
+  it('an offer without a countdown needs no copy-code button', () => {
+    expect(() => buildTemplatePayload({ ...lto, offer: { text: 'Big sale!', hasExpiration: false }, buttons: [lto.buttons[1]!] })).not.toThrow();
+  });
+  it('a limited-time offer from WhatsApp Manager is not imported as a plain template', () => {
+    expect(parseRemoteTemplate({ name: 'x', status: 'APPROVED', category: 'MARKETING', language: 'en', components: [{ type: 'LIMITED_TIME_OFFER', limited_time_offer: { text: 'a', has_expiration: true } }, { type: 'BODY', text: 'Hello there friend' }] } as never)).toBeNull();
+  });
+});

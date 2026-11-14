@@ -25,7 +25,7 @@ const STARTERS: { title: string; d: Partial<DraftInput> }[] = [
   { title: 'Order update', d: { name: 'order_update', category: 'utility', body: 'Hi {{1}}, your order {{2}} has been shipped and will reach you in 2 to 3 days.', samples: ['Asha', '#1042'], buttons: [] } },
 ];
 
-const empty: DraftInput = { name: '', language: 'en', category: 'marketing', headerText: '', headerMedia: null, assetId: null, body: '', footer: '', buttons: [], samples: [] };
+const empty: DraftInput = { name: '', language: 'en', category: 'marketing', headerText: '', headerMedia: null, assetId: null, offer: null, body: '', footer: '', buttons: [], samples: [] };
 
 export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; canEdit: boolean }) {
   const [rows, setRows] = useState(initial);
@@ -81,7 +81,7 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
                 <div className="min-w-0"><h3 className="truncate font-mono text-sm font-bold">{t.name}</h3><p className="text-xs text-muted">{CAT[t.category].label} · {t.language}</p></div>
                 <span className={cn('shrink-0 rounded-full px-2.5 py-1 text-xs font-bold', sc)}>{sl}</span>
               </div>
-              <WaBubble header={t.headerText} media={t.headerMedia ? { kind: t.headerMedia, src: t.assetId ? `/api/template-assets/${t.assetId}` : null, name: t.assetName } : null} body={t.body} footer={t.footer} buttons={t.buttons} values={t.samples} />
+              <WaBubble offer={t.offer} header={t.headerText} media={t.headerMedia ? { kind: t.headerMedia, src: t.assetId ? `/api/template-assets/${t.assetId}` : null, name: t.assetName } : null} body={t.body} footer={t.footer} buttons={t.buttons} values={t.samples} />
               {t.status === 'rejected' ? <p className="flex gap-2 rounded-xl bg-rose/10 p-3 text-xs text-rose"><XCircle className="size-4 shrink-0" />{explainRejection(t.rejectionReason)}</p> : null}
               {t.status === 'draft' && t.submitError ? <p className="flex gap-2 rounded-xl bg-rose/10 p-3 text-xs text-rose"><XCircle className="size-4 shrink-0" />{t.submitError}</p> : null}
               {t.status === 'paused' ? <p className="flex gap-2 rounded-xl bg-amber/10 p-3 text-xs text-amber"><XCircle className="size-4 shrink-0" />Meta paused this format because customers reacted badly. It can not be sent for a few hours, then it works again by itself.</p> : null}
@@ -96,7 +96,7 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
               ) : null}
               {canEdit ? (
                 <div className="mt-auto flex flex-wrap gap-2 border-t border-line pt-3">
-                  {t.status !== 'pending' ? <Button size="sm" variant="outline" onClick={() => setEditing({ id: t.id, status: t.status, name: t.name, language: t.language as 'en', category: t.category, headerText: t.headerText ?? '', headerMedia: t.headerMedia, assetId: t.assetId, assetName: t.assetName, body: t.body, footer: t.footer ?? '', buttons: t.buttons, samples: t.samples })}>Edit</Button> : null}
+                  {t.status !== 'pending' ? <Button size="sm" variant="outline" onClick={() => setEditing({ id: t.id, status: t.status, name: t.name, language: t.language as 'en', category: t.category, headerText: t.headerText ?? '', headerMedia: t.headerMedia, assetId: t.assetId, assetName: t.assetName, offer: t.offer, body: t.body, footer: t.footer ?? '', buttons: t.buttons, samples: t.samples })}>Edit</Button> : null}
                   <Button size="sm" variant="ghost" onClick={() => start(async () => { const r = await duplicateTemplate(t.id); if (!r.ok) flash(r.error); else await refresh('Copied as a draft.'); })}><Copy className="size-4" />Copy</Button>
                   <Button size="sm" variant="ghost" aria-label={`Delete ${t.name}`} onClick={() => { if (confirm(`Delete the message format “${t.name}”?`)) start(async () => { const r = await deleteTemplate(t.id); if (!r.ok) flash(r.error); else await refresh('Deleted.'); }); }}><Trash2 className="size-4 text-rose" /></Button>
                 </div>
@@ -124,7 +124,7 @@ function Builder({ initial, others, onClose, onSaved }: { initial: DraftInput & 
   const set = <K extends keyof DraftInput>(k: K, v: DraftInput[K]) => setD((p) => ({ ...p, [k]: v }));
   const nVars = useMemo(() => [...new Set(variablesIn(d.body))].length, [d.body]);
   const samples = Array.from({ length: nVars }, (_, i) => d.samples[i] ?? '');
-  const lint = useMemo(() => lintTemplate({ name: d.name, category: d.category, headerText: d.headerText, headerMedia: d.headerMedia ?? undefined, hasHeaderFile: !!d.assetId, body: d.body, footer: d.footer, buttons: d.buttons, samples }, others.map((o) => o.name), others.map((o) => o.body)), [d, others, samples]);
+  const lint = useMemo(() => lintTemplate({ name: d.name, category: d.category, headerText: d.headerText, headerMedia: d.headerMedia ?? undefined, hasHeaderFile: !!d.assetId, offer: d.offer ?? null, body: d.body, footer: d.footer, buttons: d.buttons, samples }, others.map((o) => o.name), others.map((o) => o.body)), [d, others, samples]);
   const blocks = lint.issues.filter((i) => i.level === 'block'), warns = lint.issues.filter((i) => i.level === 'warn');
   const addBtn = (type: 'quick_reply' | 'url' | 'phone' | 'copy_code') => set('buttons', [...d.buttons, { type, text: type === 'copy_code' ? 'Copy code' : '', value: '' }]);
   const upBtn = (i: number, patch: Partial<DraftInput['buttons'][number]>) => set('buttons', d.buttons.map((b, j) => (j === i ? { ...b, ...patch } : b)));
@@ -191,6 +191,17 @@ function Builder({ initial, others, onClose, onSaved }: { initial: DraftInput & 
               <Input value={d.headerText ?? ''} onChange={(e) => set('headerText', e.target.value)} maxLength={80} placeholder="Short title above the message (optional)" aria-label="Header text" />
             )}
           </fieldset>
+          <fieldset className="rounded-xl border border-line p-3"><legend className="px-1 text-sm font-semibold">Limited-time offer (optional)</legend>
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm"><input type="checkbox" className="size-5 accent-[var(--brand)]" checked={!!d.offer} disabled={d.category !== 'marketing'} onChange={(e) => { set('offer', e.target.checked ? { text: 'Limited offer!', hasExpiration: true } : null); if (e.target.checked && !d.buttons.some((b) => b.type === 'copy_code')) set('buttons', [{ type: 'copy_code', text: 'Copy code', value: 'OFFER20' }, ...d.buttons]); }} />This message announces an offer that ends soon</label>
+            {d.category !== 'marketing' ? <p className="mt-1 text-xs text-muted">Offers need the Promotional type.</p> : null}
+            {d.offer ? (
+              <div className="mt-2 flex flex-col gap-2">
+                <Field label="Offer title" hint={`${d.offer.text.length}/16. Shown above your message, for example “Weekend offer!”`}><Input value={d.offer.text} maxLength={16} onChange={(e) => set('offer', { ...d.offer!, text: e.target.value })} /></Field>
+                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm"><input type="checkbox" className="size-5 accent-[var(--brand)]" checked={d.offer.hasExpiration} onChange={(e) => { set('offer', { ...d.offer!, hasExpiration: e.target.checked }); if (e.target.checked && !d.buttons.some((b) => b.type === 'copy_code')) set('buttons', [{ type: 'copy_code', text: 'Copy code', value: 'OFFER20' }, ...d.buttons]); }} />Show a countdown to the end of the offer</label>
+                <p className="text-xs text-muted">The countdown and the code are chosen each time you send, not here. Offers need a Copy code button first, a website button, no footer and a picture or video header at most.</p>
+              </div>
+            ) : null}
+          </fieldset>
           <Field label="Message" hint={`Use {{1}}, {{2}} for name, date or amount. ${d.body.length}/1024`}><Textarea value={d.body} onChange={(e) => set('body', e.target.value)} rows={6} /></Field>
           {nVars > 0 ? (
             <fieldset className="rounded-xl border border-line p-3"><legend className="px-1 text-sm font-semibold">Sample values</legend>
@@ -210,7 +221,7 @@ function Builder({ initial, others, onClose, onSaved }: { initial: DraftInput & 
         </div>
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-0 lg:self-start">
-          <WaBubble header={d.headerText} media={d.headerMedia ? { kind: d.headerMedia, src: preview, name: fileName } : null} body={d.body} footer={d.footer} buttons={d.buttons} values={samples} />
+          <WaBubble offer={d.offer ?? null} header={d.headerText} media={d.headerMedia ? { kind: d.headerMedia, src: preview, name: fileName } : null} body={d.body} footer={d.footer} buttons={d.buttons} values={samples} />
           <div className={cn('rounded-2xl border p-3 text-sm', lint.risk === 'low' ? 'border-brand/40 bg-brand/5' : lint.risk === 'medium' ? 'border-amber/40 bg-amber/5' : 'border-rose/40 bg-rose/5')} aria-live="polite">
             <p className="mb-1.5 flex items-center gap-2 font-bold">{lint.risk === 'low' ? <CheckCircle2 className="size-4 text-brand" /> : <AlertTriangle className={cn('size-4', lint.risk === 'high' ? 'text-rose' : 'text-amber')} />}Rejection risk: {lint.risk}</p>
             <ul className="space-y-1.5 text-xs">{blocks.map((i, k) => <li key={`b${k}`} className="flex gap-1.5 text-rose"><XCircle className="mt-0.5 size-3.5 shrink-0" />{i.message}</li>)}{warns.map((i, k) => <li key={`w${k}`} className="flex gap-1.5 text-amber"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" />{i.message}</li>)}{lint.issues.length === 0 ? <li className="text-muted">Nothing to fix. Looks ready.</li> : null}</ul>

@@ -101,6 +101,8 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
   const [repeat, setRepeat] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
   const [cap, setCap] = useState('');
   const [vars, setVars] = useState<string[]>([]);
+  const [code, setCode] = useState('');
+  const [endsAt, setEndsAt] = useState('');
   const [aud, setAud] = useState<AudiencePreview | null>(null);
   const [error, setError] = useState('');
   const [pending, start] = useTransition();
@@ -115,6 +117,9 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
 
   const varCount = tpl ? new Set(variablesIn(tpl.body)).size : 0;
   useEffect(() => { setVars((old) => Array.from({ length: varCount }, (_, i) => old[i] ?? (i === 0 ? '@name' : ''))); }, [varCount, tid]);
+  const needsCode = !!tpl?.buttons.some((b) => b.type === 'copy_code');
+  const needsEnd = !!tpl?.offer?.hasExpiration;
+  const offerOk = (!needsCode || /^[A-Za-z0-9_-]{1,15}$/.test(code.trim())) && (!needsEnd || !!endsAt);
   const varsOk = vars.length === varCount && vars.every((x) => x.trim().length > 0);
   const capNum = cap ? Number(cap) : undefined;
   const overCap = !!(aud && capNum && aud.cost.totalPaise > capNum * 100);
@@ -122,7 +127,7 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
   function submit() {
     setError('');
     start(async () => {
-      const r = await createCampaign({ name, templateId: tid, groupIds: gids, when, scheduledAt: at ? new Date(at).toISOString() : undefined, repeat, spendCapRupees: capNum, varMap: vars });
+      const r = await createCampaign({ name, templateId: tid, groupIds: gids, when, scheduledAt: at ? new Date(at).toISOString() : undefined, repeat: needsEnd ? 'none' : repeat, spendCapRupees: capNum, varMap: vars, offerCode: needsCode ? code.trim() : undefined, offerEndsAt: needsEnd && endsAt ? new Date(endsAt).toISOString() : undefined });
       if (!r.ok) { setError(r.error); return; }
       if (when === 'now') { const s = await sendCampaign(r.data.id); if (!s.ok) { setError(s.error); return; } onDone(s.data.testMode ? `Test send done: ${s.data.sent} people.` : `Queued for ${s.data.sent} people. Sending starts within a minute.`); } else onDone('Campaign scheduled.');
     });
@@ -160,9 +165,16 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
                 <p className="text-xs text-muted">If a customer has no name saved, we say “there”.</p>
               </div>
             ) : null}
-            <Button disabled={name.trim().length < 2 || !tid || !varsOk} onClick={() => setStep(2)}>Next: who gets it</Button>
+            {needsCode || needsEnd ? (
+              <div className="flex flex-col gap-3 rounded-xl border border-amber/40 bg-amber/5 p-3">
+                <p className="text-sm font-semibold">This is an offer</p>
+                {needsCode ? <Field label="Offer code" hint="Every customer gets this code on the Copy code button. 1 to 15 letters or numbers."><Input value={code} maxLength={15} onChange={(e) => setCode(e.target.value.replace(/[^A-Za-z0-9_-]/g, '').toUpperCase())} placeholder="WEEKEND20" /></Field> : null}
+                {needsEnd ? <Field label="Offer ends (IST)" hint="WhatsApp shows a live countdown to this time. It must be at least an hour after you send."><Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></Field> : null}
+              </div>
+            ) : null}
+            <Button disabled={name.trim().length < 2 || !tid || !varsOk || !offerOk} onClick={() => setStep(2)}>Next: who gets it</Button>
           </div>
-          {tpl ? <WaBubble header={tpl.headerText} body={tpl.body} footer={tpl.footer} buttons={tpl.buttons} values={tpl.samples} /> : null}
+          {tpl ? <WaBubble offer={tpl.offer} media={tpl.headerMedia ? { kind: tpl.headerMedia, src: tpl.assetId ? `/api/template-assets/${tpl.assetId}` : null, name: tpl.assetName } : null} header={tpl.headerText} body={tpl.body} footer={tpl.footer} buttons={tpl.buttons} values={tpl.samples} /> : null}
         </div>
       ) : null}
 
@@ -191,7 +203,7 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
           {when === 'later' ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Date and time (IST)"><Input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} /></Field>
-              <Field label="Repeat"><Select value={repeat} onChange={(e) => setRepeat(e.target.value as 'none')}><option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option><option value="monthly">Every month</option></Select></Field>
+              <Field label="Repeat" hint={needsEnd ? "An offer with a countdown is sent once." : undefined}><Select disabled={needsEnd} value={needsEnd ? "none" : repeat} onChange={(e) => setRepeat(e.target.value as 'none')}><option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option><option value="monthly">Every month</option></Select></Field>
             </div>) : null}
           <Field label="Spend cap in ₹ (optional)" hint="We refuse to send if the estimate goes above this."><Input inputMode="numeric" value={cap} onChange={(e) => setCap(e.target.value.replace(/[^\d.]/g, ''))} placeholder="2000" /></Field>
           <div className="flex gap-2"><Button variant="outline" onClick={() => setStep(2)}>Back</Button><Button className="flex-1" disabled={when === 'later' && !at} onClick={() => setStep(4)}>Next: review</Button></div>

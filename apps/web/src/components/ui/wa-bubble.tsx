@@ -1,11 +1,13 @@
 import { renderPreview } from '@lbc/shared';
-import { ExternalLink, Phone, Reply, Copy, FileText, Play } from 'lucide-react';
+import { ExternalLink, Phone, Reply, Copy, FileText, Play, Timer } from 'lucide-react';
 
 /** WhatsApp-style message bubble, used by the template builder, campaign review and chats. */
-export function WaBubble({ header, media, body, footer, buttons = [], values = [], time = '10:42' }: {
+export function WaBubble({ offer, header, media, body, footer, buttons = [], values = [], time = '10:42' }: {
   header?: string | null; body: string; footer?: string | null; values?: string[]; time?: string;
   /** A picture, video or PDF at the top. `src` shows a real preview for pictures; without it a placeholder is drawn. */
   media?: { kind: 'image' | 'video' | 'document'; src?: string | null; name?: string | null } | null;
+  /** Limited-time offer strip. WhatsApp writes the countdown wording itself; the preview only shows that one will appear. */
+  offer?: { text: string; hasExpiration: boolean } | null;
   buttons?: { type: 'quick_reply' | 'url' | 'phone' | 'copy_code'; text: string }[];
 }) {
   const icon = { url: ExternalLink, phone: Phone, quick_reply: Reply, copy_code: Copy } as const;
@@ -23,6 +25,12 @@ export function WaBubble({ header, media, body, footer, buttons = [], values = [
                 <span className="max-w-[12rem] truncate">{media.name || (media.kind === 'video' ? 'Video' : media.kind === 'document' ? 'PDF document' : 'Picture')}</span>
               </div>
             )}
+          </div>
+        ) : null}
+        {offer ? (
+          <div className="mb-1.5 flex items-center gap-2 rounded-lg bg-[#fff4d6] px-2.5 py-1.5 text-xs text-[#5a4300] dark:bg-[#3b3320] dark:text-[#f3d98a]">
+            <Timer className="size-4 shrink-0" /><span className="min-w-0 flex-1 truncate font-bold">{offer.text || 'Offer title'}</span>
+            {offer.hasExpiration ? <span className="shrink-0 tabular-nums opacity-80">Ends in 2d 4h</span> : null}
           </div>
         ) : null}
         {header ? <p className="mb-1 font-bold">{renderPreview(header, values)}</p> : null}

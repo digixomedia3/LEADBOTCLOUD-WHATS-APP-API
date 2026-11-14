@@ -64,7 +64,7 @@ export async function submitPendingTemplates(d: TplDeps, limit = 20): Promise<{ 
         }
       }
     }
-    const local: LocalTemplate = { headerMedia: ['image', 'video', 'document'].includes(htype) ? (htype as 'image') : null, headerHandle, name: String(t.name), language: String(t.language), category: String(t.category) as LocalTemplate['category'], headerText: (t.header_text as string | null) ?? null, body: String(t.body), footer: (t.footer as string | null) ?? null, buttons: (t.buttons as LocalTemplate['buttons']) ?? [], samples: (t.samples as string[]) ?? [] };
+    const local: LocalTemplate = { offer: (t.offer as LocalTemplate['offer']) ?? null, headerMedia: ['image', 'video', 'document'].includes(htype) ? (htype as 'image') : null, headerHandle, name: String(t.name), language: String(t.language), category: String(t.category) as LocalTemplate['category'], headerText: (t.header_text as string | null) ?? null, body: String(t.body), footer: (t.footer as string | null) ?? null, buttons: (t.buttons as LocalTemplate['buttons']) ?? [], samples: (t.samples as string[]) ?? [] };
     let payload;
     try { payload = buildTemplatePayload(local); }
     catch (e) {

@@ -59,3 +59,34 @@ describe('lint with a media header', () => {
     expect(lintTemplate({ ...base, category: 'authentication', headerMedia: 'image', hasHeaderFile: true }).blocked).toBe(true);
   });
 });
+
+describe('limited-time offer rules', () => {
+  const base = { name: 'weekend_offer', category: 'marketing' as const, body: 'Good news {{1}}! Use code {{2}} for 20% off this weekend.', buttons: [{ type: 'copy_code' as const, text: 'Copy code', value: 'WEEKEND20' }, { type: 'url' as const, text: 'Shop now', value: 'https://shop.example.com/offers' }], samples: ['Asha', 'WEEKEND20'], offer: { text: 'Weekend offer!', hasExpiration: true } };
+  const blocks = (d: object) => lintTemplate({ ...base, ...d } as never).issues.filter((i) => i.level === 'block').map((i) => i.message);
+  it('a complete offer has nothing blocking', () => { expect(blocks({})).toEqual([]); });
+  it('must be Promotional', () => { expect(blocks({ category: 'utility' }).join(' ')).toMatch(/Promotional/); });
+  it('the title is required and at most 16 characters', () => {
+    expect(blocks({ offer: { text: '', hasExpiration: false } }).join(' ')).toMatch(/offer title/i);
+    expect(blocks({ offer: { text: 'x'.repeat(17), hasExpiration: true } }).join(' ')).toMatch(/16 characters/); expect(blocks({ offer: { text: 'x'.repeat(16), hasExpiration: true } })).toEqual([]);
+  });
+  it('no footer and no text header, and no PDF header', () => {
+    expect(blocks({ footer: 'Reply STOP' }).join(' ')).toMatch(/footer/i); expect(blocks({ headerText: 'Hi' }).join(' ')).toMatch(/text header/i);
+    expect(blocks({ headerMedia: 'document', hasHeaderFile: true }).join(' ')).toMatch(/PDF/); expect(blocks({ headerMedia: 'image', hasHeaderFile: true })).toEqual([]); expect(blocks({ headerMedia: 'video', hasHeaderFile: true })).toEqual([]);
+  });
+  it('a countdown needs a Copy code button, and it must come first', () => {
+    expect(blocks({ buttons: [base.buttons[1]] }).join(' ')).toMatch(/countdown needs a Copy code/i);
+    expect(blocks({ buttons: [base.buttons[1], base.buttons[0]] }).join(' ')).toMatch(/first/i);
+    expect(blocks({ offer: { text: 'Big sale!', hasExpiration: false }, buttons: [base.buttons[1]] })).toEqual([]);
+  });
+  it('needs a website button, and the example code must be 1 to 15 letters or numbers', () => {
+    expect(blocks({ buttons: [base.buttons[0]] }).join(' ')).toMatch(/website button/i);
+    expect(blocks({ buttons: [{ ...base.buttons[0], value: 'THISCODEISTOOLONG' }, base.buttons[1]] }).join(' ')).toMatch(/1 to 15/); expect(blocks({ buttons: [{ ...base.buttons[0], value: 'BAD CODE!' }, base.buttons[1]] }).join(' ')).toMatch(/1 to 15/);
+  });
+  it('the message is limited to 600 characters when there is an offer', () => { expect(blocks({ body: 'Hello there friend. '.repeat(30) + 'Use {{1}} and {{2}} now.' }).join(' ')).toMatch(/600/); expect(blocks({ body: 'Hello there {{1}}, use code {{2}} for twenty percent off all week.' })).toEqual([]); });
+});
+
+describe('opt-out advice for offers', () => {
+  const warn = (offer: boolean) => lintTemplate({ name: 'x_offer', category: 'marketing', body: 'Hello {{1}}, big weekend sale on everything in store.', buttons: [{ type: 'url', text: 'Shop', value: 'https://shop.example.com' }], samples: ['Asha'], offer: offer ? { text: 'Sale!', hasExpiration: false } : null } as never).issues.filter((i) => /Stop promotions/.test(i.message)).map((i) => i.message).join(' ');
+  it('an offer is never told to add a footer, because it cannot have one', () => { expect(warn(true)).not.toMatch(/such as/i); expect(warn(true)).toMatch(/cannot have a footer/i); });
+  it('a normal promotion still gets the footer suggestion', () => { expect(warn(false)).toMatch(/footer/i); });
+});

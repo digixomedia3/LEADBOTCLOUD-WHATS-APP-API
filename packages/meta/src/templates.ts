@@ -13,6 +13,8 @@ export interface LocalTemplate {
   /** Picture, video or PDF header. `headerHandle` is the Resumable Upload handle Meta needs as the sample when the template is created. */
   headerMedia?: 'image' | 'video' | 'document' | null;
   headerHandle?: string | null;
+  /** Limited-time offer (marketing only). Becomes the `limited_time_offer` component; the expiry time itself is given per message when sending. */
+  offer?: { text: string; hasExpiration: boolean } | null;
   body: string;
   footer?: string | null;
   buttons: { type: 'quick_reply' | 'url' | 'phone' | 'copy_code'; text: string; value?: string }[];
@@ -35,6 +37,19 @@ export function buildTemplatePayload(t: LocalTemplate): { name: string; language
   } else if (t.headerText) {
     if (vars(t.headerText).length) throw new TemplateBuildError('A variable in the header is not supported yet. Move it into the message text.');
     components.push({ type: 'HEADER', format: 'TEXT', text: t.headerText });
+  }
+
+  if (t.offer) {
+    if (t.category !== 'marketing') throw new TemplateBuildError('A limited-time offer must be a Promotional format.');
+    if (t.footer) throw new TemplateBuildError('Limited-time offers cannot have a footer.');
+    if (!t.offer.text.trim() || t.offer.text.length > 16) throw new TemplateBuildError('The offer title must be 1 to 16 characters.');
+    if (t.headerMedia === 'document' || t.headerText) throw new TemplateBuildError('A limited-time offer can have a picture or video header only.');
+    const btns = t.buttons;
+    if (t.offer.hasExpiration && !btns.some((b) => b.type === 'copy_code')) throw new TemplateBuildError('A countdown needs a Copy code button.');
+    const ci = btns.findIndex((b) => b.type === 'copy_code');
+    if (ci > 0) throw new TemplateBuildError('Put the Copy code button first.');
+    if (!btns.some((b) => b.type === 'url')) throw new TemplateBuildError('A limited-time offer needs a website button.');
+    components.push({ type: 'limited_time_offer', limited_time_offer: { text: t.offer.text, has_expiration: t.offer.hasExpiration } });
   }
 
   const bodyVars = [...new Set(vars(t.body))].sort((a, b) => a - b);

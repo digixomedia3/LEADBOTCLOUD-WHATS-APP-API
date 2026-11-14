@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { backoffMs, errorPolicy, type ErrorPolicy } from '@lbc/shared';
-import { GraphClient, MetaError, MetaUnknownOutcome, bodyParams, copyCodeParam, headerMediaParam, chooseEndpoint, decryptSecret, rerouteFor, templateMessage, textMessage, withProductPolicy, type SendResponse, type TemplateCategory } from '@lbc/meta';
+import { GraphClient, MetaError, MetaUnknownOutcome, bodyParams, copyCodeParam, headerMediaParam, limitedTimeOfferParam, chooseEndpoint, decryptSecret, rerouteFor, templateMessage, textMessage, withProductPolicy, type SendResponse, type TemplateCategory } from '@lbc/meta';
 import type { Db } from '@lbc/db';
 
 type Row = Record<string, unknown>;
@@ -64,9 +64,15 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
     if (!open) return skip(db, tenantId, messageId, recipientId, 'The 24-hour reply window is closed. Send an approved message format.');
   }
   if (isTemplate) {
-    const t = rows(await db.execute(sql`select id, status, header_type, buttons from templates where tenant_id = ${tenantId} and name = ${m.template_name} and language = ${m.template_language} limit 1`))[0];
+    const t = rows(await db.execute(sql`select id, status, header_type, buttons, offer from templates where tenant_id = ${tenantId} and name = ${m.template_name} and language = ${m.template_language} limit 1`))[0];
     if (!t || t.status !== 'approved') return skip(db, tenantId, messageId, recipientId, 'The message format is not approved right now.');
     tpl = t;
+    // A countdown that has already run out must never be sent: the customer would get an offer that is over.
+    const offer = t.offer as { hasExpiration?: boolean } | null;
+    if (offer?.hasExpiration) {
+      const exp = Number(((m.payload ?? {}) as { offerExpiresMs?: number }).offerExpiresMs ?? 0);
+      if (!exp || exp <= now.getTime() + 30_000) return skip(db, tenantId, messageId, recipientId, 'The offer has ended, so this message was not sent.');
+    }
   }
 
   const ph = rows(await db.execute(sql`select phone_number_id, status from phone_numbers where tenant_id = ${tenantId} and (phone_number_id = ${m.phone_number_id} or ${m.phone_number_id}::text is null) order by created_at limit 1`))[0];
@@ -79,7 +85,7 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
 
   const token = decryptSecret(String(acc.business_token_enc), d.tokenKey);
   const to = String(contact.phone_e164);
-  const payload = (m.payload ?? {}) as { params?: string[]; names?: string[]; text?: string; code?: string };
+  const payload = (m.payload ?? {}) as { params?: string[]; names?: string[]; text?: string; code?: string; offerExpiresMs?: number };
 
   // A template with a picture/video/PDF header needs a media id for THIS sending number. Uploaded once, then reused for 25 days (Meta keeps media 30).
   let headerMediaId: string | null = null;
@@ -203,11 +209,16 @@ async function mediaIdForUncached(d: SendDeps, tenantId: string, templateId: str
 }
 
 /** Header media, body variables and the copy-code button, in the order Meta documents. */
-export function templateComponents(payload: { params?: string[]; names?: string[]; code?: string }, tpl: Row | null, headerMediaId: string | null) {
+export function templateComponents(payload: { params?: string[]; names?: string[]; code?: string; offerExpiresMs?: number }, tpl: Row | null, headerMediaId: string | null) {
   const out: ReturnType<typeof bodyParams>[] = [];
   const kind = tpl ? String(tpl.header_type) : 'none';
   if (headerMediaId && (kind === 'image' || kind === 'video' || kind === 'document')) out.push(headerMediaParam(kind, headerMediaId, kind === 'document' ? 'Document.pdf' : undefined));
   if (payload.params?.length) out.push(bodyParams(payload.params, payload.names));
+  const offer = tpl?.offer as { hasExpiration?: boolean } | null | undefined;
+  if (offer?.hasExpiration) {
+    if (!payload.offerExpiresMs) throw new Error('This offer has a countdown but no end time was given');
+    out.push(limitedTimeOfferParam(payload.offerExpiresMs));
+  }
   const buttons = (tpl?.buttons ?? []) as { type: string }[];
   const copyAt = buttons.findIndex((b) => b.type === 'copy_code');
   if (copyAt >= 0) {
