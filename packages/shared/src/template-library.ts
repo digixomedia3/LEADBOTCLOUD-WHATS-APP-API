@@ -59,7 +59,7 @@ export const TEMPLATE_LIBRARY: LibraryItem[] = [
 
 export const LIBRARY_GROUPS: LibraryGroup[] = ['Sales', 'Orders and payments', 'Appointments', 'Leads and follow-up', 'Security'];
 
-/** A name that does not collide with the workspace's existing formats: festival_offer, festival_offer_2, ... */
+/** A name that does not collide with the workspace's existing templates: festival_offer, festival_offer_2, ... */
 export function uniqueTemplateName(base: string, taken: Iterable<string>): string {
   const t = new Set(taken);
   if (!t.has(base)) return base;

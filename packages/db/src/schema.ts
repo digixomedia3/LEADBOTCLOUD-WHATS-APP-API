@@ -317,6 +317,8 @@ export const campaigns = pgTable(
     apiKeyId: uuid('api_key_id'),
     apiSentAt: timestamp('api_sent_at', { withTimezone: true }),
     offerCode: text('offer_code'),
+    /** Where the tracked website button sends people. Checked on creation; the redirect reads it from here, never from the link. */
+    linkUrl: text('link_url'),
     offerExpiresAt: timestamp('offer_expires_at', { withTimezone: true }),
     varMap: jsonb('var_map').notNull().default(sql`'[]'::jsonb`),
     launchedAt: timestamp('launched_at', { withTimezone: true }),

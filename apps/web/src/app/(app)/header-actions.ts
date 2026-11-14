@@ -18,7 +18,7 @@ const PAUSE_TEXT: Record<string, [string, string]> = {
   reconnect: ['Sending paused: WhatsApp needs to be reconnected', 'Your connection expired. Reconnect to continue.'],
   account_restricted: ['Sending paused: Meta restricted your account', 'Check Meta Business Support. Campaigns resume after you start them again.'],
   payment_banner: ['Sending paused: payment problem at Meta', 'Meta could not charge your card. Update the payment method in Meta.'],
-  template_paused: ['Sending paused: template paused by Meta', 'Meta paused the format for low quality. It resumes by itself after the pause.'],
+  template_paused: ['Sending paused: template paused by Meta', 'Meta paused the template for low quality. It resumes by itself after the pause.'],
   template_disabled: ['Sending stopped: template disabled by Meta', 'Create a new template and use it for this send.'],
   template_not_approved: ['Sending paused: template not approved', 'Pick an approved template.'],
   spend_cap: ['Sending paused: spend cap reached', 'The estimated cost is above your cap. Raise the cap or choose fewer people.'],

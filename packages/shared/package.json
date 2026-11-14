@@ -12,7 +12,9 @@
     "./internal-sign": "./src/internal-sign.ts",
     "./api-keys": "./src/api-keys.ts",
     "./api-scopes": "./src/api-scopes.ts",
-    "./campaign-report": "./src/campaign-report.ts"
+    "./campaign-report": "./src/campaign-report.ts",
+    "./tracked-links": "./src/tracked-links.ts",
+    "./link-code": "./src/link-code.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

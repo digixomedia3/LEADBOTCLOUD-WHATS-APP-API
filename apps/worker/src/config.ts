@@ -14,6 +14,8 @@ const schema = z.object({
   /** Test hook: point Graph calls at a local fake. Never set in production. */
   META_GRAPH_BASE_URL: z.string().url().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  /** The permanent address of the web app. A website button is tracked only if it points at exactly APP_URL/r/{{1}}. */
+  APP_URL: z.string().url().optional(),
   /** Shared with the web app to sign calls for work the web database role may not do (creating leads). */
   INTERNAL_API_SECRET: z.string().optional(),
   /** Where Fastify may trust X-Forwarded-For from (reverse proxy / tunnel), so per-IP limits see the real client. */

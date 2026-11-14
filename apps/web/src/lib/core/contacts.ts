@@ -116,20 +116,20 @@ export async function listApprovedTemplatesFor(ctx: ActorCtx): Promise<Result<Te
   });
 }
 
-export interface CampaignSummary { id: string; name: string; status: string; format: string | null; scheduledAt: string | null; estCostPaise: number; counts: Record<string, number> }
+export interface CampaignSummary { id: string; name: string; status: string; template: string | null; scheduledAt: string | null; estCostPaise: number; counts: Record<string, number> }
 export async function listCampaignsFor(ctx: ActorCtx, limit = 20): Promise<Result<CampaignSummary[]>> {
   return db(ctx, async (tx) => {
-    const rows = (await tx.execute(sql`select c.id, c.name, c.status, t.name as format, c.scheduled_at, c.est_cost_paise, c.counts from campaigns c left join templates t on t.id = c.template_id order by c.created_at desc limit ${Math.min(50, Math.max(1, Math.trunc(limit)))}`)) as unknown as { id: string; name: string; status: string; format: string | null; scheduled_at: Date | null; est_cost_paise: number; counts: Record<string, number> }[];
-    return { ok: true as const, data: rows.map((r) => ({ id: r.id, name: r.name, status: r.status, format: r.format, scheduledAt: r.scheduled_at ? new Date(r.scheduled_at).toISOString() : null, estCostPaise: r.est_cost_paise, counts: r.counts })) };
+    const rows = (await tx.execute(sql`select c.id, c.name, c.status, t.name as template, c.scheduled_at, c.est_cost_paise, c.counts from campaigns c left join templates t on t.id = c.template_id order by c.created_at desc limit ${Math.min(50, Math.max(1, Math.trunc(limit)))}`)) as unknown as { id: string; name: string; status: string; template: string | null; scheduled_at: Date | null; est_cost_paise: number; counts: Record<string, number> }[];
+    return { ok: true as const, data: rows.map((r) => ({ id: r.id, name: r.name, status: r.status, template: r.template, scheduledAt: r.scheduled_at ? new Date(r.scheduled_at).toISOString() : null, estCostPaise: r.est_cost_paise, counts: r.counts })) };
   });
 }
 
 export async function campaignStatusFor(ctx: ActorCtx, id: string): Promise<Result<CampaignSummary>> {
   if (!z.string().uuid().safeParse(id).success) return fail('That campaign id is not valid.');
   return db(ctx, async (tx) => {
-    const rows = (await tx.execute(sql`select c.id, c.name, c.status, t.name as format, c.scheduled_at, c.est_cost_paise, c.counts from campaigns c left join templates t on t.id = c.template_id where c.id = ${id}::uuid`)) as unknown as { id: string; name: string; status: string; format: string | null; scheduled_at: Date | null; est_cost_paise: number; counts: Record<string, number> }[];
+    const rows = (await tx.execute(sql`select c.id, c.name, c.status, t.name as template, c.scheduled_at, c.est_cost_paise, c.counts from campaigns c left join templates t on t.id = c.template_id where c.id = ${id}::uuid`)) as unknown as { id: string; name: string; status: string; template: string | null; scheduled_at: Date | null; est_cost_paise: number; counts: Record<string, number> }[];
     const r = rows[0];
     if (!r) return fail('That campaign was not found.');
-    return { ok: true as const, data: { id: r.id, name: r.name, status: r.status, format: r.format, scheduledAt: r.scheduled_at ? new Date(r.scheduled_at).toISOString() : null, estCostPaise: r.est_cost_paise, counts: r.counts } };
+    return { ok: true as const, data: { id: r.id, name: r.name, status: r.status, template: r.template, scheduledAt: r.scheduled_at ? new Date(r.scheduled_at).toISOString() : null, estCostPaise: r.est_cost_paise, counts: r.counts } };
   });
 }

@@ -72,24 +72,24 @@ export async function saveTemplate(input: DraftInput): Promise<Result<{ id: stri
   const d = p.data;
   return db(g.ctx, async (tx) => {
     const clash = await tx.select({ id: templates.id }).from(templates).where(sql`${templates.name} = ${d.name} and ${templates.language} = ${d.language} and ${templates.id} <> ${d.id ?? '00000000-0000-0000-0000-000000000000'}`);
-    if (clash.length) return fail('You already have a format with this name and language.');
+    if (clash.length) return fail('You already have a template with this name and language.');
     const media = d.headerMedia ?? null;
     if (media && d.headerText) return fail('Use either a text header or a picture, video or PDF, not both.');
-    if (media && d.category === 'authentication') return fail('One-time-code formats cannot have a header.');
+    if (media && d.category === 'authentication') return fail('One-time-code templates cannot have a header.');
     if (media) {
       if (!d.assetId) return fail('Choose the header file first.');
       const a = ((await tx.execute(sql`select kind, template_id from template_assets where id = ${d.assetId}`)) as unknown as { kind: string; template_id: string | null }[])[0];
       if (!a) return fail('That header file was not found. Choose it again.');
       if (a.kind !== media) return fail('The file does not match the header type you picked.');
-      if (a.template_id && a.template_id !== (d.id ?? null)) return fail('That file is already used by another format.');
+      if (a.template_id && a.template_id !== (d.id ?? null)) return fail('That file is already used by another template.');
     }
-    if (d.offer && d.category !== 'marketing') return fail('A limited-time offer must be a Promotional format.');
+    if (d.offer && d.category !== 'marketing') return fail('A limited-time offer must be a Promotional template.');
     const values = { offer: d.offer ?? null, headerType: media ?? (d.headerText ? 'text' : 'none'), name: d.name, language: d.language, category: d.category, headerText: d.headerText || null, body: d.body, footer: d.footer || null, buttons: d.buttons, samples: d.samples, updatedAt: new Date() };
     if (d.id) {
       const [cur] = await tx.select().from(templates).where(eq(templates.id, d.id));
-      if (!cur) return fail('Format not found.');
-      if (cur.status === 'pending') return fail('This format is in review. You can edit it after the result.');
-      if (cur.status === 'approved' && cur.category !== d.category) return fail('The type of an approved format cannot change. Create a new format instead.');
+      if (!cur) return fail('Template not found.');
+      if (cur.status === 'pending') return fail('This template is in review. You can edit it after the result.');
+      if (cur.status === 'approved' && cur.category !== d.category) return fail('The type of an approved template cannot change. Create a new template instead.');
       await tx.update(templates).set({ ...values, status: cur.status === 'approved' ? 'draft' : cur.status === 'rejected' ? 'draft' : cur.status }).where(eq(templates.id, d.id));
       await attachAsset(tx, d.id, media ? d.assetId! : null);
       revalidatePath('/templates');
@@ -108,13 +108,13 @@ async function isLive(tx: Tx): Promise<boolean> {
   return (r as unknown as { live: boolean }[])[0]?.live === true;
 }
 
-/** Runs the pre-submit checker on the server (never trust the browser) and sends the format for review. */
+/** Runs the pre-submit checker on the server (never trust the browser) and sends the template for review. */
 export async function submitTemplate(id: string): Promise<Result<{ testMode: boolean }>> {
   const g = await guard('admin'); if ('error' in g) return fail(g.error);
   return db(g.ctx, async (tx) => {
     const [t] = await tx.select().from(templates).where(eq(templates.id, id));
-    if (!t) return fail('Format not found.');
-    if (t.status === 'pending' || t.status === 'approved') return fail('This format was already submitted.');
+    if (!t) return fail('Template not found.');
+    if (t.status === 'pending' || t.status === 'approved') return fail('This template was already submitted.');
     const others = await tx.select({ name: templates.name, body: templates.body }).from(templates).where(sql`${templates.id} <> ${id}`);
     const r = lintTemplate({ name: t.name, category: t.category as Category, headerText: t.headerText ?? undefined, offer: (t.offer as { text: string; hasExpiration: boolean } | null) ?? undefined, headerMedia: (['image', 'video', 'document'].includes(t.headerType) ? t.headerType : undefined) as 'image' | undefined, hasHeaderFile: ['image', 'video', 'document'].includes(t.headerType) ? ((await tx.execute(sql`select 1 from template_assets where template_id = ${id}`)) as unknown as unknown[]).length > 0 : undefined, body: t.body, footer: t.footer ?? undefined, buttons: t.buttons as TemplateRow['buttons'], samples: t.samples as string[] }, others.map((o) => o.name), others.map((o) => o.body));
     if (r.blocked) return fail(r.issues.find((i) => i.level === 'block')!.message);
@@ -133,7 +133,7 @@ export async function simulateReview(id: string, outcome: 'approved' | 'rejected
   const g = await guard('admin'); if ('error' in g) return fail(g.error);
   return db(g.ctx, async (tx) => {
     const [t] = await tx.select().from(templates).where(eq(templates.id, id));
-    if (!t || t.status !== 'pending') return fail('Only formats in review can be decided.');
+    if (!t || t.status !== 'pending') return fail('Only templates in review can be decided.');
     if (await isLive(tx)) return fail('Your number is connected, so Meta decides. Wait for its answer.');
     await tx.update(templates).set(outcome === 'approved'
       ? { status: 'approved', quality: 'green', rejectionReason: null, updatedAt: new Date() }
@@ -161,7 +161,7 @@ export async function duplicateTemplate(id: string): Promise<Result<{ id: string
   const g = await guard('admin'); if ('error' in g) return fail(g.error);
   return db(g.ctx, async (tx) => {
     const [t] = await tx.select().from(templates).where(eq(templates.id, id));
-    if (!t) return fail('Format not found.');
+    if (!t) return fail('Template not found.');
     let n = 2, name = `${t.name}_copy`;
     for (;;) {
       const ex = await tx.select({ id: templates.id }).from(templates).where(sql`${templates.name} = ${name} and ${templates.language} = ${t.language}`);

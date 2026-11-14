@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import { audienceWhere, loadGroups, type Db } from '@lbc/db';
 import { estimateCost } from '@lbc/shared';
+import { isTemporaryAppUrl, isTrackedButtonValue } from '@lbc/shared/tracked-links';
+import { generateLinkCode } from '@lbc/shared/link-code';
 
 type Row = Record<string, unknown>;
 const rows = (r: unknown) => r as Row[];
@@ -22,7 +24,7 @@ export interface LaunchResult { campaignId: string; queued: number; skipped: num
  * 'scheduled' -> 'running' claim makes it exactly-once even with several workers. Pre-send rules that can be decided here
  * (consent, reachability, hold, spend cap) are applied now; sendOne() applies them AGAIN right before the Graph call.
  */
-export async function launchCampaign(db: Db, tenantId: string, campaignId: string): Promise<LaunchResult> {
+export async function launchCampaign(db: Db, tenantId: string, campaignId: string, appUrl?: string, strictAppUrl = true): Promise<LaunchResult> {
   return db.transaction(async (tx) => {
     const claimed = rows(await tx.execute(sql`update campaigns set status = 'running', started_at = now(), launched_at = now() where id = ${campaignId} and tenant_id = ${tenantId} and status = 'scheduled' returning *`))[0];
     if (!claimed) return { campaignId, queued: 0, skipped: 0, status: 'not_due' };
@@ -45,6 +47,12 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     const hasCopy = ((t.buttons ?? []) as { type: string }[]).some((b) => b.type === 'copy_code');
     const offer = t.offer as { hasExpiration?: boolean } | null;
     if (hasCopy && !claimed.offer_code) return fail('offer_code_missing');
+    // A tracked website button (APP_URL/r/{{1}}) needs a destination, and a permanent app address so the link still works next year.
+    const tracked = ((t.buttons ?? []) as { type: string; value?: string }[]).some((b) => b.type === 'url' && !!appUrl && isTrackedButtonValue(b.value, appUrl));
+    if (tracked) {
+      if (!claimed.link_url) return fail('link_missing');
+      if (!appUrl || (strictAppUrl && isTemporaryAppUrl(appUrl))) return fail('app_url_temporary');
+    }
     const offerEnds = claimed.offer_expires_at ? new Date(String(claimed.offer_expires_at)).getTime() : null;
     if (offer?.hasExpiration && (!offerEnds || offerEnds <= Date.now() + 60_000)) return fail(offerEnds ? 'offer_ended' : 'offer_time_missing');
 
@@ -81,9 +89,15 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
       const params = varMap.map((v) => resolveVar(String(v), { name: c.name as string | null, phone: String(c.phone_e164) }));
       const cr = rows(await tx.execute(sql`insert into campaign_recipients (tenant_id, campaign_id, contact_id, phone_e164, name, state) values (${tenantId}, ${campaignId}, ${c.id}, ${c.phone_e164}, ${c.name}, 'queued') on conflict (campaign_id, contact_id) where contact_id is not null do nothing returning id`))[0];
       if (!cr) continue; // already expanded (a retry of this function): never create a second message
+      let linkCode: string | undefined;
+      if (tracked) {
+        // One code per person. A collision is astronomically unlikely, but the primary key would refuse it and the whole launch would roll back and retry.
+        linkCode = generateLinkCode();
+        await tx.execute(sql`insert into tracked_links (code, tenant_id, campaign_id, campaign_recipient_id) values (${linkCode}, ${tenantId}, ${campaignId}, ${cr.id})`);
+      }
       const conv = rows(await tx.execute(sql`insert into conversations (tenant_id, contact_id, phone_number_id, status, unread) values (${tenantId}, ${c.id}, ${ph.phone_number_id}, 'open', 0) on conflict (tenant_id, contact_id) do update set phone_number_id = coalesce(conversations.phone_number_id, excluded.phone_number_id) returning id`))[0]!;
       await tx.execute(sql`insert into messages (tenant_id, conversation_id, direction, kind, body, status, template_name, template_language, template_category, payload, phone_number_id, campaign_recipient_id)
-        values (${tenantId}, ${conv.id}, 'out', 'template', ${t.name}, 'queued', ${t.name}, ${t.language}, ${category}, ${JSON.stringify({ params, ...(claimed.offer_code ? { code: claimed.offer_code } : {}), ...(offer?.hasExpiration && offerEnds ? { offerExpiresMs: offerEnds } : {}) })}::jsonb, ${ph.phone_number_id}, ${cr.id})`);
+        values (${tenantId}, ${conv.id}, 'out', 'template', ${t.name}, 'queued', ${t.name}, ${t.language}, ${category}, ${JSON.stringify({ params, ...(linkCode ? { linkCode } : {}), ...(claimed.offer_code ? { code: claimed.offer_code } : {}), ...(offer?.hasExpiration && offerEnds ? { offerExpiresMs: offerEnds } : {}) })}::jsonb, ${ph.phone_number_id}, ${cr.id})`);
     }
     await tx.execute(sql`update campaigns set counts = ${JSON.stringify(counts)}::jsonb, est_cost_paise = ${est.totalPaise} where id = ${campaignId} and tenant_id = ${tenantId}`);
 
@@ -91,8 +105,8 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     const step = NEXT_MS[String(claimed.repeat)];
     if (step) {
       const base = claimed.scheduled_at ? new Date(String(claimed.scheduled_at)) : new Date();
-      await tx.execute(sql`insert into campaigns (tenant_id, name, template_id, group_ids, status, scheduled_at, repeat, spend_cap_paise, var_map, send_policy, created_by, offer_code, offer_expires_at)
-        values (${tenantId}, ${claimed.name}, ${claimed.template_id}, ${groupLit}::uuid[], 'scheduled', ${new Date(base.getTime() + step).toISOString()}::timestamptz, ${claimed.repeat}, ${cap}, ${JSON.stringify(varMap)}::jsonb, ${claimed.send_policy}, ${claimed.created_by}, ${claimed.offer_code ?? null}, ${claimed.offer_expires_at ? new Date(String(claimed.offer_expires_at)).toISOString() : null}::timestamptz)`);
+      await tx.execute(sql`insert into campaigns (tenant_id, name, template_id, group_ids, status, scheduled_at, repeat, spend_cap_paise, var_map, send_policy, created_by, offer_code, offer_expires_at, link_url)
+        values (${tenantId}, ${claimed.name}, ${claimed.template_id}, ${groupLit}::uuid[], 'scheduled', ${new Date(base.getTime() + step).toISOString()}::timestamptz, ${claimed.repeat}, ${cap}, ${JSON.stringify(varMap)}::jsonb, ${claimed.send_policy}, ${claimed.created_by}, ${claimed.offer_code ?? null}, ${claimed.offer_expires_at ? new Date(String(claimed.offer_expires_at)).toISOString() : null}::timestamptz, ${claimed.link_url ?? null})`);
     }
     return { campaignId, queued: sendable.length, skipped: skipped.length, status: 'running' };
   });

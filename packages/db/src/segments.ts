@@ -21,7 +21,11 @@ export function ruleSql(r: SegmentRule): SQL {
     case 'added':
       return r.op === 'within' ? sql`c.created_at >= now() - make_interval(days => ${r.days})` : sql`c.created_at < now() - make_interval(days => ${r.days})`;
     case 'campaign': {
-      const states: Record<typeof r.op, string> = { received: '{sent,delivered,read,replied}', read: '{read,replied}', replied: '{replied}', not_read: '{sent,delivered}', not_replied: '{sent,delivered,read}', failed: '{failed}' };
+      // Clicks live on a separate table. A click only counts if it was a person (not a link-preview robot), and every table is pinned to the contact's own workspace.
+      const clicked = sql`exists (select 1 from campaign_recipients x join tracked_links l on l.campaign_recipient_id = x.id and l.tenant_id = c.tenant_id join link_clicks k on k.code = l.code and k.tenant_id = c.tenant_id and k.is_bot = false where x.contact_id = c.id and x.tenant_id = c.tenant_id and x.campaign_id = ${r.campaignId}::uuid)`;
+      if (r.op === 'clicked') return clicked;
+      if (r.op === 'not_clicked') return sql`(exists (select 1 from campaign_recipients x where x.contact_id = c.id and x.tenant_id = c.tenant_id and x.campaign_id = ${r.campaignId}::uuid and x.state = any('{sent,delivered,read,replied}'::text[])) and not ${clicked})`;
+      const states: Record<Exclude<typeof r.op, 'clicked' | 'not_clicked'>, string> = { received: '{sent,delivered,read,replied}', read: '{read,replied}', replied: '{replied}', not_read: '{sent,delivered}', not_replied: '{sent,delivered,read}', failed: '{failed}' };
       return sql`exists (select 1 from campaign_recipients x where x.contact_id = c.id and x.tenant_id = c.tenant_id and x.campaign_id = ${r.campaignId}::uuid and x.state = any(${states[r.op]}::text[]))`;
     }
   }

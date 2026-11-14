@@ -39,7 +39,7 @@ export function lintTemplate(d: TemplateDraft, existingNames: string[] = [], exi
   // Name
   if (!/^[a-z0-9_]+$/.test(d.name)) add('block', 'name', 'Use only lowercase letters, numbers and underscores, for example diwali_offer_2026.');
   else if (d.name.length > LIMITS.name) add('block', 'name', 'The name is too long.');
-  else if (existingNames.includes(d.name)) add('block', 'name', 'You already have a format with this name.');
+  else if (existingNames.includes(d.name)) add('block', 'name', 'You already have a template with this name.');
 
   // Header
   if (d.headerMedia) {
@@ -103,7 +103,7 @@ export function lintTemplate(d: TemplateDraft, existingNames: string[] = [], exi
   // Limited-time offer (Meta "Limited-time offer templates": marketing only, no footer, header image/video only, copy-code first, URL button required)
   if (d.offer) {
     const o = d.offer;
-    if (d.category !== 'marketing') add('block', 'category', 'A limited-time offer must be a Promotional format.');
+    if (d.category !== 'marketing') add('block', 'category', 'A limited-time offer must be a Promotional template.');
     if (!o.text.trim()) add('block', 'body', 'Write the short offer title, for example “Weekend offer!”.');
     else if (o.text.length > LIMITS.offerTitle) add('block', 'body', `The offer title can be ${LIMITS.offerTitle} characters at most (now ${o.text.length}).`);
     if (d.footer) add('block', 'footer', 'Limited-time offers cannot have a footer. Remove it.');
@@ -137,7 +137,7 @@ export function lintTemplate(d: TemplateDraft, existingNames: string[] = [], exi
 
   // Near duplicates
   const norm = (t: string) => t.toLowerCase().replace(VAR, '').replace(/\s+/g, ' ').trim();
-  if (body.trim() && existingBodies.some((b) => norm(b) === norm(body))) add('block', 'body', 'You already have a format with this same text. Meta rejects near-duplicates.');
+  if (body.trim() && existingBodies.some((b) => norm(b) === norm(body))) add('block', 'body', 'You already have a template with this same text. Meta rejects near-duplicates.');
 
   const blocks = issues.filter((i) => i.level === 'block').length;
   const warns = issues.filter((i) => i.level === 'warn').length;

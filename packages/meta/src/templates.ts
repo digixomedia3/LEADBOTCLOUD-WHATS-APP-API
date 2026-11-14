@@ -1,7 +1,7 @@
 import type { RemoteTemplate } from './client';
 
 /**
- * Message-format payloads for Meta (spec 7.1, 7.2). Pure functions: no network, no database.
+ * Message template payloads for Meta (spec 7.1, 7.2). Pure functions: no network, no database.
  * Anything the spec marks [UNVERIFIED] (media headers, carousels, limited-time offers, flows) is NOT built here; those raise a clear error
  * so the panel never sends a shape we have not verified.
  */
@@ -27,7 +27,7 @@ const VAR = /\{\{\s*(\d+)\s*\}\}/g;
 const vars = (s: string) => [...s.matchAll(VAR)].map((m) => Number(m[1]));
 
 export function buildTemplatePayload(t: LocalTemplate): { name: string; language: string; category: string; parameter_format: 'POSITIONAL'; components: unknown[] } {
-  if (t.category === 'authentication') throw new TemplateBuildError('One-time-code formats are not supported yet.');
+  if (t.category === 'authentication') throw new TemplateBuildError('One-time-code templates are not supported yet.');
   const components: unknown[] = [];
 
   if (t.headerMedia) {
@@ -40,7 +40,7 @@ export function buildTemplatePayload(t: LocalTemplate): { name: string; language
   }
 
   if (t.offer) {
-    if (t.category !== 'marketing') throw new TemplateBuildError('A limited-time offer must be a Promotional format.');
+    if (t.category !== 'marketing') throw new TemplateBuildError('A limited-time offer must be a Promotional template.');
     if (t.footer) throw new TemplateBuildError('Limited-time offers cannot have a footer.');
     if (!t.offer.text.trim() || t.offer.text.length > 16) throw new TemplateBuildError('The offer title must be 1 to 16 characters.');
     if (t.headerMedia === 'document' || t.headerText) throw new TemplateBuildError('A limited-time offer can have a picture or video header only.');

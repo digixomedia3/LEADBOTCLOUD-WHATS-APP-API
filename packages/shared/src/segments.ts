@@ -5,7 +5,7 @@ import { LEAD_STATUSES } from './leads';
  * Saved segments ("smart groups"): a list of rules that is re-read every time it is used, so a segment is never out of date.
  * A segment only chooses WHO is considered. It never grants permission: consent is checked again at send time, whatever the rules say.
  */
-export const CAMPAIGN_OUTCOMES = ['received', 'read', 'replied', 'not_read', 'not_replied', 'failed'] as const;
+export const CAMPAIGN_OUTCOMES = ['received', 'read', 'replied', 'not_read', 'not_replied', 'failed', 'clicked', 'not_clicked'] as const;
 
 const uuid = z.string().uuid();
 const days = z.number().int().min(1).max(3650);
@@ -34,7 +34,7 @@ export function describeRule(r: SegmentRule, names: { campaigns?: Record<string,
     case 'added': return r.op === 'within' ? `was added in the last ${r.days} days` : `was added more than ${r.days} days ago`;
     case 'campaign': {
       const n = names.campaigns?.[r.campaignId] ?? 'a campaign';
-      const t: Record<(typeof CAMPAIGN_OUTCOMES)[number], string> = { received: `received “${n}”`, read: `read “${n}”`, replied: `replied to “${n}”`, not_read: `got “${n}” but did not read it`, not_replied: `got “${n}” but did not reply`, failed: `did not receive “${n}” (failed)` };
+      const t: Record<(typeof CAMPAIGN_OUTCOMES)[number], string> = { received: `received “${n}”`, read: `read “${n}”`, replied: `replied to “${n}”`, not_read: `got “${n}” but did not read it`, not_replied: `got “${n}” but did not reply`, failed: `did not receive “${n}” (failed)`, clicked: `clicked the link in “${n}”`, not_clicked: `got “${n}” but did not click its link` };
       return t[r.op];
     }
   }

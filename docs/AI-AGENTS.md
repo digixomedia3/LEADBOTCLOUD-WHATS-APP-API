@@ -64,3 +64,11 @@ Errors are `{"error": "plain words"}` with a normal HTTP status (401 key, 403 pe
 - No saved-segment tools for agents yet; segments are built in the panel.
 - `start_campaign` takes a `userConfirmed` flag. It is a prompt to the assistant to ask you first, not a security control: the real protections are the permission, the creator rule and the money limits.
 - The API is not yet versioned beyond `/v1` and has no webhook-out events.
+
+
+## Tracked links
+
+A template can have a **Tracked link** website button (made in the template builder). When you create a campaign with such a template, pass `linkUrl`
+(an https address of your own; no shorteners, no local addresses). Every person then gets their own private link, so the report shows how many
+different people clicked. Link-preview robots and security scanners are not counted. Follow-ups such as "clicked the link" or "did not click" are
+saved as groups from the report page. A tracked link needs a permanent `APP_URL`: sending is paused with a clear reason if the app address is a temporary tunnel.

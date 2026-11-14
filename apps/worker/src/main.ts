@@ -35,7 +35,7 @@ const eventQueue = new Queue('events', { connection: redis, defaultJobOptions: {
 
 /** Send consumer. jobId = message id, so a message can be queued only once. */
 const sendWorker = new Worker('send', async (job: Job<{ tenantId: string; messageId: string }>) => {
-  const r = await sendOne({ db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY }, job.data.tenantId, job.data.messageId);
+  const r = await sendOne({ db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY, appUrl: cfg.APP_URL }, job.data.tenantId, job.data.messageId);
   if (r.kind === 'retry') { await sendQueue.add('send', job.data, { jobId: `${job.data.messageId}:r${job.attemptsMade + 1}`, delay: r.delayMs }); }
   return r.kind;
 }, { connection: redis, concurrency: 20, limiter: { max: 80, duration: 1000 } }); // 80 messages/second is the default Cloud API per-number rate
@@ -61,7 +61,7 @@ const sweeper = setInterval(() => sweepOutbox().catch((e) => console.error('swee
 /** Launcher: every 15 s, expand campaigns that are due and queue their messages; then refresh campaign counts from the data. */
 async function tick() {
   for (const c of await dueCampaigns(db)) {
-    const r = await launchCampaign(db, c.tenant_id, c.id);
+    const r = await launchCampaign(db, c.tenant_id, c.id, cfg.APP_URL, cfg.NODE_ENV === 'production');
     if (r.status === 'running') for (const id of await queuedMessageIds(db, c.tenant_id, c.id)) await sendQueue.add('send', { tenantId: c.tenant_id, messageId: id }, { jobId: id }).catch(() => undefined);
     console.log(`[launcher] campaign ${c.id}: ${r.status}${r.reason ? ' (' + r.reason + ')' : ''} queued=${r.queued} skipped=${r.skipped}`);
   }
@@ -69,7 +69,7 @@ async function tick() {
 }
 /** Templates: send new ones to Meta, remove deleted ones, and reconcile with Meta every 6 hours. Every 20 s is cheap: each step only looks at rows waiting for it. */
 async function templatesTick() {
-  const d = { db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY };
+  const d = { db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY, appUrl: cfg.APP_URL };
   await submitPendingTemplates(d);
   await deleteQueuedTemplates(d);
   for (const tenantId of await tenantsDueForSync(db, 360)) {

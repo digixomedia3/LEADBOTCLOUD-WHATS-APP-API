@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { isTrackedButtonValue } from '@lbc/shared/tracked-links';
 import { backoffMs, errorPolicy, type ErrorPolicy } from '@lbc/shared';
 import { GraphClient, MetaError, MetaUnknownOutcome, bodyParams, copyCodeParam, headerMediaParam, limitedTimeOfferParam, chooseEndpoint, decryptSecret, rerouteFor, templateMessage, textMessage, withProductPolicy, type SendResponse, type TemplateCategory } from '@lbc/meta';
 import type { Db } from '@lbc/db';
@@ -6,7 +7,7 @@ import type { Db } from '@lbc/db';
 type Row = Record<string, unknown>;
 const rows = (r: unknown) => r as Row[];
 
-export interface SendDeps { db: Db; graph: GraphClient; tokenKey: string; now?: () => Date }
+export interface SendDeps { db: Db; graph: GraphClient; tokenKey: string; now?: () => Date; appUrl?: string }
 /** What the queue should do next with this job. */
 export type SendResult =
   | { kind: 'skipped'; reason: string }
@@ -85,7 +86,7 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
 
   const token = decryptSecret(String(acc.business_token_enc), d.tokenKey);
   const to = String(contact.phone_e164);
-  const payload = (m.payload ?? {}) as { params?: string[]; names?: string[]; text?: string; code?: string; offerExpiresMs?: number };
+  const payload = (m.payload ?? {}) as { params?: string[]; names?: string[]; text?: string; code?: string; offerExpiresMs?: number; linkCode?: string };
 
   // A template with a picture/video/PDF header needs a media id for THIS sending number. Uploaded once, then reused for 25 days (Meta keeps media 30).
   let headerMediaId: string | null = null;
@@ -105,7 +106,7 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
   let body: object;
   try {
     body = isTemplate
-      ? templateMessage({ to, name: String(m.template_name), language: String(m.template_language ?? 'en'), components: templateComponents(payload, tpl, headerMediaId), messageId })
+      ? templateMessage({ to, name: String(m.template_name), language: String(m.template_language ?? 'en'), components: templateComponents(payload, tpl, headerMediaId, d.appUrl), messageId })
       : textMessage({ to, body: String(m.body), messageId });
   } catch (e) {
     await db.execute(sql`update messages set status = 'failed', failed_at = now(), error_detail = ${JSON.stringify({ build_error: String((e as Error).message) })}::jsonb where id = ${messageId} and tenant_id = ${tenantId}`);
@@ -209,7 +210,7 @@ async function mediaIdForUncached(d: SendDeps, tenantId: string, templateId: str
 }
 
 /** Header media, body variables and the copy-code button, in the order Meta documents. */
-export function templateComponents(payload: { params?: string[]; names?: string[]; code?: string; offerExpiresMs?: number }, tpl: Row | null, headerMediaId: string | null) {
+export function templateComponents(payload: { params?: string[]; names?: string[]; code?: string; offerExpiresMs?: number; linkCode?: string }, tpl: Row | null, headerMediaId: string | null, appUrl?: string) {
   const out: ReturnType<typeof bodyParams>[] = [];
   const kind = tpl ? String(tpl.header_type) : 'none';
   if (headerMediaId && (kind === 'image' || kind === 'video' || kind === 'document')) out.push(headerMediaParam(kind, headerMediaId, kind === 'document' ? 'Document.pdf' : undefined));
@@ -219,10 +220,16 @@ export function templateComponents(payload: { params?: string[]; names?: string[
     if (!payload.offerExpiresMs) throw new Error('This offer has a countdown but no end time was given');
     out.push(limitedTimeOfferParam(payload.offerExpiresMs));
   }
-  const buttons = (tpl?.buttons ?? []) as { type: string }[];
+  const buttons = (tpl?.buttons ?? []) as { type: string; value?: string }[];
+  // Our tracked website button: fill its {{1}} with this person's own code. Only our exact address is ever filled, so a customer's own dynamic link is left alone.
+  const trackedAt = appUrl ? buttons.findIndex((b) => b.type === 'url' && isTrackedButtonValue(b.value, appUrl)) : -1;
+  if (trackedAt >= 0) {
+    if (!payload.linkCode) throw new Error('This template has a tracked link button but this message has no link code');
+    out.push({ type: 'button', sub_type: 'url', index: String(trackedAt), parameters: [{ type: 'text', text: payload.linkCode }] } as never);
+  }
   const copyAt = buttons.findIndex((b) => b.type === 'copy_code');
   if (copyAt >= 0) {
-    if (!payload.code) throw new Error('This format has a copy-code button but no code was given');
+    if (!payload.code) throw new Error('This template has a copy-code button but no code was given');
     out.push(copyCodeParam(copyAt, payload.code));
   }
   return out.length ? out : undefined;

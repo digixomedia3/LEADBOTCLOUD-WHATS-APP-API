@@ -89,6 +89,7 @@ export function buildServer(ctx: ActorCtx): McpServer {
         name: z.string().min(2).max(120), templateId: z.string().uuid(), groupIds: z.array(z.string().uuid()).min(1).max(50), when: z.enum(['now', 'later']),
         scheduledAt: z.string().optional().describe('ISO time, at least 5 minutes ahead, when "later"'), varMap: z.array(z.string().min(1).max(200)).max(20).optional(),
         spendCapRupees: z.number().min(0).optional(), offerCode: z.string().optional(), offerEndsAt: z.string().optional(),
+        linkUrl: z.string().max(2000).optional().describe('https page the template\'s tracked website button opens, when it has one'),
       },
     }, guarded('campaigns:write', async (a: z.input<typeof campaignInput>) => res(await createCampaignFor(ctx, a))));
     server.registerTool('cancel_campaign', { description: 'Cancels a campaign that has not started.', inputSchema: { campaignId: z.string().uuid() }, annotations: { destructiveHint: true } },

@@ -22,14 +22,16 @@ export interface CampaignReportData {
   offer: { code: string | null; endsAt: string | null };
   /** Messages sent per hour over the first day, for the sparkline. */
   sendsByHour: { hour: string; count: number }[];
+  /** Only present when the template has a tracked website button. People = different people who clicked; robots (link previews, scanners) are never counted. */
+  clicks: { destination: string; people: number; total: number; botVisits: number; ofDelivered: number | null } | null;
 }
 
 export async function campaignReportFor(ctx: ActorCtx, id: string): Promise<Result<CampaignReportData>> {
   if (!uuid.safeParse(id).success) return fail('That campaign id is not valid.');
   return db(ctx, async (tx) => {
     const [c] = (await tx.execute(sql`
-      select c.id, c.name, c.status, c.scheduled_at, c.started_at, c.completed_at, c.pause_reason, c.est_cost_paise, c.group_ids, c.offer_code, c.offer_expires_at, t.name as tname, t.category
-      from campaigns c left join templates t on t.id = c.template_id where c.id = ${id}::uuid`)) as unknown as { id: string; name: string; status: string; scheduled_at: Date | null; started_at: Date | null; completed_at: Date | null; pause_reason: string | null; est_cost_paise: number; group_ids: string[]; offer_code: string | null; offer_expires_at: Date | null; tname: string | null; category: string | null }[];
+      select c.id, c.name, c.status, c.scheduled_at, c.started_at, c.completed_at, c.pause_reason, c.est_cost_paise, c.group_ids, c.offer_code, c.offer_expires_at, c.link_url, t.name as tname, t.category
+      from campaigns c left join templates t on t.id = c.template_id where c.id = ${id}::uuid`)) as unknown as { id: string; name: string; status: string; scheduled_at: Date | null; started_at: Date | null; completed_at: Date | null; pause_reason: string | null; est_cost_paise: number; group_ids: string[]; offer_code: string | null; offer_expires_at: Date | null; link_url: string | null; tname: string | null; category: string | null }[];
     if (!c) return fail('That campaign was not found.');
     const recs = (await tx.execute(sql`select state, reason from campaign_recipients where campaign_id = ${id}::uuid`)) as unknown as { state: string; reason: string | null }[];
     const counts = countRecipients(recs.map((r) => r.state));
@@ -41,6 +43,14 @@ export async function campaignReportFor(ctx: ActorCtx, id: string): Promise<Resu
     const hours = (await tx.execute(sql`
       select to_char(date_trunc('hour', sent_at at time zone 'Asia/Kolkata'), 'DD Mon HH24:00') as hour, count(*)::int as count
       from campaign_recipients where campaign_id = ${id}::uuid and sent_at is not null group by date_trunc('hour', sent_at at time zone 'Asia/Kolkata') order by date_trunc('hour', sent_at at time zone 'Asia/Kolkata') limit 48`)) as unknown as { hour: string; count: number }[];
+    let clicks: CampaignReportData['clicks'] = null;
+    if (c.link_url) {
+      const [k] = (await tx.execute(sql`
+        select count(distinct k.code) filter (where k.is_bot = false)::int as people, count(*) filter (where k.is_bot = false)::int as total, count(*) filter (where k.is_bot = true)::int as bots
+        from link_clicks k where k.campaign_id = ${id}::uuid`)) as unknown as { people: number; total: number; bots: number }[];
+      const delivered = counts.sent; // people actually messaged; a click can arrive before the delivery receipt does
+      clicks = { destination: c.link_url, people: k?.people ?? 0, total: k?.total ?? 0, botVisits: k?.bots ?? 0, ofDelivered: delivered > 0 ? Math.round(((k?.people ?? 0) / delivered) * 1000) / 10 : null };
+    }
     const names = c.group_ids.length ? ((await tx.execute(sql`select name from contact_groups where id = any(${'{' + c.group_ids.filter((g) => /^[0-9a-f-]{36}$/i.test(g)).join(',') + '}'}::uuid[]) order by name`)) as unknown as { name: string }[]).map((g) => g.name) : [];
     const billed = billedCost(billable.map((b) => ({ category: b.category || null, messages: b.messages })));
     const iso = (d: Date | null) => (d ? new Date(d).toISOString() : null);
@@ -53,7 +63,7 @@ export async function campaignReportFor(ctx: ActorCtx, id: string): Promise<Resu
         billed: { ...billed, billableMessages: billable.reduce((n, b) => n + b.messages, 0), awaitingPricing: waiting },
         simulated: real === 0 && counts.sent > 0,
         offer: { code: c.offer_code, endsAt: iso(c.offer_expires_at) },
-        sendsByHour: hours,
+        sendsByHour: hours, clicks,
       },
     };
   });

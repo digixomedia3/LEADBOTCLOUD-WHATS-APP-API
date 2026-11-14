@@ -2,6 +2,7 @@
  * Campaign rules shared by the panel and the API for AI agents.
  * Everything takes an explicit actor, never a cookie, so there is exactly one place where "may this be sent" is decided.
  */
+import { checkLinkDestination, isTrackedButtonValue } from '@lbc/shared/tracked-links';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { audienceWhere, campaigns, loadGroups, templates, type Tx } from '@lbc/db';
@@ -42,10 +43,12 @@ export const campaignInput = z.object({
   spendCapRupees: z.number().min(0).max(10_000_000).optional(),
   /** One entry per {{n}} in the body: '@name', '@fullname', '@phone' or fixed text. */
   varMap: z.array(z.string().trim().min(1, 'Fill in every variable.').max(200)).max(20).default([]),
-  /** For a format with a Copy code button: the code every recipient gets (1 to 15 letters, numbers, - or _). */
+  /** For a template with a Copy code button: the code every recipient gets (1 to 15 letters, numbers, - or _). */
   offerCode: z.string().trim().regex(/^[A-Za-z0-9_-]{1,15}$/, 'The offer code can be 1 to 15 letters or numbers.').optional(),
-  /** For a format with a countdown: when the offer ends (ISO time). */
+  /** For a template with a countdown: when the offer ends (ISO time). */
   offerEndsAt: z.string().optional(),
+  /** For a template with a tracked website button: the page the button opens. https only. */
+  linkUrl: z.string().trim().max(2000).optional(),
 });
 export type CampaignInput = z.input<typeof campaignInput>;
 
@@ -68,6 +71,15 @@ export async function createCampaignFor(ctx: ActorCtx, raw: CampaignInput): Prom
     const groups = await tx.execute(sql`select id from contact_groups where id = any(${'{' + d.groupIds.join(',') + '}'}::uuid[])`);
     if ((groups as unknown as unknown[]).length !== d.groupIds.length) return fail('One of the groups no longer exists.');
     const hasCopy = ((t.buttons ?? []) as { type: string }[]).some((b) => b.type === 'copy_code');
+    const appUrl = (process.env.APP_URL ?? '').replace(/\/+$/, '');
+    const hasTracked = ((t.buttons ?? []) as { type: string; value?: string }[]).some((b) => b.type === 'url' && !!appUrl && isTrackedButtonValue(b.value, appUrl));
+    let linkUrl: string | null = null;
+    if (hasTracked) {
+      if (!d.linkUrl) return fail('This template has a tracked website button. Enter the page it should open.');
+      const chk = checkLinkDestination(d.linkUrl, appUrl);
+      if (!chk.ok) return fail(chk.error);
+      linkUrl = chk.url;
+    } else if (d.linkUrl) return fail('This template has no tracked website button, so there is no link to set.');
     const offerCfg = t.offer as { hasExpiration?: boolean } | null;
     if (hasCopy && !d.offerCode) return fail('This template has a Copy code button. Enter the offer code.');
     let offerEnds: Date | null = null;
@@ -88,7 +100,7 @@ export async function createCampaignFor(ctx: ActorCtx, raw: CampaignInput): Prom
     if (capPaise !== null && aud.cost.totalPaise > capPaise) return fail(`The estimated cost ${aud.cost.totalLabel} is above your spend cap. Raise the cap or choose fewer people.`);
     const [row] = await tx.insert(campaigns).values({
       tenantId: ctx.tenantId, name: d.name, templateId: t.id, groupIds: d.groupIds, status: d.when === 'now' ? 'draft' : 'scheduled', scheduledAt: when, repeat: d.repeat,
-      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: ctx.user.id, varMap: d.varMap, offerCode: hasCopy ? d.offerCode! : null, offerExpiresAt: offerEnds, apiKeyId: ctx.via?.keyId ?? null,
+      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: ctx.user.id, varMap: d.varMap, offerCode: hasCopy ? d.offerCode! : null, linkUrl, offerExpiresAt: offerEnds, apiKeyId: ctx.via?.keyId ?? null,
     }).returning({ id: campaigns.id, status: campaigns.status });
     await auditAs(tx, ctx, 'campaign.created', 'campaign', row!.id, { audience: aud.sendable });
     return { ok: true as const, data: { id: row!.id, status: row!.status, estCostPaise: aud.cost.totalPaise, audience: aud.sendable } };

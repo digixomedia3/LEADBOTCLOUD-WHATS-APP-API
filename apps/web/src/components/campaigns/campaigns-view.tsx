@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { checkLinkDestination, isTrackedButtonValue } from '@lbc/shared/tracked-links';
 import { useEffect, useState, useTransition } from 'react';
 import { AlertTriangle, Calendar, CheckCircle2, FlaskConical, Loader2, Megaphone, Plus, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import { variablesIn } from '@lbc/shared';
 const STATUS: Record<string, [string, string]> = { draft: ['Draft', 'bg-ink/10'], scheduled: ['Scheduled', 'bg-indigo/15 text-indigo'], running: ['Sending', 'bg-amber/15 text-amber'], completed: ['Sent', 'bg-brand/15 text-brand'], paused: ['Paused', 'bg-amber/15 text-amber'], cancelled: ['Cancelled', 'bg-rose/15 text-rose'] };
 const pct = (a = 0, b = 0) => (b ? Math.round((a / b) * 100) : 0);
 
-export function CampaignsView({ initial, templates, groups, canEdit }: { initial: CampaignRow[]; templates: TemplateRow[]; groups: GroupRow[]; canEdit: boolean }) {
+export function CampaignsView({ initial, templates, groups, canEdit, appUrl }: { appUrl: string; initial: CampaignRow[]; templates: TemplateRow[]; groups: GroupRow[]; canEdit: boolean }) {
   const [rows, setRows] = useState(initial);
   const [wizard, setWizard] = useState(false);
   const [toast, setToast] = useState('');
@@ -75,13 +76,13 @@ export function CampaignsView({ initial, templates, groups, canEdit }: { initial
         </div>
       )}
 
-      {wizard ? <Wizard live={live} templates={approved} groups={groups} onClose={() => setWizard(false)} onDone={(m) => { setWizard(false); void refresh(m); }} /> : null}
+      {wizard ? <Wizard appUrl={appUrl} live={live} templates={approved} groups={groups} onClose={() => setWizard(false)} onDone={(m) => { setWizard(false); void refresh(m); }} /> : null}
       {toast ? <div role="status" className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-bg shadow-xl md:bottom-8">{toast}</div> : null}
     </div>
   );
 }
 
-function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; templates: TemplateRow[]; groups: GroupRow[]; onClose: () => void; onDone: (m: string) => void }) {
+function Wizard({ live, templates, groups, appUrl, onClose, onDone }: { appUrl: string; live: boolean; templates: TemplateRow[]; groups: GroupRow[]; onClose: () => void; onDone: (m: string) => void }) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [tid, setTid] = useState(templates[0]?.id ?? '');
@@ -93,6 +94,7 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
   const [vars, setVars] = useState<string[]>([]);
   const [code, setCode] = useState('');
   const [endsAt, setEndsAt] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
   const [aud, setAud] = useState<AudiencePreview | null>(null);
   const [error, setError] = useState('');
   const [pending, start] = useTransition();
@@ -109,7 +111,9 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
   useEffect(() => { setVars((old) => Array.from({ length: varCount }, (_, i) => old[i] ?? (i === 0 ? '@name' : ''))); }, [varCount, tid]);
   const needsCode = !!tpl?.buttons.some((b) => b.type === 'copy_code');
   const needsEnd = !!tpl?.offer?.hasExpiration;
-  const offerOk = (!needsCode || /^[A-Za-z0-9_-]{1,15}$/.test(code.trim())) && (!needsEnd || !!endsAt);
+  const needsLink = !!tpl?.buttons.some((b) => b.type === 'url' && isTrackedButtonValue(b.value, appUrl));
+  const linkChk = needsLink ? checkLinkDestination(linkUrl, appUrl) : null;
+  const offerOk = (!needsCode || /^[A-Za-z0-9_-]{1,15}$/.test(code.trim())) && (!needsEnd || !!endsAt) && (!needsLink || !!linkChk?.ok);
   const varsOk = vars.length === varCount && vars.every((x) => x.trim().length > 0);
   const capNum = cap ? Number(cap) : undefined;
   const overCap = !!(aud && capNum && aud.cost.totalPaise > capNum * 100);
@@ -117,7 +121,7 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
   function submit() {
     setError('');
     start(async () => {
-      const r = await createCampaign({ name, templateId: tid, groupIds: gids, when, scheduledAt: at ? new Date(at).toISOString() : undefined, repeat: needsEnd ? 'none' : repeat, spendCapRupees: capNum, varMap: vars, offerCode: needsCode ? code.trim() : undefined, offerEndsAt: needsEnd && endsAt ? new Date(endsAt).toISOString() : undefined });
+      const r = await createCampaign({ name, templateId: tid, groupIds: gids, when, scheduledAt: at ? new Date(at).toISOString() : undefined, repeat: needsEnd ? 'none' : repeat, spendCapRupees: capNum, varMap: vars, offerCode: needsCode ? code.trim() : undefined, linkUrl: needsLink ? linkUrl.trim() : undefined, offerEndsAt: needsEnd && endsAt ? new Date(endsAt).toISOString() : undefined });
       if (!r.ok) { setError(r.error); return; }
       if (when === 'now') { const s = await sendCampaign(r.data.id); if (!s.ok) { setError(s.error); return; } onDone(s.data.testMode ? `Test send done: ${s.data.sent} people.` : `Queued for ${s.data.sent} people. Sending starts within a minute.`); } else onDone('Campaign scheduled.');
     });
@@ -155,6 +159,7 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
                 <p className="text-xs text-muted">If a customer has no name saved, we say “there”.</p>
               </div>
             ) : null}
+            {needsLink ? <Field label="Page the button opens" hint="Every customer gets their own private link to this page, so you can see who clicked. https only."><Input type="url" inputMode="url" value={linkUrl} maxLength={2000} placeholder="https://yourshop.com/offer" onChange={(e) => setLinkUrl(e.target.value)} aria-invalid={!!linkUrl && !linkChk?.ok} />{linkUrl && linkChk && !linkChk.ok ? <p className="mt-1 text-xs text-rose" role="alert">{linkChk.error}</p> : null}</Field> : null}
             {needsCode || needsEnd ? (
               <div className="flex flex-col gap-3 rounded-xl border border-amber/40 bg-amber/5 p-3">
                 <p className="text-sm font-semibold">This is an offer</p>

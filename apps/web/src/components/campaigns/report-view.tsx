@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, Download, FlaskConical, Info, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, Download, FlaskConical, Info, Loader2, MousePointerClick, Target } from 'lucide-react';
 import { inr } from '@lbc/shared';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { loadRecipients } from '@/app/(app)/campaigns/[id]/actions';
+import { loadRecipients, retargetFrom, type RetargetOp } from '@/app/(app)/campaigns/[id]/actions';
 import type { CampaignReportData, RecipientRow, ResultFilter } from '@/lib/core/campaign-report';
 
 type Page = { rows: RecipientRow[]; total: number; page: number; pages: number };
@@ -17,6 +17,12 @@ const ist = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-IN',
 const num = (n: number) => n.toLocaleString('en-IN');
 
 export function ReportView({ report: r, initial, canExport }: { report: CampaignReportData; initial: Page; canExport: boolean }) {
+  const [rt, setRt] = useState<{ ok: boolean; text: string; groupId?: string } | null>(null);
+  const retarget = (op: RetargetOp) => start(async () => {
+    setRt(null);
+    const x = await retargetFrom(r.id, op);
+    setRt(x.ok ? { ok: true, text: `Saved “${x.name}” (${x.people} ${x.people === 1 ? 'person' : 'people'} right now). Only people who agreed to messages are sent to.`, groupId: x.groupId } : { ok: false, text: x.error });
+  });
   const [filter, setFilter] = useState<ResultFilter>('all');
   const [page, setPage] = useState<Page>(initial);
   const [pending, start] = useTransition();
@@ -56,8 +62,23 @@ export function ReportView({ report: r, initial, canExport }: { report: Campaign
               </div>
             </li>))}
         </ol>
+        {r.clicks ? (
+          <div className="mt-4 rounded-xl bg-card2 p-3 text-sm" aria-label="Link clicks">
+            <p className="flex flex-wrap items-baseline gap-x-2"><MousePointerClick className="size-4 self-center text-brand" /><strong className="tabular-nums">{num(r.clicks.people)}</strong> {r.clicks.people === 1 ? 'person' : 'people'} clicked the link{r.clicks.ofDelivered !== null ? <span className="text-xs text-muted">{r.clicks.ofDelivered}% of people messaged</span> : null}</p>
+            <p className="mt-1 break-all text-xs text-muted">Opens {r.clicks.destination}. {r.clicks.total > r.clicks.people ? `${num(r.clicks.total)} clicks in total (some people clicked more than once). ` : ''}{r.clicks.botVisits ? `${num(r.clicks.botVisits)} visits from link previews and security scanners were not counted.` : ''}</p>
+          </div>) : null}
         <p className="mt-4 text-xs text-muted">Each step counts only people who got through the one before. “Read” and “Replied” depend on the customer’s own WhatsApp settings: people who turn off read receipts show as delivered.</p>
       </section>
+
+      {canExport ? (
+        <section className="card p-5" aria-label="Retarget">
+          <h3 className="flex items-center gap-2 font-display text-lg font-bold"><Target className="size-5 text-brand" />Send a follow-up</h3>
+          <p className="mt-1 text-sm text-muted">Save a group from this campaign, then pick it in a new campaign. Only people who agreed to messages are ever sent to.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {([['not_read', 'Did not read it'], ['not_replied', 'Did not reply'], ['replied', 'Replied'], ...(r.clicks ? ([['clicked', 'Clicked the link'], ['not_clicked', 'Did not click']] as [RetargetOp, string][]) : []), ['failed', 'Not delivered']] as [RetargetOp, string][]).map(([op, label]) => <Button key={op} type="button" size="sm" variant="outline" disabled={pending} onClick={() => retarget(op)}>{label}</Button>)}
+          </div>
+          {rt ? <p role={rt.ok ? 'status' : 'alert'} className={cn('mt-3 text-sm', rt.ok ? 'text-brand' : 'text-rose')}>{rt.text}{rt.ok ? <> <Link href="/campaigns" className="font-semibold underline">Start a new campaign</Link></> : null}</p> : null}
+        </section>) : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="card p-5" aria-label="Where everyone ended up">

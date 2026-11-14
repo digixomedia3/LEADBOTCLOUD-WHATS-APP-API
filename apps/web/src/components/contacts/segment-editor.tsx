@@ -17,6 +17,7 @@ const TYPES: { v: SegmentRule['type']; label: string }[] = [
 const OUTCOMES: { v: Extract<SegmentRule, { type: 'campaign' }>['op']; label: string }[] = [
   { v: 'received', label: 'received it' }, { v: 'read', label: 'read it' }, { v: 'replied', label: 'replied to it' },
   { v: 'not_read', label: 'got it but did not read it' }, { v: 'not_replied', label: 'got it but did not reply' }, { v: 'failed', label: 'did not receive it (failed)' },
+  { v: 'clicked', label: 'clicked its link' }, { v: 'not_clicked', label: 'got it but did not click its link' },
 ];
 let key = 1;
 const blank = (type: SegmentRule['type'], o: SegmentOptions): SegmentRule => {

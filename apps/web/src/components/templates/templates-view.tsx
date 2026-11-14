@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
-import { AlertTriangle, CheckCircle2, Copy, FlaskConical, ImageIcon, Loader2, Plus, Send, Trash2, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Copy, FlaskConical, ImageIcon, Loader2, MousePointerClick, Plus, Send, Trash2, X, XCircle } from 'lucide-react';
+import { isTemporaryAppUrl, isTrackedButtonValue, trackedButtonValue } from '@lbc/shared/tracked-links';
 import { MEDIA_LIMITS, checkHeaderMedia, explainRejection, lintTemplate, variablesIn, type Category } from '@lbc/shared';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input, Select, Textarea } from '@/components/ui/form';
@@ -27,7 +28,7 @@ const STARTERS: { title: string; d: Partial<DraftInput> }[] = [
 
 const empty: DraftInput = { name: '', language: 'en', category: 'marketing', headerText: '', headerMedia: null, assetId: null, offer: null, body: '', footer: '', buttons: [], samples: [] };
 
-export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; canEdit: boolean }) {
+export function TemplatesView({ initial, canEdit, appUrl }: { initial: TemplateRow[]; canEdit: boolean; appUrl: string }) {
   const [rows, setRows] = useState(initial);
   const [filter, setFilter] = useState<'all' | string>('all');
   const [editing, setEditing] = useState<null | (DraftInput & { id?: string; status?: string; assetName?: string | null })>(null);
@@ -65,7 +66,7 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
 
       {rows.length === 0 ? (
         <div className="card p-8">
-          <h3 className="font-display text-lg font-bold">Start from a ready-made format</h3>
+          <h3 className="font-display text-lg font-bold">Start from a ready-made template</h3>
           <p className="mb-5 text-sm text-muted">Pick one and change the words. The checker tells you if anything could be rejected.</p>
           <div className="grid gap-3 sm:grid-cols-2">{STARTERS.map((s) => (
             <button key={s.title} disabled={!canEdit} onClick={() => setEditing({ ...empty, ...s.d } as DraftInput)} className="card card-hover p-4 text-left">
@@ -84,8 +85,8 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
               <WaBubble offer={t.offer} header={t.headerText} media={t.headerMedia ? { kind: t.headerMedia, src: t.assetId ? `/api/template-assets/${t.assetId}` : null, name: t.assetName } : null} body={t.body} footer={t.footer} buttons={t.buttons} values={t.samples} />
               {t.status === 'rejected' ? <p className="flex gap-2 rounded-xl bg-rose/10 p-3 text-xs text-rose"><XCircle className="size-4 shrink-0" />{explainRejection(t.rejectionReason)}</p> : null}
               {t.status === 'draft' && t.submitError ? <p className="flex gap-2 rounded-xl bg-rose/10 p-3 text-xs text-rose"><XCircle className="size-4 shrink-0" />{t.submitError}</p> : null}
-              {t.status === 'paused' ? <p className="flex gap-2 rounded-xl bg-amber/10 p-3 text-xs text-amber"><XCircle className="size-4 shrink-0" />Meta paused this format because customers reacted badly. It can not be sent for a few hours, then it works again by itself.</p> : null}
-              {t.status === 'disabled' ? <p className="flex gap-2 rounded-xl bg-rose/10 p-3 text-xs text-rose"><XCircle className="size-4 shrink-0" />Meta turned this format off. Create a new one with different wording.</p> : null}
+              {t.status === 'paused' ? <p className="flex gap-2 rounded-xl bg-amber/10 p-3 text-xs text-amber"><XCircle className="size-4 shrink-0" />Meta paused this template because customers reacted badly. It can not be sent for a few hours, then it works again by itself.</p> : null}
+              {t.status === 'disabled' ? <p className="flex gap-2 rounded-xl bg-rose/10 p-3 text-xs text-rose"><XCircle className="size-4 shrink-0" />Meta turned this template off. Create a new one with different wording.</p> : null}
               {t.status === 'approved' ? <p className={cn('text-xs font-semibold', QUALITY[t.quality])}>Quality: {t.quality === 'unknown' ? 'not rated yet' : t.quality}</p> : null}
               {t.status === 'pending' && t.live ? (
                 <p className="flex gap-2 rounded-xl bg-amber/10 p-3 text-xs text-amber"><Loader2 className="size-4 shrink-0 animate-spin" />Sent to WhatsApp for review. Meta usually answers within minutes, sometimes up to 24 hours. This page updates by itself.</p>
@@ -106,7 +107,7 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
         </div>
       )}
 
-      {editing ? <Builder key={editing.id ?? 'new'} initial={editing} others={rows.filter((r) => r.id !== editing.id)} onClose={() => setEditing(null)} onSaved={(m) => { setEditing(null); void refresh(m); }} /> : null}
+      {editing ? <Builder appUrl={appUrl} key={editing.id ?? 'new'} initial={editing} others={rows.filter((r) => r.id !== editing.id)} onClose={() => setEditing(null)} onSaved={(m) => { setEditing(null); void refresh(m); }} /> : null}
       {toast ? <div role="status" className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-bg shadow-xl md:bottom-8">{toast}</div> : null}
     </div>
   );
@@ -114,7 +115,7 @@ export function TemplatesView({ initial, canEdit }: { initial: TemplateRow[]; ca
 
 const d0src = (i: { assetId?: string | null; headerMedia?: string | null }) => (i.assetId && i.headerMedia === 'image' ? `/api/template-assets/${i.assetId}` : null);
 
-function Builder({ initial, others, onClose, onSaved }: { initial: DraftInput & { id?: string; assetName?: string | null }; others: TemplateRow[]; onClose: () => void; onSaved: (m: string) => void }) {
+function Builder({ initial, others, appUrl, onClose, onSaved }: { appUrl: string; initial: DraftInput & { id?: string; assetName?: string | null }; others: TemplateRow[]; onClose: () => void; onSaved: (m: string) => void }) {
   const [d, setD] = useState<DraftInput & { id?: string }>(initial);
   const [error, setError] = useState('');
   const [pending, start] = useTransition();
@@ -127,6 +128,7 @@ function Builder({ initial, others, onClose, onSaved }: { initial: DraftInput & 
   const lint = useMemo(() => lintTemplate({ name: d.name, category: d.category, headerText: d.headerText, headerMedia: d.headerMedia ?? undefined, hasHeaderFile: !!d.assetId, offer: d.offer ?? null, body: d.body, footer: d.footer, buttons: d.buttons, samples }, others.map((o) => o.name), others.map((o) => o.body)), [d, others, samples]);
   const blocks = lint.issues.filter((i) => i.level === 'block'), warns = lint.issues.filter((i) => i.level === 'warn');
   const addBtn = (type: 'quick_reply' | 'url' | 'phone' | 'copy_code') => set('buttons', [...d.buttons, { type, text: type === 'copy_code' ? 'Copy code' : '', value: '' }]);
+  const addTracked = () => set('buttons', [...d.buttons, { type: 'url', text: 'Open', value: trackedButtonValue(appUrl) }]);
   const upBtn = (i: number, patch: Partial<DraftInput['buttons'][number]>) => set('buttons', d.buttons.map((b, j) => (j === i ? { ...b, ...patch } : b)));
 
   const [err2, setErr2] = useState('');
@@ -213,10 +215,10 @@ function Builder({ initial, others, onClose, onSaved }: { initial: DraftInput & 
               <div key={i} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-card2 p-2 sm:grid-cols-[7rem_1fr_1fr_auto]">
                 <span className="text-xs font-semibold text-muted">{{ quick_reply: 'Quick reply', url: 'Website', phone: 'Call', copy_code: 'Copy code' }[b.type]}</span>
                 <Input aria-label="Button label" placeholder="Label" value={b.text} onChange={(e) => upBtn(i, { text: e.target.value })} className="col-span-2 sm:col-span-1" maxLength={30} />
-                {b.type === 'url' || b.type === 'phone' ? <Input aria-label="Button value" placeholder={b.type === 'url' ? 'https://…/{{1}}' : '+91…'} value={b.value ?? ''} onChange={(e) => upBtn(i, { value: e.target.value })} className="col-span-2 sm:col-span-1" /> : <span className="hidden sm:block" />}
+                {b.type === 'url' && isTrackedButtonValue(b.value, appUrl) ? <span className="col-span-2 flex flex-wrap items-center gap-1.5 text-xs text-muted sm:col-span-1"><MousePointerClick className="size-3.5 text-brand" />Tracked link: each person gets their own, and you see who clicked.{isTemporaryAppUrl(appUrl) ? <b className="text-amber"> This test address is temporary: set a permanent APP_URL before real use.</b> : null}</span> : b.type === 'url' || b.type === 'phone' ? <Input aria-label="Button value" placeholder={b.type === 'url' ? 'https://…/{{1}}' : '+91…'} value={b.value ?? ''} onChange={(e) => upBtn(i, { value: e.target.value })} className="col-span-2 sm:col-span-1" /> : <span className="hidden sm:block" />}
                 <button type="button" aria-label="Remove button" onClick={() => set('buttons', d.buttons.filter((_, j) => j !== i))} className="flex size-11 items-center justify-center rounded-lg hover:bg-ink/5 sm:col-start-4"><X className="size-4" /></button>
               </div>))}</div>
-            <div className="mt-2 flex flex-wrap gap-2">{(['quick_reply', 'url', 'phone', 'copy_code'] as const).map((t) => <Button key={t} type="button" size="sm" variant="outline" onClick={() => addBtn(t)}><Plus className="size-3.5" />{{ quick_reply: 'Quick reply', url: 'Website', phone: 'Call', copy_code: 'Copy code' }[t]}</Button>)}</div>
+            <div className="mt-2 flex flex-wrap gap-2">{(['quick_reply', 'url', 'phone', 'copy_code'] as const).map((t) => <Button key={t} type="button" size="sm" variant="outline" onClick={() => addBtn(t)}><Plus className="size-3.5" />{{ quick_reply: 'Quick reply', url: 'Website', phone: 'Call', copy_code: 'Copy code' }[t]}</Button>)}<Button type="button" size="sm" variant="outline" onClick={addTracked} disabled={d.buttons.some((b) => b.type === 'url' && isTrackedButtonValue(b.value, appUrl))}><MousePointerClick className="size-3.5" />Tracked link</Button></div>
           </fieldset>
         </div>
 
