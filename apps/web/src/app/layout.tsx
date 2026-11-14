@@ -18,7 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jakarta.variable}`}>
       <body className="min-h-dvh antialiased">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        {/* Light unless the visitor switches to dark themselves. The device's own dark setting is deliberately ignored (enableSystem off); the choice is remembered. */}
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="lbc-theme">
           {children}
         </ThemeProvider>
       </body>
