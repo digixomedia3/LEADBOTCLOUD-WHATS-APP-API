@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { campaignRecipients, campaigns, templates } from '@lbc/db';
+import { audienceWhere, campaignRecipients, campaigns, loadGroups, templates } from '@lbc/db';
 import { Forbidden, assertRole, db, requireCtx, type Ctx, audit } from '@/lib/session';
 import { estimateCost, RATE_PAISE_X100 } from '@/lib/cost';
 import { variablesIn } from '@lbc/shared';
@@ -46,13 +46,13 @@ export async function previewAudience(groupIds: string[], category: string): Pro
   return db(ctx, async (tx) => {
     const ids = z.array(z.string().uuid()).parse(groupIds);
     if (!ids.length) return { total: 0, sendable: 0, optedOut: 0, noRecord: 0, cost: estimateCost(0, category) };
+    const groups = await loadGroups(tx, ctx.tenantId, ids);
     const r = await tx.execute(sql`
-      select count(distinct c.id)::int as total,
-             count(distinct c.id) filter (where c.consent_status = 'allowed')::int as sendable,
-             count(distinct c.id) filter (where c.consent_status = 'stopped')::int as opted_out,
-             count(distinct c.id) filter (where c.consent_status = 'unknown')::int as no_record
-      from contacts c join contact_group_members m on m.contact_id = c.id
-      where m.group_id = any(${sql.raw(`ARRAY[${ids.map((i) => `'${i}'`).join(',')}]::uuid[]`)})`);
+      select count(*)::int as total,
+             count(*) filter (where c.consent_status = 'allowed')::int as sendable,
+             count(*) filter (where c.consent_status = 'stopped')::int as opted_out,
+             count(*) filter (where c.consent_status = 'unknown')::int as no_record
+      from contacts c where c.tenant_id = ${ctx.tenantId}::uuid and ${audienceWhere(ctx.tenantId, groups)}`);
     const x = (r as unknown as { total: number; sendable: number; opted_out: number; no_record: number }[])[0]!;
     return { total: x.total, sendable: x.sendable, optedOut: x.opted_out, noRecord: x.no_record, cost: estimateCost(x.sendable, category) };
   });
@@ -163,10 +163,8 @@ export async function sendCampaign(id: string): Promise<Result<{ sent: number; t
     if (!['draft', 'scheduled', 'paused'].includes(c.status)) return fail('This campaign has already been sent.');
     const [t] = c.templateId ? await tx.select().from(templates).where(eq(templates.id, c.templateId)) : [];
     if (!t || t.status !== 'approved') return fail('The message format is no longer approved.');
-    const rows = await tx.execute(sql`
-      select distinct on (c.id) c.id, c.phone_e164, c.name, c.consent_status
-      from contacts c join contact_group_members m on m.contact_id = c.id
-      where m.group_id = any(${sql.raw(`ARRAY[${c.groupIds.map((i) => `'${i}'`).join(',')}]::uuid[]`)}) order by c.id`);
+    const groups = await loadGroups(tx, g.ctx.tenantId, c.groupIds);
+    const rows = await tx.execute(sql`select c.id, c.phone_e164, c.name, c.consent_status from contacts c where c.tenant_id = ${g.ctx.tenantId}::uuid and ${audienceWhere(g.ctx.tenantId, groups)} order by c.id`);
     const all = rows as unknown as { id: string; phone_e164: string; name: string | null; consent_status: string }[];
     const sendable = all.filter((r) => r.consent_status === 'allowed');
     const skipped = all.filter((r) => r.consent_status !== 'allowed');

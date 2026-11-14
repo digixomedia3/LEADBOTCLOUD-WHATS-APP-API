@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import type { Db } from '@lbc/db';
+import { audienceWhere, loadGroups, type Db } from '@lbc/db';
 import { estimateCost } from '@lbc/shared';
 
 type Row = Record<string, unknown>;
@@ -48,13 +48,12 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     const offerEnds = claimed.offer_expires_at ? new Date(String(claimed.offer_expires_at)).getTime() : null;
     if (offer?.hasExpiration && (!offerEnds || offerEnds <= Date.now() + 60_000)) return fail(offerEnds ? 'offer_ended' : 'offer_time_missing');
 
-    const groupIds = claimed.group_ids as string[];
-    // Drizzle expands a JS array into separate parameters; a Postgres array must be passed as one literal (UUIDs only, validated).
-    const groupLit = '{' + groupIds.filter((g) => /^[0-9a-f-]{36}$/i.test(g)).join(',') + '}';
+    const groupLit = '{' + (claimed.group_ids as string[]).filter((g) => /^[0-9a-f-]{36}$/i.test(g)).join(',') + '}';
+    const groups = await loadGroups(tx, tenantId, claimed.group_ids as string[]);
+    // Fixed groups and saved segments are read together; a segment is re-read now, at launch, so it is never stale.
     const all = rows(await tx.execute(sql`
-      select distinct on (c.id) c.id, c.phone_e164, c.name, c.consent_status, c.reachability, c.freq_cap_hold_until
-      from contacts c join contact_group_members m on m.contact_id = c.id and m.tenant_id = ${tenantId}
-      where c.tenant_id = ${tenantId} and m.group_id = any(${groupLit}::uuid[]) order by c.id`));
+      select c.id, c.phone_e164, c.name, c.consent_status, c.reachability, c.freq_cap_hold_until
+      from contacts c where c.tenant_id = ${tenantId}::uuid and ${audienceWhere(tenantId, groups)} order by c.id`));
 
     const category = String(t.category);
     const reasonFor = (c: Row): string | null => {

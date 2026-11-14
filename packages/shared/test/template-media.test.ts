@@ -90,3 +90,25 @@ describe('opt-out advice for offers', () => {
   it('an offer is never told to add a footer, because it cannot have one', () => { expect(warn(true)).not.toMatch(/such as/i); expect(warn(true)).toMatch(/cannot have a footer/i); });
   it('a normal promotion still gets the footer suggestion', () => { expect(warn(false)).toMatch(/footer/i); });
 });
+
+import { describeRule, parseSegmentFilter, segmentFilter } from '../src';
+describe('segment rule shapes', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  it('accepts every documented rule and refuses nonsense', () => {
+    for (const r of [{ type: 'tag', op: 'has', value: 'vip' }, { type: 'lead_status', op: 'is', values: ['won'] }, { type: 'lead_source', op: 'is_not', sourceId: id }, { type: 'last_inbound', op: 'never' }, { type: 'last_inbound', op: 'within', days: 7 }, { type: 'added', op: 'before', days: 90 }, { type: 'campaign', op: 'not_read', campaignId: id }])
+      expect(segmentFilter.safeParse({ match: 'all', rules: [r] }).success, JSON.stringify(r)).toBe(true);
+    for (const r of [{ type: 'tag', op: 'has', value: '' }, { type: 'tag', op: 'like', value: 'x' }, { type: 'last_inbound', op: 'within' }, { type: 'added', op: 'within', days: 0 }, { type: 'added', op: 'within', days: 99999 }, { type: 'campaign', op: 'read', campaignId: 'not-a-uuid' }, { type: 'lead_status', op: 'is', values: [] }, { type: 'lead_status', op: 'is', values: ['vip'] }, { type: 'sql', op: 'x' }])
+      expect(segmentFilter.safeParse({ match: 'all', rules: [r] }).success, JSON.stringify(r)).toBe(false);
+  });
+  it('needs at least one rule and at most fifteen', () => {
+    expect(segmentFilter.safeParse({ match: 'all', rules: [] }).success).toBe(false);
+    expect(segmentFilter.safeParse({ match: 'any', rules: Array.from({ length: 16 }, () => ({ type: 'tag', op: 'has', value: 'a' })) }).success).toBe(false);
+    expect(segmentFilter.safeParse({ match: 'any', rules: Array.from({ length: 15 }, () => ({ type: 'tag', op: 'has', value: 'a' })) }).success).toBe(true);
+  });
+  it('a stored filter that cannot be read comes back as null, not as an empty rule list', () => { for (const bad of [null, undefined, 5, {}, { match: 'all' }, { match: 'all', rules: [{ type: 'x' }] }]) expect(parseSegmentFilter(bad)).toBeNull(); });
+  it('describes rules in plain words', () => {
+    expect(describeRule({ type: 'campaign', op: 'not_read', campaignId: id }, { campaigns: { [id]: 'November offer' } })).toBe('got “November offer” but did not read it');
+    expect(describeRule({ type: 'last_inbound', op: 'never' })).toBe('has never messaged you');
+    expect(describeRule({ type: 'tag', op: 'not_has', value: 'vip' })).toBe('does not have the tag “vip”');
+  });
+});

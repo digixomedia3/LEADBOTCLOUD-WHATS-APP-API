@@ -12,3 +12,4 @@ export * from './billing';
 export * from './leads';
 export * from './template-library';
 export * from './template-media';
+export * from './segments';

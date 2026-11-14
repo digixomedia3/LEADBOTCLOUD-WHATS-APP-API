@@ -184,11 +184,11 @@ function Wizard({ live, templates, groups, onClose, onDone }: { live: boolean; t
             <fieldset><legend className="mb-2 text-sm font-semibold">Send to these groups</legend>
               <div className="grid gap-2 sm:grid-cols-2">{groups.map((g) => (
                 <label key={g.id} className={cn('flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-xl border px-4', gids.includes(g.id) ? 'border-brand bg-brand/10' : 'border-line')}>
-                  <span className="flex items-center gap-3"><input type="checkbox" className="size-5 accent-[var(--brand)]" checked={gids.includes(g.id)} onChange={() => setGids(gids.includes(g.id) ? gids.filter((x) => x !== g.id) : [...gids, g.id])} /><span className="font-medium">{g.name}</span></span><span className="text-xs text-muted tabular">{g.count}</span>
+                  <span className="flex items-center gap-3"><input type="checkbox" className="size-5 accent-[var(--brand)]" checked={gids.includes(g.id)} onChange={() => setGids(gids.includes(g.id) ? gids.filter((x) => x !== g.id) : [...gids, g.id])} /><span className="font-medium">{g.name}{g.kind === 'smart' ? <span className="ml-2 rounded-full bg-indigo/10 px-1.5 text-[10px] font-bold uppercase text-indigo">Auto</span> : null}</span></span><span className="text-xs text-muted tabular">{g.count}</span>
                 </label>))}</div></fieldset>)}
           {aud ? (
             <div className="rounded-2xl border border-line p-4 text-sm">
-              <p className="flex items-center gap-2 font-bold"><CheckCircle2 className="size-4 text-brand" />{aud.sendable.toLocaleString('en-IN')} people will receive this</p>
+              <p className="flex items-center gap-2 font-bold"><CheckCircle2 className="size-4 text-brand" />{aud.sendable.toLocaleString("en-IN")} {aud.sendable === 1 ? "person" : "people"} will receive this</p>
               {aud.optedOut + aud.noRecord > 0 ? <p className="mt-2 flex gap-2 text-amber"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{aud.optedOut} opted out and {aud.noRecord} with no permission record will be skipped automatically.</p> : null}
             </div>) : null}
           <div className="flex gap-2"><Button variant="outline" onClick={() => setStep(1)}>Back</Button><Button className="flex-1" disabled={!aud || aud.sendable === 0} onClick={() => setStep(3)}>Next: schedule</Button></div>

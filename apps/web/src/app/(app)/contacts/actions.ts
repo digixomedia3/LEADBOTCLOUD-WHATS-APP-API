@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { CONSENT_SOURCES, normalizePhone, planLimits } from '@lbc/shared';
-import { contactConsentEvents, contactGroupMembers, contactGroups, contacts } from '@lbc/db';
+import { audienceWhere, contactConsentEvents, contactGroupMembers, contactGroups, contacts, loadGroups } from '@lbc/db';
 import { Forbidden, assertRole, db, requireCtx, type Ctx, audit } from '@/lib/session';
 import { toCsv, type ParsedRow } from '@/lib/contacts/import';
 
@@ -22,6 +22,18 @@ async function guard(min: 'agent' | 'admin' = 'admin'): Promise<{ ctx: Ctx } | {
 
 const consentSource = z.enum(CONSENT_SOURCES);
 
+/**
+ * "Is this contact in group X": a fixed group looks at its members, a saved segment re-reads its rules now.
+ * `contactId` is the SQL for the contact's id column. A group id that is not this workspace's matches nobody.
+ */
+async function groupCondition(tx: { execute: (q: SQL) => Promise<unknown> }, tenantId: string, groupId: string, contactId: SQL): Promise<SQL> {
+  if (!/^[0-9a-f-]{36}$/i.test(groupId)) return sql`false`;
+  const groups = await loadGroups(tx, tenantId, [groupId]);
+  if (!groups.length) return sql`false`;
+  if (groups[0]!.kind === 'smart') return sql`${contactId} in (select c.id from contacts c where c.tenant_id = ${tenantId}::uuid and ${audienceWhere(tenantId, groups)})`;
+  return sql`exists (select 1 from contact_group_members m where m.contact_id = ${contactId} and m.group_id = ${groupId}::uuid)`;
+}
+
 /* ---------------------------------------------------------------- list */
 export interface ListQuery { q?: string; consent?: 'all' | 'allowed' | 'stopped' | 'unknown'; group?: string; tag?: string; page?: number; pageSize?: number }
 export interface ContactRow { id: string; name: string | null; phone: string; email: string | null; tags: string[]; consentStatus: string; consentSource: string | null; createdAt: string; groups: string[] }
@@ -38,7 +50,7 @@ export async function listContacts(query: ListQuery) {
     }
     if (query.consent && query.consent !== 'all') where.push(eq(contacts.consentStatus, query.consent));
     if (query.tag) where.push(sql`${query.tag} = any(${contacts.tags})`);
-    if (query.group) where.push(sql`exists (select 1 from contact_group_members m where m.contact_id = ${contacts.id} and m.group_id = ${query.group})`);
+    if (query.group) where.push(sql`${await groupCondition(tx, ctx.tenantId, query.group, sql`${contacts.id}`)}`);
     const w = where.length ? and(...where) : undefined;
 
     const [{ total } = { total: 0 }] = await tx.select({ total: count() }).from(contacts).where(w);
@@ -188,8 +200,15 @@ export interface GroupRow { id: string; name: string; kind: string; count: numbe
 export async function listGroups(): Promise<GroupRow[]> {
   const ctx = await requireCtx();
   return db(ctx, async (tx) => {
-    const rows = await tx.execute(sql`select g.id, g.name, g.kind, (select count(*) from contact_group_members m where m.group_id = g.id)::int as count from contact_groups g order by g.name`);
-    return rows as unknown as GroupRow[];
+    const rows = (await tx.execute(sql`select g.id, g.name, g.kind, g.filter, (select count(*) from contact_group_members m where m.group_id = g.id)::int as count from contact_groups g order by g.name`)) as unknown as (GroupRow & { filter: unknown })[];
+    // A saved segment has no member rows; its size is whoever matches the rules right now.
+    for (const r of rows) {
+      if (r.kind === 'smart') {
+        const [c] = (await tx.execute(sql`select count(*)::int n from contacts c where c.tenant_id = ${ctx.tenantId}::uuid and ${audienceWhere(ctx.tenantId, [{ id: r.id, kind: 'smart', filter: r.filter }])}`)) as unknown as { n: number }[];
+        r.count = c!.n;
+      }
+    }
+    return rows.map(({ id, name, kind, count }) => ({ id, name, kind, count }));
   });
 }
 
@@ -246,12 +265,15 @@ export async function bulkAction(ids: string[], action: BulkAction): Promise<Res
   return db(g.ctx, async (tx) => {
     let affected = 0;
     if (action.type === 'addToGroup') {
-      const [grp] = await tx.select({ id: contactGroups.id }).from(contactGroups).where(eq(contactGroups.id, action.groupId));
+      const [grp] = await tx.select({ id: contactGroups.id, kind: contactGroups.kind }).from(contactGroups).where(eq(contactGroups.id, action.groupId));
       if (!grp) return fail('That group was not found.');
+      if (grp.kind === 'smart') return fail('This is a saved segment. Its people come from its rules, so you cannot add people by hand.');
       const mine = await tx.select({ id: contacts.id }).from(contacts).where(inArray(contacts.id, p.data));
       const ins = await tx.insert(contactGroupMembers).values(mine.map((m) => ({ tenantId: g.ctx.tenantId, groupId: grp.id, contactId: m.id }))).onConflictDoNothing().returning({ c: contactGroupMembers.contactId });
       affected = ins.length;
     } else if (action.type === 'removeFromGroup') {
+      const [kg] = await tx.select({ kind: contactGroups.kind }).from(contactGroups).where(eq(contactGroups.id, action.groupId));
+      if (kg?.kind === 'smart') return fail('This is a saved segment. Change its rules instead.');
       const del = await tx.delete(contactGroupMembers).where(and(eq(contactGroupMembers.groupId, action.groupId), inArray(contactGroupMembers.contactId, p.data))).returning({ c: contactGroupMembers.contactId });
       affected = del.length;
     } else if (action.type === 'addTag' || action.type === 'removeTag') {
@@ -298,7 +320,7 @@ export async function exportContacts(opts: { ids?: string[]; group?: string }): 
   return db(g.ctx, async (tx) => {
     const conds: SQL[] = [];
     if (opts.ids?.length) conds.push(inArray(contacts.id, opts.ids.slice(0, 20000)));
-    if (opts.group) conds.push(sql`exists (select 1 from contact_group_members m where m.contact_id = ${contacts.id} and m.group_id = ${opts.group})`);
+    if (opts.group) conds.push(sql`${await groupCondition(tx, g.ctx.tenantId, opts.group, sql`${contacts.id}`)}`);
     const rows = await tx.select().from(contacts).where(conds.length ? and(...conds) : undefined).orderBy(desc(contacts.createdAt)).limit(50000);
     await audit(tx, 'contacts.exported', 'contact', undefined, { count: rows.length });
     const csv = toCsv([['Name', 'Phone', 'Email', 'Tags', 'Permission', 'Source', 'Added'], ...rows.map((r) => [r.name, r.phoneE164, r.email, r.tags.join('; '), r.consentStatus === 'allowed' ? 'Opted in' : r.consentStatus === 'stopped' ? 'Opted out' : 'Not recorded', r.consentSource, r.createdAt.toISOString().slice(0, 10)])]);

@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, Download, FolderPlus, Loader2, Pencil, Plus, Search, Tag, Trash2, Upload, UserPlus, Users, X } from 'lucide-react';
+import { ChevronDown, Download, Filter, FolderPlus, Loader2, Pencil, Plus, Search, Tag, Trash2, Upload, UserPlus, Users, X } from 'lucide-react';
 import { formatPhone } from '@lbc/shared';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input } from '@/components/ui/form';
+import { SegmentEditor } from '@/components/contacts/segment-editor';
 import { Modal } from '@/components/ui/modal';
 import { AddContactDialog } from '@/components/contacts/add-contact-dialog';
 import { ImportWizard } from '@/components/contacts/import-wizard';
@@ -34,6 +35,8 @@ export function ContactsView({ initial, summary, groups: initialGroups, canManag
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [groupsOpen, setGroupsOpen] = useState(false);
+  const [segOpen, setSegOpen] = useState(false);
+  const [segEdit, setSegEdit] = useState<string | null>(null);
   const [bulkMenu, setBulkMenu] = useState(false);
   const [tagPrompt, setTagPrompt] = useState<null | 'addTag' | 'removeTag'>(null);
   const [pending, start] = useTransition();
@@ -109,9 +112,10 @@ export function ContactsView({ initial, summary, groups: initialGroups, canManag
           <ul className="flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
             <li><button onClick={() => setGroup('')} className={cn('flex min-h-11 w-full shrink-0 items-center justify-between gap-3 rounded-xl px-3 text-sm font-medium', !group ? 'bg-brand/10 text-brand' : 'hover:bg-ink/5')}><span className="flex items-center gap-2"><Users className="size-4" />Everyone</span><span className="tabular text-xs text-muted">{sum.total}</span></button></li>
             {groups.map((g) => (
-              <li key={g.id}><button onClick={() => setGroup(g.id)} className={cn('flex min-h-11 w-full shrink-0 items-center justify-between gap-3 rounded-xl px-3 text-sm font-medium', group === g.id ? 'bg-brand/10 text-brand' : 'hover:bg-ink/5')}><span className="truncate">{g.name}</span><span className="tabular text-xs text-muted">{g.count}</span></button></li>
+              <li key={g.id}><button onClick={() => setGroup(g.id)} className={cn('flex min-h-11 w-full shrink-0 items-center justify-between gap-3 rounded-xl px-3 text-sm font-medium', group === g.id ? 'bg-brand/10 text-brand' : 'hover:bg-ink/5')}><span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{g.name}</span>{g.kind === 'smart' ? <span className="shrink-0 rounded-full bg-indigo/10 px-1.5 text-[10px] font-bold uppercase text-indigo">Auto</span> : null}</span><span className="tabular text-xs text-muted">{g.count}</span></button></li>
             ))}
             {canManage ? <li><button onClick={() => setGroupsOpen(true)} className="flex min-h-11 w-full shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-brand hover:bg-brand/10"><FolderPlus className="size-4" />New group</button></li> : null}
+            {canManage ? <li><button onClick={() => { setSegEdit(null); setSegOpen(true); }} className="flex min-h-11 w-full shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-brand hover:bg-brand/10"><Filter className="size-4" />New segment</button></li> : null}
           </ul>
           {sum.tags.length ? (
             <div className="mt-3 border-t border-line pt-3"><p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted">Tags</p>
@@ -197,7 +201,8 @@ export function ContactsView({ initial, summary, groups: initialGroups, canManag
 
       <AddContactDialog open={addOpen} onClose={() => setAddOpen(false)} groups={groups} onDone={(m) => { void refreshAll(m); }} />
       <ImportWizard open={importOpen} onClose={() => setImportOpen(false)} groups={groups} onDone={(m) => { void refreshAll(m); }} />
-      <GroupsManager open={groupsOpen} onClose={() => setGroupsOpen(false)} groups={groups} onChanged={(m) => { void refreshAll(m); }} />
+      <GroupsManager open={groupsOpen} onClose={() => setGroupsOpen(false)} groups={groups} onChanged={(m) => { void refreshAll(m); }} onEditSegment={(id) => { setGroupsOpen(false); setSegEdit(id); setSegOpen(true); }} />
+      <SegmentEditor open={segOpen} editId={segEdit} onClose={() => setSegOpen(false)} onSaved={(m) => { void refreshAll(m); }} />
       <TagPrompt kind={tagPrompt} onClose={() => setTagPrompt(null)} onSubmit={(t) => run({ type: tagPrompt!, tag: t }, tagPrompt === 'addTag' ? 'Tag added' : 'Tag removed')} />
       {toast ? <div role="status" className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-bg shadow-xl md:bottom-8">{toast}</div> : null}
     </div>
@@ -216,7 +221,7 @@ function TagPrompt({ kind, onClose, onSubmit }: { kind: null | 'addTag' | 'remov
   );
 }
 
-function GroupsManager({ open, onClose, groups, onChanged }: { open: boolean; onClose: () => void; groups: GroupRow[]; onChanged: (m: string) => void }) {
+function GroupsManager({ open, onClose, groups, onChanged, onEditSegment }: { open: boolean; onClose: () => void; groups: GroupRow[]; onChanged: (m: string) => void; onEditSegment: (id: string) => void }) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
@@ -241,8 +246,8 @@ function GroupsManager({ open, onClose, groups, onChanged }: { open: boolean; on
                 </form>
               ) : (
                 <>
-                  <span className="min-w-0 flex-1 px-2"><span className="block truncate font-semibold">{g.name}</span><span className="text-xs text-muted">{g.count} contacts</span></span>
-                  <Button variant="ghost" size="icon" aria-label={`Rename ${g.name}`} onClick={() => { setEditing(g.id); setEdit(g.name); }}><Pencil className="size-4" /></Button>
+                  <span className="min-w-0 flex-1 px-2"><span className="block truncate font-semibold">{g.name}{g.kind === 'smart' ? <span className="ml-2 rounded-full bg-indigo/10 px-1.5 text-[10px] font-bold uppercase text-indigo">Auto</span> : null}</span><span className="text-xs text-muted">{g.count} contacts{g.kind === 'smart' ? ' right now' : ''}</span></span>
+                  <Button variant="ghost" size="icon" aria-label={g.kind === 'smart' ? `Edit rules of ${g.name}` : `Rename ${g.name}`} onClick={() => { if (g.kind === 'smart') onEditSegment(g.id); else { setEditing(g.id); setEdit(g.name); } }}><Pencil className="size-4" /></Button>
                   <Button variant="ghost" size="icon" aria-label={`Delete ${g.name}`} onClick={() => { if (confirm(`Delete the group “${g.name}”? The contacts stay in your list.`)) act(() => deleteGroup(g.id), 'Group deleted.'); }}><Trash2 className="size-4 text-rose" /></Button>
                 </>
               )}

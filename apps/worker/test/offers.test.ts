@@ -92,3 +92,46 @@ describe('sending an offer', () => {
     expect(() => templateComponents({ params: ['A'], code: 'X' }, { header_type: 'none', buttons: BUTTONS, offer: { hasExpiration: true } }, null)).toThrow(/end time/);
   });
 });
+
+describe('launching to a saved segment', () => {
+  const addSeg = async (s: Awaited<ReturnType<typeof setup>>, filter: object | string, extraStatic = false) => {
+    const seg = (await q(`insert into contact_groups (tenant_id, name, kind, filter) values ('${s.t}', 'seg', 'smart', '${typeof filter === 'string' ? filter : JSON.stringify(filter)}'::jsonb) returning id`))[0]!.id as string;
+    const old = (await q(`select group_ids from campaigns where id = '${s.camp}'`))[0]!.group_ids as string[];
+    await A(`update campaigns set group_ids = ARRAY['${seg}'${extraStatic ? `,'${old[0]}'` : ''}]::uuid[] where id = '${s.camp}'`);
+    return seg;
+  };
+  const names = async (camp: string) => (await q(`select name, state from campaign_recipients where campaign_id = '${camp}' order by name`)).map((r) => `${r.name}:${r.state}`);
+  const plain = { offer: null, buttons: [], code: null, endsInMs: null };
+  it('sends to exactly the people the rules pick', async () => {
+    const s = await setup(plain); await q(`update contacts set tags = ARRAY['vip']::text[] where tenant_id = '${s.t}' and name = 'Asha'`);
+    await addSeg(s, { match: 'all', rules: [{ type: 'tag', op: 'has', value: 'vip' }] });
+    expect((await launchCampaign(db, s.t, s.camp)).queued).toBe(1); expect(await names(s.camp)).toEqual(['Asha:queued']);
+  });
+  it('a segment never overrides consent: a person who opted out is skipped even though the rules match them', async () => {
+    const s = await setup(plain); await q(`update contacts set tags = ARRAY['vip']::text[], consent_status = 'stopped' where tenant_id = '${s.t}' and name = 'Ravi'`);
+    await q(`update contacts set tags = ARRAY['vip']::text[] where tenant_id = '${s.t}' and name = 'Asha'`);
+    await addSeg(s, { match: 'all', rules: [{ type: 'tag', op: 'has', value: 'vip' }] });
+    const r = await launchCampaign(db, s.t, s.camp); expect(r.queued).toBe(1); expect(await names(s.camp)).toEqual(['Asha:queued', 'Ravi:skipped']);
+  });
+  it('a person with no permission record is skipped for a promotion even if the rules match', async () => {
+    const s = await setup(plain); await q(`update contacts set consent_status = 'unknown' where tenant_id = '${s.t}' and name = 'Ravi'`);
+    await addSeg(s, { match: 'any', rules: [{ type: 'added', op: 'within', days: 30 }] });
+    expect(await names(s.camp)).toEqual([]); await launchCampaign(db, s.t, s.camp); expect(await names(s.camp)).toEqual(['Asha:queued', 'Ravi:skipped']);
+  });
+  it('a segment whose rules are unreadable sends to nobody', async () => {
+    const s = await setup(plain); await addSeg(s, { match: 'all', rules: [{ type: 'drop_table' }] });
+    expect((await launchCampaign(db, s.t, s.camp)).queued).toBe(0); expect(await names(s.camp)).toEqual([]);
+  });
+  it('a fixed group and a segment together reach each person once', async () => {
+    const s = await setup(plain); await addSeg(s, { match: 'any', rules: [{ type: 'added', op: 'within', days: 30 }] }, true);
+    expect((await launchCampaign(db, s.t, s.camp)).queued).toBe(2); expect(await names(s.camp)).toEqual(['Asha:queued', 'Ravi:queued']);
+  });
+  it('the retarget case: "got the last bulk send but did not read it"', async () => {
+    const s = await setup(plain); await launchCampaign(db, s.t, s.camp);
+    await A(`update campaign_recipients set state = 'read' where campaign_id = '${s.camp}' and name = 'Asha'`); await A(`update campaign_recipients set state = 'delivered' where campaign_id = '${s.camp}' and name = 'Ravi'`);
+    const camp2 = (await q(`insert into campaigns (tenant_id, name, template_id, group_ids, status, scheduled_at, var_map) values ('${s.t}', 'Retarget', '${s.tpl}', '{}', 'scheduled', now(), '["@name"]'::jsonb) returning id`))[0]!.id as string;
+    const seg = (await q(`insert into contact_groups (tenant_id, name, kind, filter) values ('${s.t}', 'unread', 'smart', '${JSON.stringify({ match: 'all', rules: [{ type: 'campaign', op: 'not_read', campaignId: s.camp }] })}'::jsonb) returning id`))[0]!.id;
+    await A(`update campaigns set group_ids = ARRAY['${seg}']::uuid[] where id = '${camp2}'`);
+    await launchCampaign(db, s.t, camp2); expect(await names(camp2)).toEqual(['Ravi:queued']);
+  });
+});
