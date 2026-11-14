@@ -6,19 +6,20 @@ import { Button } from '@/components/ui/button';
 import { Field, FormError, Input, Select } from '@/components/ui/form';
 import { WhatsAppConnect } from './whatsapp-connect';
 import { BillingPanel } from './billing-panel';
+import { ApiKeysPanel } from './api-keys-panel';
 import { Modal } from '@/components/ui/modal';
 import { changeRole, inviteMember, loadTeam, removeMember, revokeInvite, saveProfile } from '@/app/(app)/settings/actions';
 import { cn } from '@/lib/utils';
 
 type Team = Awaited<ReturnType<typeof loadTeam>>;
 interface Profile { name: string; legalName: string; gstin: string; vertical: string | null; review: string; plan: string; status: string }
-type Tab = 'workspace' | 'team' | 'whatsapp' | 'plan';
+type Tab = 'workspace' | 'team' | 'whatsapp' | 'plan' | 'ai';
 
 export function SettingsView({ team: t0, profile: p0, role, me }: { team: Team; profile: Profile; role: string; me: string }) {
   const [tab, setTab] = useState<Tab>('workspace');
   const [team, setTeam] = useState(t0);
   const isOwner = role === 'owner', isAdmin = isOwner || role === 'admin';
-  const tabs: [Tab, string][] = [['workspace', 'Business'], ['team', 'Team'], ['whatsapp', 'WhatsApp'], ['plan', 'Plan and billing']];
+  const tabs: [Tab, string][] = [['workspace', 'Business'], ['team', 'Team'], ['whatsapp', 'WhatsApp'], ['plan', 'Plan and billing'], ['ai', 'AI assistants']];
   return (
     <div className="flex flex-col gap-5">
       <div><h2 className="font-display text-2xl font-extrabold">Settings</h2><p className="text-sm text-muted">Your business, team, WhatsApp number and plan.</p></div>
@@ -27,6 +28,7 @@ export function SettingsView({ team: t0, profile: p0, role, me }: { team: Team; 
       {tab === 'team' ? <TeamTab team={team} reload={async () => setTeam(await loadTeam())} isOwner={isOwner} isAdmin={isAdmin} me={me} /> : null}
       {tab === 'whatsapp' ? <WhatsAppConnect /> : null}
       {tab === 'plan' ? <BillingPanel /> : null}
+      {tab === 'ai' ? <ApiKeysPanel canManage={isAdmin} /> : null}
     </div>
   );
 }

@@ -3,16 +3,11 @@ import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { eq, sql } from 'drizzle-orm';
-import { createDb, withTenant, withUser, tenants, tenantMembers, type Role, type Tx } from '@lbc/db';
+import { withUser, tenants, tenantMembers, type Role } from '@lbc/db';
 import { auth } from '@/lib/auth';
 
-declare global {
-  var __lbcAppDb: ReturnType<typeof createDb> | undefined;
-}
-const url = process.env.DATABASE_URL;
-if (!url) throw new Error('DATABASE_URL is required');
-/** The only database handle used by tenant code: the `app` role, RLS enforced. */
-export const appDb = (globalThis.__lbcAppDb ??= createDb(url, { max: 10 })).db;
+export { appDb, assertRole, audit, db, Forbidden } from './tenant-db';
+import { appDb } from './tenant-db';
 
 export const WORKSPACE_COOKIE = 'lbc_ws';
 
@@ -54,28 +49,10 @@ export const requireCtx = cache(async (): Promise<Ctx> => {
   return { user: { id: s.user.id, name: s.user.name, email: s.user.email }, tenantId: workspace.tenantId, workspace, workspaces, role: workspace.role };
 });
 
-const RANK: Record<Role, number> = { viewer: 0, agent: 1, admin: 2, owner: 3 };
-export class Forbidden extends Error {
-  constructor(public readonly need: Role) { super(`Requires ${need}`); }
-}
-export function assertRole(ctx: Ctx, min: Role) {
-  if (RANK[ctx.role] < RANK[min]) throw new Forbidden(min);
-}
-
-/** Runs a tenant query inside a transaction with the tenant + user context set (RLS layer 2). */
-export function db<T>(ctx: Ctx, fn: (tx: Tx) => Promise<T>): Promise<T> {
-  return withTenant(appDb, { tenantId: ctx.tenantId, userId: ctx.user.id }, fn);
-}
-
 export async function createWorkspaceFor(userId: string, name: string, vertical: string, review: 'none' | 'flagged', terms: string): Promise<string> {
   return appDb.transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.user_id', ${userId}, true)`);
     const r = await tx.execute(sql`select public.create_workspace(${userId}, ${name}, ${vertical}, ${review}, ${terms}) as id`);
     return (r as unknown as { id: string }[])[0]!.id;
   });
-}
-
-/** Append-only audit trail. Goes through the write_audit() database function, because the app role cannot INSERT into audit_log. */
-export async function audit(tx: Tx, action: string, entity: string, entityId?: string, after?: unknown) {
-  await tx.execute(sql`select public.write_audit(${action}, ${entity}, ${entityId ?? ''}, ${after === undefined ? null : JSON.stringify(after)}::jsonb)`);
 }

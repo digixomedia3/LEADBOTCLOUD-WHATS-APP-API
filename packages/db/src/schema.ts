@@ -314,6 +314,8 @@ export const campaigns = pgTable(
     createdBy: text('created_by'),
     pauseReason: text('pause_reason'),
     sendPolicy: text('send_policy').notNull().default('mm_fallback'),
+    apiKeyId: uuid('api_key_id'),
+    apiSentAt: timestamp('api_sent_at', { withTimezone: true }),
     offerCode: text('offer_code'),
     offerExpiresAt: timestamp('offer_expires_at', { withTimezone: true }),
     varMap: jsonb('var_map').notNull().default(sql`'[]'::jsonb`),
@@ -574,3 +576,19 @@ export const messageStatusEvents = pgTable(
 );
 
 export type Role = 'owner' | 'admin' | 'agent' | 'viewer';
+
+/** API keys for agents and integrations. Only a hash of the key is stored. See migration 0026. */
+export const apiKeys = pgTable('api_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  name: text('name').notNull(),
+  prefix: text('prefix').notNull(),
+  keyHash: text('key_hash').notNull(),
+  scopes: text('scopes').array().notNull(),
+  sendCapPaise: integer('send_cap_paise').notNull().default(50000),
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+});

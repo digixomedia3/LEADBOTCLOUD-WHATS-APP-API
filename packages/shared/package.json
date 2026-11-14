@@ -9,7 +9,9 @@
     ".": "./src/index.ts",
     "./env": "./src/env.ts",
     "./i18n/en.json": "./src/i18n/en.json",
-    "./internal-sign": "./src/internal-sign.ts"
+    "./internal-sign": "./src/internal-sign.ts",
+    "./api-keys": "./src/api-keys.ts",
+    "./api-scopes": "./src/api-scopes.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

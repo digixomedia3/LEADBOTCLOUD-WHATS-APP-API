@@ -16,6 +16,7 @@
     "@lbc/meta": "workspace:*",
     "@lbc/razorpay": "workspace:*",
     "@lbc/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@radix-ui/react-slot": "^1.1.0",
     "better-auth": "^1.7.20",
     "class-variance-authority": "^0.7.0",
