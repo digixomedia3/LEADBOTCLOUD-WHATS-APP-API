@@ -1,7 +1,8 @@
 # __HOST__ is replaced at install time (a real domain gets a real certificate; an IP-only host gets a self-managed one).
 {
-	email {$ACME_EMAIL}
-	servers { trusted_proxies static private_ranges }
+	servers {
+		trusted_proxies static private_ranges
+	}
 }
 __SITE__ {
 	encode zstd gzip
