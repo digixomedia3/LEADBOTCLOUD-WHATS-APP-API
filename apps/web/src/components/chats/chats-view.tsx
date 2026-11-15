@@ -17,7 +17,7 @@ const ago = (iso: string) => {
 };
 const initials = (n: string | null, p: string) => (n ? n.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() : p.slice(-2));
 
-export function ChatsView({ initial, team, quick, me, canReply }: { initial: ConvRow[]; team: TeamMember[]; quick: QR[]; me: string; canReply: boolean }) {
+export function ChatsView({ initial, team, quick, me, canReply, live }: { initial: ConvRow[]; team: TeamMember[]; quick: QR[]; me: string; canReply: boolean; live: boolean }) {
   const [list, setList] = useState(initial);
   const [filter, setFilter] = useState<Filter>('open');
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -113,7 +113,7 @@ export function ChatsView({ initial, team, quick, me, canReply }: { initial: Con
                 <span className={cn('mt-2 inline-block rounded-full px-2.5 py-1 text-xs font-bold', c.consent === 'allowed' ? 'bg-brand/15 text-brand' : c.consent === 'stopped' ? 'bg-rose/15 text-rose' : 'bg-amber/15 text-amber')}>{c.consent === 'allowed' ? 'Opted in' : c.consent === 'stopped' ? 'Opted out' : 'No record'}</span></div>
               {canReply ? <label className="flex flex-col gap-1.5 text-sm font-semibold"><span className="flex items-center gap-1.5"><UserCheck className="size-4" />Assigned to</span>
                 <Select value={c.assignedTo ?? ''} onChange={(e) => start(async () => { const r = await assign(c.id, e.target.value || null); if (!r.ok) flash(r.error); setThread(await openConversation(c.id)); void refreshList(); })}><option value="">Unassigned</option>{team.map((t) => <option key={t.userId} value={t.userId}>{t.name}{t.userId === me ? ' (you)' : ''}</option>)}</Select></label> : null}
-              {canReply ? <div className="rounded-xl border border-dashed border-amber/50 p-3"><p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-amber"><FlaskConical className="size-3.5" />Test mode</p>
+              {canReply && !live ? <div className="rounded-xl border border-dashed border-amber/50 p-3"><p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-amber"><FlaskConical className="size-3.5" />Test mode</p>
                 <div className="flex flex-col gap-1.5">{['Hi, what are your plans?', 'What is the price?', 'STOP'].map((t) => <Button key={t} size="sm" variant="outline" disabled={pending} onClick={() => start(async () => { const r = await simulateInbound(c.id, t); if (!r.ok) flash(r.error); else { flash(r.data.optedOut ? 'Customer opted out.' : r.data.autoReplied ? 'Auto-reply sent.' : 'Customer replied.'); setThread(await openConversation(c.id)); void refreshList(); } })}>Customer: “{t}”</Button>)}</div></div> : null}
             </>) : <p className="text-center text-sm text-muted">Select a conversation.</p>}
         </aside>

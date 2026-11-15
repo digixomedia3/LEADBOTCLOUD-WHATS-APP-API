@@ -361,3 +361,89 @@ describe('template + account events (spec 5.5)', () => {
     expect((await db.execute(sql`select status from tenants where id = ${fx.tenant}`) as unknown as any[])[0].status).toBe('offboarded');
   });
 });
+
+describe('replies from customers: campaign attribution and the STOP confirmation', () => {
+  const inb = (fx: Fx, phone: string, text: string) => handleInbound(db, fx.tenant, fx.pn, { id: `wamid.in.${randomUUID()}`, from: phone.replace('+', ''), type: 'text', text: { body: text }, timestamp: String(Math.floor(Date.now() / 1000)) } as never);
+  async function recipient(fx: Fx, phone: string, state: string, sentAgo = '1 hour', campName = 'C') {
+    const tpl = (await db.execute(sql`insert into templates (tenant_id, name, language, category, status, body) values (${fx.tenant}, ${'t' + Math.random().toString(36).slice(2, 8)}, 'en', 'marketing', 'approved', 'Hello there friend') returning id`) as unknown as { id: string }[])[0]!.id;
+    const camp = (await db.execute(sql`insert into campaigns (tenant_id, name, template_id, group_ids, status) values (${fx.tenant}, ${campName}, ${tpl}, '{}', 'completed') returning id`) as unknown as { id: string }[])[0]!.id;
+    const r = (await db.execute(sql`insert into campaign_recipients (tenant_id, campaign_id, contact_id, phone_e164, state, sent_at) values (${fx.tenant}, ${camp}, ${fx.contact}, ${phone}, ${state}, now() - (${sentAgo}::text)::interval) returning id`) as unknown as { id: string }[])[0]!.id;
+    return { camp, r };
+  }
+  const stateOf = async (id: string) => ((await db.execute(sql`select state from campaign_recipients where id = ${id}`)) as unknown as { state: string }[])[0]!.state;
+
+  it('a reply turns the campaign message the customer received into "replied"', async () => {
+    const fx = await fixture({ phone: '+919900001101' }); const a = await recipient(fx, '+919900001101', 'read');
+    await inb(fx, '+919900001101', 'yes please');
+    expect(await stateOf(a.r)).toBe('replied');
+  });
+  it('works for sent and delivered too, and a second reply changes nothing', async () => {
+    for (const st of ['sent', 'delivered']) { const fx = await fixture({ phone: '+919900001102' }); const a = await recipient(fx, '+919900001102', st); await inb(fx, '+919900001102', 'hi'); await inb(fx, '+919900001102', 'hello again'); expect(await stateOf(a.r), st).toBe('replied'); }
+  });
+  it('only the most recent campaign message gets the credit', async () => {
+    const fx = await fixture({ phone: '+919900001103' });
+    const old = await recipient(fx, '+919900001103', 'read', '3 days'), recent = await recipient(fx, '+919900001103', 'delivered', '2 hours');
+    await inb(fx, '+919900001103', 'ok');
+    expect(await stateOf(recent.r)).toBe('replied'); expect(await stateOf(old.r)).toBe('read');
+  });
+  it('a reply to something older than a week, or to a message that failed or was never sent, counts for nothing', async () => {
+    const fx = await fixture({ phone: '+919900001104' });
+    const stale = await recipient(fx, '+919900001104', 'read', '8 days'), failed = await recipient(fx, '+919900001104', 'failed', '1 hour'), skipped = await recipient(fx, '+919900001104', 'skipped', '1 hour');
+    await inb(fx, '+919900001104', 'hi');
+    expect(await stateOf(stale.r)).toBe('read'); expect(await stateOf(failed.r)).toBe('failed'); expect(await stateOf(skipped.r)).toBe('skipped');
+  });
+  it('never credits a campaign of another workspace', async () => {
+    const a = await fixture({ phone: '+919900001105' }), b = await fixture({ phone: '+919900001105' });
+    const theirs = await recipient(b, '+919900001105', 'read'); await inb(a, '+919900001105', 'hi');
+    expect(await stateOf(theirs.r)).toBe('read');
+  });
+  it('credit is decided by this workspace\'s own contact, so a same-numbered customer elsewhere is untouched (and the query is pinned to the workspace)', async () => {
+    const a = await fixture({ phone: '+919900001120' }), b = await fixture({ phone: '+919900001120' });
+    const mine = await recipient(a, '+919900001120', 'read'), theirs = await recipient(b, '+919900001120', 'read');
+    // Even if a recipient row were (wrongly) filed under the other workspace's id for MY contact, it must not be credited.
+    await db.execute(sql`update campaign_recipients set contact_id = ${a.contact} where id = ${theirs.r}`);
+    await inb(a, '+919900001120', 'hi');
+    expect(await stateOf(mine.r)).toBe('replied'); expect(await stateOf(theirs.r)).toBe('read');
+  });
+  it('a late delivery receipt cannot undo "replied"', async () => {
+    const fx = await fixture({ phone: '+919900001106' }); const a = await recipient(fx, '+919900001106', 'read'); await inb(fx, '+919900001106', 'yes');
+    const wamid = `wamid.${randomUUID()}`;
+    const mid = (await db.execute(sql`insert into messages (tenant_id, conversation_id, direction, kind, body, status, wamid, campaign_recipient_id) values (${fx.tenant}, ${fx.conv}, 'out', 'template', 't', 'sent', ${wamid}, ${a.r}) returning id`) as unknown as { id: string }[])[0]!.id; void mid;
+    await handleStatus(db, fx.tenant, { id: wamid, status: 'delivered' }, 1);
+    expect(await stateOf(a.r)).toBe('replied');
+  });
+
+  const queuedAuto = async (fx: Fx) => (await db.execute(sql`select id, body, status, payload from messages where tenant_id = ${fx.tenant} and direction = 'out' and kind = 'auto'`)) as unknown as { id: string; body: string; status: string; payload: { ack?: string } }[];
+  it('a keyword auto-reply is queued to really be sent (not just remembered)', async () => {
+    const fx = await fixture({ phone: '+919900001107' });
+    await db.execute(sql`insert into automation_rules (tenant_id, name, kind, keywords, reply) values (${fx.tenant}, 'price', 'keyword', ARRAY['price'], 'Plans start at 499')`);
+    await inb(fx, '+919900001107', 'what is the price?');
+    const q = await queuedAuto(fx); expect(q).toHaveLength(1); expect(q[0]).toMatchObject({ body: 'Plans start at 499', status: 'queued' }); expect(q[0]!.payload.ack).toBeUndefined();
+  });
+  it('no reply is queued when nothing matches', async () => { const fx = await fixture({ phone: '+919900001108' }); await inb(fx, '+919900001108', 'random words'); expect(await queuedAuto(fx)).toHaveLength(0); });
+  it('a replayed webhook queues the reply once, not twice', async () => {
+    const fx = await fixture({ phone: '+919900001109' }); await db.execute(sql`insert into automation_rules (tenant_id, name, kind, keywords, reply) values (${fx.tenant}, 'p', 'keyword', ARRAY['price'], 'Plans start at 499')`);
+    const m = { id: 'wamid.in.same', from: '919900001109'.replace('+', ''), type: 'text', text: { body: 'price?' }, timestamp: String(Math.floor(Date.now() / 1000)) } as never;
+    await handleInbound(db, fx.tenant, fx.pn, m); await handleInbound(db, fx.tenant, fx.pn, m);
+    expect(await queuedAuto(fx)).toHaveLength(1);
+  });
+  it('STOP queues the confirmation, marked as the one allowed message', async () => {
+    const fx = await fixture({ phone: '+919900001110' }); await inb(fx, '+919900001110', 'STOP');
+    const q = await queuedAuto(fx); expect(q).toHaveLength(1); expect(q[0]!.payload.ack).toBe('opt_out'); expect(q[0]!.body).toMatch(/no longer receive/);
+  });
+  it('the STOP confirmation is actually delivered to the person who opted out; anything else to them is still blocked', async () => {
+    const fx = await fixture({ phone: '+919900001111' }); await inb(fx, '+919900001111', 'STOP');
+    const ack = (await queuedAuto(fx))[0]!;
+    const r = await sendOne(deps(), fx.tenant, ack.id); expect(r.kind).toBe('sent');
+    // an ordinary typed reply, and a faked ack on a non-auto message, are both refused
+    const typed = (await db.execute(sql`insert into messages (tenant_id, conversation_id, direction, kind, body, status) values (${fx.tenant}, ${fx.conv}, 'out', 'text', 'hello', 'queued') returning id`) as unknown as { id: string }[])[0]!.id;
+    expect((await sendOne(deps(), fx.tenant, typed)).kind).toBe('skipped');
+    const fake = (await db.execute(sql`insert into messages (tenant_id, conversation_id, direction, kind, body, status, payload) values (${fx.tenant}, ${fx.conv}, 'out', 'text', 'sneaky', 'queued', '{"ack":"opt_out"}'::jsonb) returning id`) as unknown as { id: string }[])[0]!.id;
+    expect((await sendOne(deps(), fx.tenant, fake)).kind).toBe('skipped');
+  });
+  it('a keyword reply to a customer who opted out earlier is not queued or sent', async () => {
+    const fx = await fixture({ phone: '+919900001112', consent: 'stopped' }); await db.execute(sql`insert into automation_rules (tenant_id, name, kind, keywords, reply) values (${fx.tenant}, 'p', 'keyword', ARRAY['price'], 'Plans start at 499')`);
+    await inb(fx, '+919900001112', 'price');
+    for (const m of await queuedAuto(fx)) expect((await sendOne(deps(), fx.tenant, m.id)).kind).toBe('skipped');
+  });
+});

@@ -137,6 +137,9 @@ export async function simulateInbound(conversationId: string, text: string): Pro
   const body = text.trim().slice(0, 2000);
   if (!body) return fail('Type what the customer says.');
   return db(g.ctx, async (tx) => {
+    // With a real WhatsApp number connected, customers write for real. Pretend messages would pollute real conversations.
+    const live = ((await tx.execute(sql`select exists(select 1 from meta_accounts a join phone_numbers p on p.meta_account_id = a.id where a.token_status = 'valid' and a.health_state = 'ok') as live`)) as unknown as { live: boolean }[])[0]?.live === true;
+    if (live) return fail('Test messages are only available before a WhatsApp number is connected.');
     const [c] = await tx.select().from(conversations).where(eq(conversations.id, conversationId));
     if (!c) return fail('Conversation not found.');
     const now = new Date();

@@ -56,7 +56,9 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
   let tpl: Row | null = null;
   const category = (m.template_category as string | null)?.toUpperCase() as TemplateCategory | undefined;
 
-  if (contact.consent_status === 'stopped') return skip(db, tenantId, messageId, recipientId, 'Customer opted out');
+  // The one message a person who just wrote STOP still gets: the confirmation of their own request. Only our inbound handler creates it.
+  const isOptOutAck = m.kind === 'auto' && ((m.payload ?? {}) as { ack?: string }).ack === 'opt_out';
+  if (contact.consent_status === 'stopped' && !isOptOutAck) return skip(db, tenantId, messageId, recipientId, 'Customer opted out');
   if (category === 'MARKETING' && contact.consent_status !== 'allowed') return skip(db, tenantId, messageId, recipientId, 'No permission on record');
   if (contact.reachability === 'unreachable') return skip(db, tenantId, messageId, recipientId, 'Customer cannot receive WhatsApp messages');
   if (contact.freq_cap_hold_until && new Date(String(contact.freq_cap_hold_until)) > now) return skip(db, tenantId, messageId, recipientId, 'Meta limited promotional messages to this customer today. Try after 24 hours.');

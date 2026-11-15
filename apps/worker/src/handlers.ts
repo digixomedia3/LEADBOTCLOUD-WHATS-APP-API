@@ -125,6 +125,12 @@ export async function handleInbound(db: Db, tenantId: string, phoneNumberId: str
   // Click-to-WhatsApp: the first message of an ad click carries the ad. A failure here must never lose the customer's message.
   if (m.referral && typeof m.referral === 'object') await recordAdClick(db, tenantId, contactId, convId, phone, profile, m.referral).catch((e: Error) => console.error('[leads] ad click', e.message));
 
+  // Attribution: a customer's reply counts for the most recent campaign message they received in the last 7 days, once.
+  await db.execute(sql`
+    update campaign_recipients set state = 'replied'
+    where id = (select id from campaign_recipients where tenant_id = ${tenantId} and contact_id = ${contactId} and state in ('sent','delivered','read') and sent_at > now() - interval '7 days' order by sent_at desc limit 1)
+      and tenant_id = ${tenantId}`);
+
   let optedOut = false, autoReply: string | undefined;
   const isStopButton = m.type === 'button' && /^STOP:/i.test(m.button?.payload ?? '');
   if (isStopText(text) || isStopButton) {
@@ -142,6 +148,12 @@ export async function handleInbound(db: Db, tenantId: string, phoneNumberId: str
     const lower = text.toLowerCase();
     const hit = rules.find((r) => (r.keywords as string[]).some((k) => k && lower.includes(k.toLowerCase())));
     if (hit) { autoReply = String(hit.reply); await db.execute(sql`update automation_rules set hits = hits + 1 where id = ${hit.id} and tenant_id = ${tenantId}`); }
+  }
+  // The reply is queued like any other message: the sender re-checks everything and the worker's queue delivers it. Only this
+  // one acknowledgement may go to a person who just opted out (they asked for it, and it tells them how to come back).
+  if (autoReply) {
+    await db.execute(sql`insert into messages (tenant_id, conversation_id, direction, kind, body, status, phone_number_id, payload)
+      values (${tenantId}, ${convId}, 'out', 'auto', ${autoReply}, 'queued', ${phoneNumberId}, ${JSON.stringify(optedOut ? { ack: 'opt_out' } : {})}::jsonb)`);
   }
   return { outcome: 'ok', autoReply, optedOut };
 }
