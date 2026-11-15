@@ -1,0 +1,19 @@
+[Unit]
+Description=LeadBotCloud worker (webhooks, queues, launcher)
+After=network.target docker.service
+Wants=docker.service
+[Service]
+User=lbc
+WorkingDirectory=/srv/lbc/app/apps/worker
+EnvironmentFile=/etc/lbc/app.env
+Environment=NODE_ENV=production
+ExecStart=/usr/local/bin/pnpm exec tsx src/main.ts
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/srv/lbc/app /srv/lbc/data /tmp
+PrivateTmp=true
+MemoryMax=1500M
+[Install]
+WantedBy=multi-user.target

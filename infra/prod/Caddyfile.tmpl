@@ -1,0 +1,23 @@
+# __HOST__ is replaced at install time (a real domain gets a real certificate; an IP-only host gets a self-managed one).
+{
+	email {$ACME_EMAIL}
+	servers { trusted_proxies static private_ranges }
+}
+__SITE__ {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	# Meta, Shopify and Razorpay webhooks and the public form/lead endpoints go to the worker. Everything else is the panel.
+	@worker path /webhooks/* /forms/* /leads/* /healthz
+	handle @worker { reverse_proxy 127.0.0.1:4000 }
+	# Never reachable from outside: the web app calls these over localhost.
+	@internal path /internal/*
+	respond @internal 404
+	handle { reverse_proxy 127.0.0.1:3000 }
+	request_body { max_size 12MB }
+	log { output file /var/log/caddy/lbc.log { roll_size 20MB roll_keep 5 } format json }
+}

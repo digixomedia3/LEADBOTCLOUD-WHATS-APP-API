@@ -1,0 +1,19 @@
+[Unit]
+Description=LeadBotCloud web (Next.js)
+After=network.target docker.service
+Wants=docker.service
+[Service]
+User=lbc
+WorkingDirectory=/srv/lbc/app/apps/web
+EnvironmentFile=/etc/lbc/app.env
+Environment=NODE_ENV=production
+ExecStart=/usr/local/bin/pnpm exec next start -p 3000 -H 127.0.0.1
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/srv/lbc/app /srv/lbc/data /tmp
+PrivateTmp=true
+MemoryMax=2G
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,23 @@
+# Production data services. Bound to localhost only: nothing here is reachable from the internet.
+name: lbc
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: /etc/lbc/db.env            # POSTGRES_PASSWORD plus the three role passwords (root-only file)
+    environment: { POSTGRES_USER: postgres, POSTGRES_DB: leadbotcloud }
+    ports: ["127.0.0.1:5433:5432"]
+    volumes:
+      - /srv/lbc/data/pg:/var/lib/postgresql/data
+      - ./init-roles.sh:/docker-entrypoint-initdb.d/01-roles.sh:ro
+    shm_size: 256m
+    command: ["postgres", "-c", "max_connections=100", "-c", "shared_buffers=512MB", "-c", "log_min_duration_statement=500", "-c", "password_encryption=scram-sha-256"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres -d leadbotcloud"], interval: 10s, timeout: 3s, retries: 10 }
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction", "--requirepass", "$$REDIS_PASSWORD"]
+    env_file: /etc/lbc/redis.env
+    ports: ["127.0.0.1:6380:6379"]
+    volumes: ["/srv/lbc/data/redis:/data"]
+    healthcheck: { test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"], interval: 10s, timeout: 3s, retries: 10 }
