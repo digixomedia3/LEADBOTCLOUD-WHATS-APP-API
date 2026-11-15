@@ -1,3 +1,9 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# pnpm 12 does not run dependency install scripts unless they are listed here. Only these two need them:
+# esbuild downloads/verifies its native binary (used by tsx and vitest); msgpackr-extract is an optional native speed-up for BullMQ.
+onlyBuiltDependencies:
+  - esbuild
+  - msgpackr-extract
