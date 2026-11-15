@@ -17,7 +17,7 @@
 1. Change and test on the development machine (`pnpm lint && pnpm typecheck && pnpm test`).
 2. Commit. Build the archive from the commit: `git archive --format=tar.gz -o /tmp/src.tgz HEAD`
 3. Copy it to the server inbox and run the deploy script as the `deploy` user:
-   `scp /tmp/src.tgz deploy@HOST:/srv/lbc/inbox/src.tgz && ssh deploy@HOST 'sudo /srv/lbc/infra/deploy.sh'`
+   `scp /tmp/src.tgz deploy@HOST:/var/lib/lbc-inbox/src.tgz && ssh deploy@HOST 'sudo /srv/lbc/infra/deploy.sh'`
    The script takes a database backup, unpacks a new release, installs, **applies new migrations**, builds, restarts, checks health,
    and **rolls the code back by itself if the health check fails**.
 4. Open `https://HOST/login` and check it still loads.

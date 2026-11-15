@@ -29,8 +29,8 @@ for d in packages/shared packages/db apps/worker apps/web; do (cd $d && pnpm tes
 echo "== ship"
 git archive --format=tar.gz -o /tmp/lbc-ship.tgz HEAD
 # upload under a new name and swap it in, so a leftover file owned by someone else can never block the deploy
-scp -i $HOME/.ssh/lbc_deploy -o StrictHostKeyChecking=accept-new -o BatchMode=yes /tmp/lbc-ship.tgz deploy@$SERVER:/srv/lbc/inbox/src.tgz.new
-$SSH 'mv -f /srv/lbc/inbox/src.tgz.new /srv/lbc/inbox/src.tgz'
+scp -i $HOME/.ssh/lbc_deploy -o StrictHostKeyChecking=accept-new -o BatchMode=yes /tmp/lbc-ship.tgz deploy@$SERVER:/var/lib/lbc-inbox/src.tgz.new
+$SSH 'mv -f /var/lib/lbc-inbox/src.tgz.new /var/lib/lbc-inbox/src.tgz'
 
 $SSH 'sudo /srv/lbc/infra/deploy.sh' | grep -vE '^curl: ' | tail -15
 echo "== live check"
