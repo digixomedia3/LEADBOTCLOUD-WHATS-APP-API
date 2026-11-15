@@ -12,8 +12,9 @@ BAD='(^/|(^|/)\.\.(/|$)|(^|/)\.env($|\.[A-Za-z]))'
 if tar tzf "$SRC" | grep -E "$BAD" | grep -vq '\.env\.example$'; then echo "refusing: archive has unsafe paths or an .env file"; exit 1; fi
 /srv/lbc/infra/backup.sh                                   # always take a database backup first
 mkdir -p $REL/$TS && tar xzf "$SRC" -C $REL/$TS && chown -R lbc:lbc $REL/$TS
+trap 'rc=$?; if [ $rc -ne 0 ]; then echo "deploy failed (exit $rc): bringing the site back"; if [ -n "$(ls -1dt $REL/*/ 2>/dev/null | sed -n 2p)" ]; then "$0" --rollback || true; else systemctl start lbc-worker lbc-web || true; fi; fi' EXIT
 systemctl stop lbc-web lbc-worker
 rsync -a --delete --exclude node_modules --exclude .next --exclude storage-data $REL/$TS/ $APP/ && chown -R lbc:lbc $APP
 sudo -u lbc bash -c "cd $APP && set -a && . /etc/lbc/app.env && set +a && pnpm install --frozen-lockfile --prefer-offline >/dev/null && pnpm --filter @lbc/db db:migrate && cd apps/web && pnpm exec next build" 
 systemctl start lbc-worker lbc-web
-if health; then echo "deploy $TS healthy"; ls -1dt $REL/*/ | tail -n +6 | xargs -r rm -rf; else echo "deploy $TS UNHEALTHY, rolling back"; "$0" --rollback; exit 1; fi
+if health; then trap - EXIT; echo "deploy $TS healthy"; ls -1dt $REL/*/ | tail -n +6 | xargs -r rm -rf; else trap - EXIT; echo "deploy $TS UNHEALTHY, rolling back"; "$0" --rollback; exit 1; fi
