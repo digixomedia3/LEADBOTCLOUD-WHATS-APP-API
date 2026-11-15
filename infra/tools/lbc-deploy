@@ -1,0 +1,38 @@
+#!/bin/bash
+# lbc-deploy: ship the committed code in ~/leadbotcloud to the live panel server (lbc-panel). Used by Hermes, one small change at a time.
+#   lbc-deploy            run the checks, then deploy HEAD
+#   lbc-deploy --status   show server state only (nothing is changed)
+#   lbc-deploy --rollback put the previous release back (code only; see docs/RUNBOOK.md)
+set -euo pipefail
+cd "$HOME/leadbotcloud"
+export PATH="$HOME/.local/share/fnm:$PATH"
+eval "$(fnm env)"; fnm use 24 >/dev/null 2>&1 || { echo "Node 24 is missing (fnm use 24 failed)"; exit 1; }
+command -v pnpm >/dev/null || { echo "pnpm is missing"; exit 1; }
+SERVER=10.128.0.8; HOST=34-134-248-202.sslip.io
+SSH="ssh -i $HOME/.ssh/lbc_deploy -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10 deploy@$SERVER"
+
+if [ "${1:-}" = "--status" ]; then
+  $SSH 'sudo systemctl status lbc-web lbc-worker caddy | grep -E "●|Active:"; sudo /usr/bin/docker ps | cut -c1-20,60-140'
+  for p in /login /healthz; do printf "%-9s %s\n" $p "$(curl -s -o /dev/null -w '%{http_code}' -m 10 https://$HOST$p)"; done; exit 0
+fi
+if [ "${1:-}" = "--rollback" ]; then $SSH 'sudo /srv/lbc/infra/deploy.sh --rollback'; exit $?; fi
+
+[ -z "$(git status --porcelain)" ] || { echo "REFUSED: uncommitted changes. Commit first, so what is live is always a commit."; git status --short | head; exit 1; }
+BR=$(git branch --show-current); echo "deploying $BR @ $(git rev-parse --short HEAD): $(git log -1 --format=%s | cut -c1-80)"
+
+echo "== checks (a failure here stops the deploy)"
+set -a; . ./.env; set +a; unset NODE_ENV
+for d in packages/shared apps/worker apps/web; do (cd $d && pnpm typecheck >/tmp/tc.log 2>&1) || { echo "TYPECHECK FAILED in $d"; tail -8 /tmp/tc.log; exit 1; }; done
+(cd apps/web && pnpm lint >/tmp/lint.log 2>&1) || { echo "LINT FAILED"; tail -8 /tmp/lint.log; exit 1; }
+for d in packages/shared packages/db apps/worker apps/web; do (cd $d && pnpm test >/tmp/t.log 2>&1) || { echo "TESTS FAILED in $d"; grep -E "×|FAIL|Tests " /tmp/t.log | head -10; exit 1; }; echo "  tests ok: $d"; done
+
+echo "== ship"
+git archive --format=tar.gz -o /tmp/lbc-ship.tgz HEAD
+# upload under a new name and swap it in, so a leftover file owned by someone else can never block the deploy
+scp -i $HOME/.ssh/lbc_deploy -o StrictHostKeyChecking=accept-new -o BatchMode=yes /tmp/lbc-ship.tgz deploy@$SERVER:/srv/lbc/inbox/src.tgz.new
+$SSH 'mv -f /srv/lbc/inbox/src.tgz.new /srv/lbc/inbox/src.tgz'
+
+$SSH 'sudo /srv/lbc/infra/deploy.sh' | grep -vE '^curl: ' | tail -15
+echo "== live check"
+for p in /login /healthz /terms; do printf "%-9s %s\n" $p "$(curl -s -o /dev/null -w '%{http_code}' -m 10 https://$HOST$p)"; done
+echo "live at https://$HOST  (commit $(git rev-parse --short HEAD))"
