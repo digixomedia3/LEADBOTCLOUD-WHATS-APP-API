@@ -26,6 +26,13 @@ Rollback by hand: `ssh deploy@HOST 'sudo /srv/lbc/infra/deploy.sh --rollback'`.
 **Important:** a rollback restores the code, not the database. Migrations only ever add, so older code keeps working with a newer database.
 If a migration itself is bad, restore from `/srv/lbc/backups` (the command is at the top of `backup.sh`).
 
+## Who can do what on the server
+- `lbc-deploy` (on the Hermes VM) logs in as the `deploy` account with a key. That account may run only: `deploy.sh` (no arguments), `deploy.sh --rollback`,
+  `backup.sh` (no arguments), `docker ps` and `systemctl status` for the three services. It cannot read `/etc/lbc`, and SSH to the server is only open to
+  the Hermes VM and Google's IAP range.
+- Deploying means shipping code that runs on the server with the app's settings, so whoever can deploy can in effect read the app's secrets by writing code.
+  That is the price of letting Hermes update the site by itself. Keep Hermes's own access tight and review what it ships.
+
 ## Rules
 - Never put `.env` files or tokens in the archive (`deploy.sh` refuses any archive containing one).
 - Never edit files in `/srv/lbc/app` by hand: the next deploy overwrites them. Change the repository and deploy.
