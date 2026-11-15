@@ -13,3 +13,6 @@ infra/.data/
 *.pem
 *.key
 *.sql.gz
+
+# written into the deploy archive by lbc-deploy, never committed
+apps/web/build-info.json

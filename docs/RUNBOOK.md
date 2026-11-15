@@ -20,7 +20,7 @@
    `scp /tmp/src.tgz deploy@HOST:/var/lib/lbc-inbox/src.tgz && ssh deploy@HOST 'sudo /srv/lbc/infra/deploy.sh'`
    The script takes a database backup, unpacks a new release, installs, **applies new migrations**, builds, restarts, checks health,
    and **rolls the code back by itself if the health check fails**.
-4. Open `https://HOST/login` and check it still loads.
+4. Open `https://HOST/version` and check the commit is the one you just made (`lbc-deploy` writes it into the archive, not into git). Then open `https://HOST/login` and check it still loads.
 
 Rollback by hand: `ssh deploy@HOST 'sudo /srv/lbc/infra/deploy.sh --rollback'`.
 **Important:** a rollback restores the code, not the database. Migrations only ever add, so older code keeps working with a newer database.
