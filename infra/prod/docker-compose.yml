@@ -16,7 +16,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction", "--requirepass", "$$REDIS_PASSWORD"]
+    # sh -c so the shell (not compose) expands the password from the environment file
+    command: ["sh", "-c", "exec redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction --requirepass \"$$REDIS_PASSWORD\""]
     env_file: /etc/lbc/redis.env
     ports: ["127.0.0.1:6380:6379"]
     volumes: ["/srv/lbc/data/redis:/data"]
