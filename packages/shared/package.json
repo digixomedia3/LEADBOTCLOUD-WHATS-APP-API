@@ -14,7 +14,8 @@
     "./api-scopes": "./src/api-scopes.ts",
     "./campaign-report": "./src/campaign-report.ts",
     "./tracked-links": "./src/tracked-links.ts",
-    "./link-code": "./src/link-code.ts"
+    "./link-code": "./src/link-code.ts",
+    "./send-window": "./src/send-window.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { isTrackedButtonValue } from '@lbc/shared/tracked-links';
+import { nextAllowed, type QuietHours } from '@lbc/shared/send-window';
 import { backoffMs, errorPolicy, type ErrorPolicy } from '@lbc/shared';
 import { GraphClient, MetaError, MetaUnknownOutcome, bodyParams, copyCodeParam, headerMediaParam, limitedTimeOfferParam, chooseEndpoint, decryptSecret, rerouteFor, templateMessage, textMessage, withProductPolicy, type SendResponse, type TemplateCategory } from '@lbc/meta';
 import type { Db } from '@lbc/db';
@@ -13,6 +14,8 @@ export type SendResult =
   | { kind: 'skipped'; reason: string }
   | { kind: 'sent'; wamid: string; path: 'mm_api' | 'cloud_api'; held?: boolean }
   | { kind: 'retry'; delayMs: number; code?: number }
+  /** Not time yet (campaign speed or quiet hours). The message stays queued with a new earliest time; nothing is lost or counted as sent. */
+  | { kind: 'deferred'; until: Date; why: 'speed' | 'quiet_hours' }
   | { kind: 'unknown_outcome' }
   | { kind: 'failed'; code?: number; message: string; action: ErrorPolicy['action']; known: boolean };
 
@@ -75,6 +78,21 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
     if (offer?.hasExpiration) {
       const exp = Number(((m.payload ?? {}) as { offerExpiresMs?: number }).offerExpiresMs ?? 0);
       if (!exp || exp <= now.getTime() + 30_000) return skip(db, tenantId, messageId, recipientId, 'The offer has ended, so this message was not sent.');
+    }
+  }
+
+  // Speed: this message has a turn that has not come yet.
+  if (m.not_before && new Date(String(m.not_before)) > now) return { kind: 'deferred', until: new Date(String(m.not_before)), why: 'speed' };
+  // Quiet hours hold PROMOTIONS only. Replies and updates a customer expects are never delayed.
+  if (category === 'MARKETING') {
+    const q = rows(await db.execute(sql`select quiet_hours_enabled, quiet_start_hour, quiet_end_hour, timezone from tenants where id = ${tenantId}`))[0];
+    if (q) {
+      const win: QuietHours = { enabled: !!q.quiet_hours_enabled, startHour: Number(q.quiet_start_hour), endHour: Number(q.quiet_end_hour), timezone: String(q.timezone || 'Asia/Kolkata') };
+      const ok = nextAllowed(now, win);
+      if (ok.getTime() > now.getTime()) {
+        await db.execute(sql`update messages set not_before = ${ok.toISOString()}::timestamptz where id = ${messageId} and tenant_id = ${tenantId} and status = 'queued'`);
+        return { kind: 'deferred', until: ok, why: 'quiet_hours' };
+      }
     }
   }
 

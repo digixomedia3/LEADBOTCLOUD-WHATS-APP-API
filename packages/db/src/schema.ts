@@ -8,6 +8,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -90,6 +91,9 @@ export const tenants = pgTable(
     planId: text('plan_id').notNull().default('free'),
     locale: text('locale').notNull().default('en'),
     timezone: text('timezone').notNull().default('Asia/Kolkata'),
+    quietHoursEnabled: boolean('quiet_hours_enabled').notNull().default(true),
+    quietStartHour: smallint('quiet_start_hour').notNull().default(21),
+    quietEndHour: smallint('quiet_end_hour').notNull().default(9),
     vertical: text('vertical'),
     verticalReviewStatus: text('vertical_review_status').notNull().default('none'),
     aupAcceptedAt: timestamp('aup_accepted_at', { withTimezone: true }),
@@ -319,6 +323,8 @@ export const campaigns = pgTable(
     offerCode: text('offer_code'),
     /** Where the tracked website button sends people. Checked on creation; the redirect reads it from here, never from the link. */
     linkUrl: text('link_url'),
+    /** Messages per minute for this campaign; null means as fast as possible. */
+    sendPerMinute: integer('send_per_minute'),
     offerExpiresAt: timestamp('offer_expires_at', { withTimezone: true }),
     varMap: jsonb('var_map').notNull().default(sql`'[]'::jsonb`),
     launchedAt: timestamp('launched_at', { withTimezone: true }),

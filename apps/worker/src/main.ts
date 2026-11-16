@@ -14,6 +14,7 @@ import { verifyInternal } from '@lbc/shared/internal-sign';
 import { processEvent } from './events';
 import { ingestMetaLeadgen, ingestShopify, pendingConnectorEvents, processConnectorEvent, syncSheets } from './connectors';
 import { sendOne } from './send';
+import { deferredJobId, dueJobId, retryJobId } from './queue-ids';
 import { deleteQueuedTemplates, submitPendingTemplates, syncTemplates, tenantsDueForSync } from './templates';
 import { dueCampaigns, launchCampaign, queuedMessageIds, rollupCampaigns } from './campaigns';
 
@@ -36,7 +37,9 @@ const eventQueue = new Queue('events', { connection: redis, defaultJobOptions: {
 /** Send consumer. jobId = message id, so a message can be queued only once. */
 const sendWorker = new Worker('send', async (job: Job<{ tenantId: string; messageId: string }>) => {
   const r = await sendOne({ db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY, appUrl: cfg.APP_URL }, job.data.tenantId, job.data.messageId);
-  if (r.kind === 'retry') { await sendQueue.add('send', job.data, { jobId: `${job.data.messageId}:r${job.attemptsMade + 1}`, delay: r.delayMs }); }
+  if (r.kind === 'retry') { await sendQueue.add('send', job.data, { jobId: retryJobId(job.data.messageId, job.attemptsMade + 1), delay: r.delayMs }); }
+  // A held message comes back at its time. The id carries the time, so a finished job can never block it.
+  if (r.kind === 'deferred') { await sendQueue.add('send', job.data, { jobId: deferredJobId(job.data.messageId, r.until.getTime()), delay: Math.max(1000, r.until.getTime() - Date.now()) }); }
   return r.kind;
 }, { connection: redis, concurrency: 20, limiter: { max: 80, duration: 1000 } }); // 80 messages/second is the default Cloud API per-number rate
 
@@ -52,8 +55,12 @@ for (const w of [sendWorker, eventWorker, billingWorker]) w.on('failed', (j, e) 
 
 /** Outbox sweeper: anything queued in the database but missing from Redis (a crash between the two) is re-enqueued. */
 async function sweepOutbox() {
-  const stuck = (await db.execute(sql`select id, tenant_id from messages where direction = 'out' and status = 'queued' and wamid is null and created_at < now() - interval '3 seconds' limit 500`)) as unknown as { id: string; tenant_id: string }[];
+  const stuck = (await db.execute(sql`select id, tenant_id from messages where direction = 'out' and status = 'queued' and wamid is null and created_at < now() - interval '3 seconds' and (not_before is null or not_before <= now()) order by coalesce(not_before, created_at) limit 500`)) as unknown as { id: string; tenant_id: string }[];
+  // Plain queued messages keep jobId = id (one job ever). A message that was held and is now due gets a time-based id, because its first job already finished.
   for (const m of stuck) await sendQueue.add('send', { tenantId: m.tenant_id, messageId: m.id }, { jobId: m.id }).catch(() => undefined);
+  const due = (await db.execute(sql`select id, tenant_id from messages where direction = 'out' and status = 'queued' and wamid is null and not_before is not null and not_before <= now() and not_before > now() - interval '1 day' limit 500`)) as unknown as { id: string; tenant_id: string }[];
+  for (const m of due) await sendQueue.add('send', { tenantId: m.tenant_id, messageId: m.id }, { jobId: dueJobId(m.id, Date.now()) }).catch(() => undefined);
+  stuck.push(...due);
   return stuck.length;
 }
 const sweeper = setInterval(() => sweepOutbox().catch((e) => console.error('sweep', e.message)), 5_000);

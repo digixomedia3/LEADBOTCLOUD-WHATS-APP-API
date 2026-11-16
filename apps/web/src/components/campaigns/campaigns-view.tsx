@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { checkLinkDestination, isTrackedButtonValue } from '@lbc/shared/tracked-links';
+import { SPEED_CHOICES, minutesToSend } from '@lbc/shared/send-window';
 import { useEffect, useState, useTransition } from 'react';
 import { AlertTriangle, Calendar, CheckCircle2, FlaskConical, Loader2, Megaphone, Plus, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -95,6 +96,7 @@ function Wizard({ live, templates, groups, appUrl, onClose, onDone }: { appUrl: 
   const [code, setCode] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
+  const [speed, setSpeed] = useState(0);
   const [aud, setAud] = useState<AudiencePreview | null>(null);
   const [error, setError] = useState('');
   const [pending, start] = useTransition();
@@ -121,7 +123,7 @@ function Wizard({ live, templates, groups, appUrl, onClose, onDone }: { appUrl: 
   function submit() {
     setError('');
     start(async () => {
-      const r = await createCampaign({ name, templateId: tid, groupIds: gids, when, scheduledAt: at ? new Date(at).toISOString() : undefined, repeat: needsEnd ? 'none' : repeat, spendCapRupees: capNum, varMap: vars, offerCode: needsCode ? code.trim() : undefined, linkUrl: needsLink ? linkUrl.trim() : undefined, offerEndsAt: needsEnd && endsAt ? new Date(endsAt).toISOString() : undefined });
+      const r = await createCampaign({ name, templateId: tid, groupIds: gids, when, scheduledAt: at ? new Date(at).toISOString() : undefined, repeat: needsEnd ? 'none' : repeat, spendCapRupees: capNum, varMap: vars, offerCode: needsCode ? code.trim() : undefined, linkUrl: needsLink ? linkUrl.trim() : undefined, sendPerMinute: speed || undefined, offerEndsAt: needsEnd && endsAt ? new Date(endsAt).toISOString() : undefined });
       if (!r.ok) { setError(r.error); return; }
       if (when === 'now') { const s = await sendCampaign(r.data.id); if (!s.ok) { setError(s.error); return; } onDone(s.data.testMode ? `Test send done: ${s.data.sent} people.` : `Queued for ${s.data.sent} people. Sending starts within a minute.`); } else onDone('Campaign scheduled.');
     });
@@ -200,6 +202,7 @@ function Wizard({ live, templates, groups, appUrl, onClose, onDone }: { appUrl: 
               <Field label="Date and time (IST)"><Input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} /></Field>
               <Field label="Repeat" hint={needsEnd ? "An offer with a countdown is sent once." : undefined}><Select disabled={needsEnd} value={needsEnd ? "none" : repeat} onChange={(e) => setRepeat(e.target.value as 'none')}><option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option><option value="monthly">Every month</option></Select></Field>
             </div>) : null}
+          <Field label="How fast to send" hint="Spreading a big send over several minutes is gentler on your WhatsApp number."><Select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>{SPEED_CHOICES.map((c) => <option key={c.perMinute} value={c.perMinute}>{c.label}</option>)}</Select></Field>
           <Field label="Spend cap in ₹ (optional)" hint="We refuse to send if the estimate goes above this."><Input inputMode="numeric" value={cap} onChange={(e) => setCap(e.target.value.replace(/[^\d.]/g, ''))} placeholder="2000" /></Field>
           <div className="flex gap-2"><Button variant="outline" onClick={() => setStep(2)}>Back</Button><Button className="flex-1" disabled={when === 'later' && !at} onClick={() => setStep(4)}>Next: review</Button></div>
         </div>
@@ -213,6 +216,8 @@ function Wizard({ live, templates, groups, appUrl, onClose, onDone }: { appUrl: 
               <div className="flex justify-between"><dt className="text-muted">GST 18%</dt><dd className="tabular">{aud.cost.gstLabel}</dd></div>
               <div className="mt-1 flex justify-between text-base font-bold"><dt>Estimated total</dt><dd className="grad-text font-display text-xl tabular">{aud.cost.totalLabel}</dd></div></div>
           </dl>
+          {speed ? <p className="text-xs text-muted">Sent at {speed} a minute: {minutesToSend(aud.sendable, speed) === 0 ? 'all within a minute.' : `takes about ${minutesToSend(aud.sendable, speed) + 1} minutes.`}</p> : null}
+          {tpl.category === 'marketing' ? <p className="text-xs text-muted">Promotional messages are not sent during your quiet hours. Anything due then waits until they end (change this in Settings).</p> : null}
           <p className="text-xs text-muted">Meta charges this to your card. Some messages may be blocked by Meta’s per-person limit, and blocked ones are not charged.</p>
           {overCap ? <FormError>The estimate is above your spend cap of ₹{capNum}.</FormError> : null}
           <div className="flex gap-2"><Button variant="outline" onClick={() => setStep(3)}>Back</Button><Button className="flex-1" disabled={pending || overCap} onClick={submit}>{pending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}{when === 'now' ? (live ? 'Send now' : 'Send now (test)') : 'Schedule campaign'}</Button></div>

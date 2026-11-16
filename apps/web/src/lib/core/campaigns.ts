@@ -49,6 +49,8 @@ export const campaignInput = z.object({
   offerEndsAt: z.string().optional(),
   /** For a template with a tracked website button: the page the button opens. https only. */
   linkUrl: z.string().trim().max(2000).optional(),
+  /** Messages per minute; leave out (or 0) for as fast as possible. */
+  sendPerMinute: z.number().int().min(0).max(6000).optional(),
 });
 export type CampaignInput = z.input<typeof campaignInput>;
 
@@ -57,6 +59,7 @@ export async function createCampaignFor(ctx: ActorCtx, raw: CampaignInput): Prom
   const p = campaignInput.safeParse(raw);
   if (!p.success) return fail(p.error.issues[0]?.message ?? 'Check the details.');
   const d = p.data;
+  // The speed (a whole number, 0 to 6000) is already checked by the schema above.
   let when: Date | null = null;
   if (d.when === 'later') {
     when = d.scheduledAt ? new Date(d.scheduledAt) : null;
@@ -100,7 +103,7 @@ export async function createCampaignFor(ctx: ActorCtx, raw: CampaignInput): Prom
     if (capPaise !== null && aud.cost.totalPaise > capPaise) return fail(`The estimated cost ${aud.cost.totalLabel} is above your spend cap. Raise the cap or choose fewer people.`);
     const [row] = await tx.insert(campaigns).values({
       tenantId: ctx.tenantId, name: d.name, templateId: t.id, groupIds: d.groupIds, status: d.when === 'now' ? 'draft' : 'scheduled', scheduledAt: when, repeat: d.repeat,
-      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: ctx.user.id, varMap: d.varMap, offerCode: hasCopy ? d.offerCode! : null, linkUrl, offerExpiresAt: offerEnds, apiKeyId: ctx.via?.keyId ?? null,
+      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: ctx.user.id, varMap: d.varMap, offerCode: hasCopy ? d.offerCode! : null, linkUrl, sendPerMinute: d.sendPerMinute || null, offerExpiresAt: offerEnds, apiKeyId: ctx.via?.keyId ?? null,
     }).returning({ id: campaigns.id, status: campaigns.status });
     await auditAs(tx, ctx, 'campaign.created', 'campaign', row!.id, { audience: aud.sendable });
     return { ok: true as const, data: { id: row!.id, status: row!.status, estCostPaise: aud.cost.totalPaise, audience: aud.sendable } };

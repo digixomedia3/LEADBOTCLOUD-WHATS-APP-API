@@ -22,7 +22,7 @@ const BUTTONS = [{ type: 'copy_code', text: 'Copy code', value: 'EXAMPLE' }, { t
 
 async function setup(o: { offer?: object | null; buttons?: object[]; code?: string | null; endsInMs?: number | null; repeat?: string } = {}) {
   const t = randomUUID(), tag = t.slice(0, 8);
-  await A(`insert into tenants (id, name) values ('${t}', 'OF ${tag}')`);
+  await A(`insert into tenants (id, name, quiet_hours_enabled) values ('${t}', 'OF ${tag}', false)`);
   await A(`insert into meta_accounts (tenant_id, messaging_account_id, business_token_enc, token_status, health_state) values ('${t}', 'of-waba-${tag}', '${encryptSecret('T', KEY)}', 'valid', 'ok')`);
   const acc = (await q(`select id from meta_accounts where tenant_id = '${t}'`))[0]!.id;
   await A(`insert into phone_numbers (tenant_id, meta_account_id, phone_number_id, display_phone_number) values ('${t}', '${acc}', 'of-pn-${tag}', '+91 90000 00000')`);

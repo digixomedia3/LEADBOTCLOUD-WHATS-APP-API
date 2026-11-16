@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { planLimits } from '@lbc/shared';
+import { checkQuietHours } from '@lbc/shared/send-window';
 import { invitations, tenantMembers, tenants, user } from '@lbc/db';
 import { Forbidden, WORKSPACE_COOKIE, appDb, assertRole, audit, db, getSession, requireCtx, type Ctx } from '@/lib/session';
 
@@ -119,4 +120,24 @@ export async function acceptInvite(token: string): Promise<Result<{ tenantId: st
     if (m.includes('invitation_wrong_email')) return fail(`This invitation was sent to a different email than ${s.user.email}. Log in with the invited email.`);
     return fail('This invitation link is not valid.');
   }
+}
+
+
+export interface QuietSettings { enabled: boolean; startHour: number; endHour: number; timezone: string }
+export async function loadQuiet(): Promise<QuietSettings> {
+  const ctx = await requireCtx();
+  return db(ctx, async (tx) => { const [t] = await tx.select().from(tenants).where(eq(tenants.id, ctx.tenantId)); return { enabled: t!.quietHoursEnabled, startHour: t!.quietStartHour, endHour: t!.quietEndHour, timezone: t!.timezone }; });
+}
+/** Quiet hours hold promotional messages only; replies and updates are never delayed. Owner or admin. */
+export async function saveQuiet(input: { enabled: boolean; startHour: number; endHour: number }): Promise<Result> {
+  const g = await guard(); if ('error' in g) return fail(g.error);
+  return db(g.ctx, async (tx) => {
+    const [t] = await tx.select({ tz: tenants.timezone }).from(tenants).where(eq(tenants.id, g.ctx.tenantId));
+    const problem = checkQuietHours({ enabled: !!input.enabled, startHour: Number(input.startHour), endHour: Number(input.endHour), timezone: t?.tz ?? 'Asia/Kolkata' });
+    if (problem) return fail(problem);
+    await tx.update(tenants).set({ quietHoursEnabled: !!input.enabled, quietStartHour: Number(input.startHour), quietEndHour: Number(input.endHour), updatedAt: new Date() }).where(eq(tenants.id, g.ctx.tenantId));
+    await audit(tx, 'workspace.quiet_hours', 'tenant', g.ctx.tenantId, { enabled: !!input.enabled, start: Number(input.startHour), end: Number(input.endHour) });
+    revalidatePath('/settings');
+    return { ok: true as const, data: null };
+  });
 }

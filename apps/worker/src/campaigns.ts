@@ -3,6 +3,7 @@ import { audienceWhere, loadGroups, type Db } from '@lbc/db';
 import { estimateCost } from '@lbc/shared';
 import { isTemporaryAppUrl, isTrackedButtonValue } from '@lbc/shared/tracked-links';
 import { generateLinkCode } from '@lbc/shared/link-code';
+import { startTimeFor } from '@lbc/shared/send-window';
 
 type Row = Record<string, unknown>;
 const rows = (r: unknown) => r as Row[];
@@ -85,7 +86,10 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     for (const c of skipped) {
       await tx.execute(sql`insert into campaign_recipients (tenant_id, campaign_id, contact_id, phone_e164, name, state, reason) values (${tenantId}, ${campaignId}, ${c.id}, ${c.phone_e164}, ${c.name}, 'skipped', ${reasonFor(c)}) on conflict (campaign_id, contact_id) where contact_id is not null do nothing`);
     }
+    const launchedAt = new Date();
+    let position = 0;
     for (const c of sendable) {
+      const notBefore = startTimeFor(position++, claimed.send_per_minute as number | null, launchedAt);
       const params = varMap.map((v) => resolveVar(String(v), { name: c.name as string | null, phone: String(c.phone_e164) }));
       const cr = rows(await tx.execute(sql`insert into campaign_recipients (tenant_id, campaign_id, contact_id, phone_e164, name, state) values (${tenantId}, ${campaignId}, ${c.id}, ${c.phone_e164}, ${c.name}, 'queued') on conflict (campaign_id, contact_id) where contact_id is not null do nothing returning id`))[0];
       if (!cr) continue; // already expanded (a retry of this function): never create a second message
@@ -96,8 +100,8 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
         await tx.execute(sql`insert into tracked_links (code, tenant_id, campaign_id, campaign_recipient_id) values (${linkCode}, ${tenantId}, ${campaignId}, ${cr.id})`);
       }
       const conv = rows(await tx.execute(sql`insert into conversations (tenant_id, contact_id, phone_number_id, status, unread) values (${tenantId}, ${c.id}, ${ph.phone_number_id}, 'open', 0) on conflict (tenant_id, contact_id) do update set phone_number_id = coalesce(conversations.phone_number_id, excluded.phone_number_id) returning id`))[0]!;
-      await tx.execute(sql`insert into messages (tenant_id, conversation_id, direction, kind, body, status, template_name, template_language, template_category, payload, phone_number_id, campaign_recipient_id)
-        values (${tenantId}, ${conv.id}, 'out', 'template', ${t.name}, 'queued', ${t.name}, ${t.language}, ${category}, ${JSON.stringify({ params, ...(linkCode ? { linkCode } : {}), ...(claimed.offer_code ? { code: claimed.offer_code } : {}), ...(offer?.hasExpiration && offerEnds ? { offerExpiresMs: offerEnds } : {}) })}::jsonb, ${ph.phone_number_id}, ${cr.id})`);
+      await tx.execute(sql`insert into messages (tenant_id, conversation_id, direction, kind, body, status, template_name, template_language, template_category, payload, phone_number_id, campaign_recipient_id, not_before)
+        values (${tenantId}, ${conv.id}, 'out', 'template', ${t.name}, 'queued', ${t.name}, ${t.language}, ${category}, ${JSON.stringify({ params, ...(linkCode ? { linkCode } : {}), ...(claimed.offer_code ? { code: claimed.offer_code } : {}), ...(offer?.hasExpiration && offerEnds ? { offerExpiresMs: offerEnds } : {}) })}::jsonb, ${ph.phone_number_id}, ${cr.id}, ${notBefore.getTime() > launchedAt.getTime() ? notBefore.toISOString() : null}::timestamptz)`);
     }
     await tx.execute(sql`update campaigns set counts = ${JSON.stringify(counts)}::jsonb, est_cost_paise = ${est.totalPaise} where id = ${campaignId} and tenant_id = ${tenantId}`);
 
@@ -105,8 +109,8 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     const step = NEXT_MS[String(claimed.repeat)];
     if (step) {
       const base = claimed.scheduled_at ? new Date(String(claimed.scheduled_at)) : new Date();
-      await tx.execute(sql`insert into campaigns (tenant_id, name, template_id, group_ids, status, scheduled_at, repeat, spend_cap_paise, var_map, send_policy, created_by, offer_code, offer_expires_at, link_url)
-        values (${tenantId}, ${claimed.name}, ${claimed.template_id}, ${groupLit}::uuid[], 'scheduled', ${new Date(base.getTime() + step).toISOString()}::timestamptz, ${claimed.repeat}, ${cap}, ${JSON.stringify(varMap)}::jsonb, ${claimed.send_policy}, ${claimed.created_by}, ${claimed.offer_code ?? null}, ${claimed.offer_expires_at ? new Date(String(claimed.offer_expires_at)).toISOString() : null}::timestamptz, ${claimed.link_url ?? null})`);
+      await tx.execute(sql`insert into campaigns (tenant_id, name, template_id, group_ids, status, scheduled_at, repeat, spend_cap_paise, var_map, send_policy, created_by, offer_code, offer_expires_at, link_url, send_per_minute)
+        values (${tenantId}, ${claimed.name}, ${claimed.template_id}, ${groupLit}::uuid[], 'scheduled', ${new Date(base.getTime() + step).toISOString()}::timestamptz, ${claimed.repeat}, ${cap}, ${JSON.stringify(varMap)}::jsonb, ${claimed.send_policy}, ${claimed.created_by}, ${claimed.offer_code ?? null}, ${claimed.offer_expires_at ? new Date(String(claimed.offer_expires_at)).toISOString() : null}::timestamptz, ${claimed.link_url ?? null}, ${claimed.send_per_minute ?? null})`);
     }
     return { campaignId, queued: sendable.length, skipped: skipped.length, status: 'running' };
   });

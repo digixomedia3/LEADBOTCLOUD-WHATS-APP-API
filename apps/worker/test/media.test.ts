@@ -55,7 +55,7 @@ const q = async (text: string) => A(text);
 
 async function tenant() {
   const id = randomUUID(), tag = id.slice(0, 8), pn = `tm-pn-${tag}`;
-  await A(`insert into tenants (id, name) values ('${id}', 'TM ${tag}')`);
+  await A(`insert into tenants (id, name, quiet_hours_enabled) values ('${id}', 'TM ${tag}', false)`);
   await A(`insert into meta_accounts (tenant_id, messaging_account_id, business_token_enc, token_status, health_state) values ('${id}', 'tm-waba-${tag}', '${encryptSecret('TM-TOKEN', KEY)}', 'valid', 'ok')`);
   const acc = (await A(`select id from meta_accounts where tenant_id = '${id}'`))[0]!.id;
   await A(`insert into phone_numbers (tenant_id, meta_account_id, phone_number_id, display_phone_number) values ('${id}', '${acc}', '${pn}', '+91 98765 43210')`);

@@ -52,7 +52,7 @@ interface Fx { tenant: string; waba: string; pn: string; contact: string; conv: 
 async function fixture(opts: { consent?: 'allowed' | 'stopped' | 'unknown'; tokenStatus?: string; health?: string; window?: boolean; phone?: string } = {}): Promise<Fx> {
   const tenant = randomUUID(), tag = tenant.slice(0, 8), waba = `wt-waba-${tag}`, pn = `wt-pn-${tag}`;
   const phone = opts.phone ?? `+9199${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`;
-  await admin.client.unsafe(`insert into tenants (id, name) values ('${tenant}', 'WT ${tag}')`);
+  await admin.client.unsafe(`insert into tenants (id, name, quiet_hours_enabled) values ('${tenant}', 'WT ${tag}', false)`);
   await db.execute(sql`insert into meta_accounts (tenant_id, messaging_account_id, business_token_enc, token_status, health_state) values (${tenant}, ${waba}, ${encryptSecret('TOKEN-' + tag, KEY)}, ${opts.tokenStatus ?? 'valid'}, ${opts.health ?? 'ok'})`);
   const acc = (await db.execute(sql`select id from meta_accounts where tenant_id = ${tenant}`) as unknown as { id: string }[])[0]!;
   await db.execute(sql`insert into phone_numbers (tenant_id, meta_account_id, phone_number_id, display_phone_number) values (${tenant}, ${acc.id}, ${pn}, '+91 98765 43210')`);

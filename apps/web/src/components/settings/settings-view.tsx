@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { Check, Copy, Loader2, Trash2, UserPlus } from 'lucide-react';
+import { useEffect, useState, useTransition } from 'react';
+import { Check, Copy, Loader2, Moon, Trash2, UserPlus } from 'lucide-react';
+import { hourLabel } from '@lbc/shared/send-window';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input, Select } from '@/components/ui/form';
 import { WhatsAppConnect } from './whatsapp-connect';
 import { BillingPanel } from './billing-panel';
 import { ApiKeysPanel } from './api-keys-panel';
 import { Modal } from '@/components/ui/modal';
-import { changeRole, inviteMember, loadTeam, removeMember, revokeInvite, saveProfile } from '@/app/(app)/settings/actions';
+import { changeRole, inviteMember, loadQuiet, loadTeam, removeMember, revokeInvite, saveProfile, saveQuiet, type QuietSettings } from '@/app/(app)/settings/actions';
 import { cn } from '@/lib/utils';
 
 type Team = Awaited<ReturnType<typeof loadTeam>>;
@@ -24,7 +25,7 @@ export function SettingsView({ team: t0, profile: p0, role, me }: { team: Team; 
     <div className="flex flex-col gap-5">
       <div><h2 className="font-display text-2xl font-extrabold">Settings</h2><p className="text-sm text-muted">Your business, team, WhatsApp number and plan.</p></div>
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0" role="tablist">{tabs.map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={cn('min-h-11 shrink-0 rounded-full border px-4 text-sm font-semibold', tab === id ? 'grad-bg border-transparent text-white' : 'border-line bg-card text-muted')}>{l}</button>)}</div>
-      {tab === 'workspace' ? <WorkspaceTab p={p0} canEdit={isAdmin} /> : null}
+      {tab === 'workspace' ? <div className="flex flex-col gap-5"><WorkspaceTab p={p0} canEdit={isAdmin} /><QuietHoursCard canEdit={isAdmin} /></div> : null}
       {tab === 'team' ? <TeamTab team={team} reload={async () => setTeam(await loadTeam())} isOwner={isOwner} isAdmin={isAdmin} me={me} /> : null}
       {tab === 'whatsapp' ? <WhatsAppConnect /> : null}
       {tab === 'plan' ? <BillingPanel /> : null}
@@ -51,6 +52,28 @@ function WorkspaceTab({ p, canEdit }: { p: Profile; canEdit: boolean }) {
       <p className="text-sm text-muted">Business type: <strong className="text-ink">{p.vertical ?? 'Not set'}</strong>{p.review === 'flagged' ? ' · under review' : ''}</p>
       {canEdit ? <Button type="submit" disabled={pending} className="w-fit">{pending ? <Loader2 className="size-4 animate-spin" /> : null}Save changes</Button> : <p className="text-sm text-muted">Only owners and admins can edit this.</p>}
     </form>
+  );
+}
+
+function QuietHoursCard({ canEdit }: { canEdit: boolean }) {
+  const [q, setQ] = useState<QuietSettings | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
+  const [pending, start] = useTransition();
+  useEffect(() => { void loadQuiet().then(setQ); }, []);
+  if (!q) return <div className="card h-40 max-w-2xl animate-pulse" aria-hidden />;
+  const hours = Array.from({ length: 24 }, (_, h) => h);
+  return (
+    <section className="card flex max-w-2xl flex-col gap-3 p-5" aria-label="Quiet hours">
+      <h3 className="flex items-center gap-2 font-display text-lg font-bold"><Moon className="size-5 text-brand" />Quiet hours</h3>
+      <p className="text-sm text-muted">Promotional messages wait until the quiet hours end, so customers are not messaged at night. Replies and updates they expect are never held back. Times are in {q.timezone === 'Asia/Kolkata' ? 'Indian time (IST)' : q.timezone}.</p>
+      {msg ? <p role="status" className={cn('rounded-xl px-3 py-2 text-sm', msg.ok ? 'bg-brand/10 text-brand' : 'bg-rose/10 text-rose')}>{msg.t}</p> : null}
+      <label className="flex items-center gap-3 text-sm font-semibold"><input type="checkbox" className="size-5" checked={q.enabled} disabled={!canEdit} onChange={(e) => setQ({ ...q, enabled: e.target.checked })} />Hold promotional messages during quiet hours</label>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Quiet from"><Select value={q.startHour} disabled={!canEdit || !q.enabled} onChange={(e) => setQ({ ...q, startHour: Number(e.target.value) })}>{hours.map((h) => <option key={h} value={h}>{hourLabel(h)}</option>)}</Select></Field>
+        <Field label="Until"><Select value={q.endHour} disabled={!canEdit || !q.enabled} onChange={(e) => setQ({ ...q, endHour: Number(e.target.value) })}>{hours.map((h) => <option key={h} value={h}>{hourLabel(h)}</option>)}</Select></Field>
+      </div>
+      {canEdit ? <Button type="button" disabled={pending} className="w-fit" onClick={() => start(async () => { const r = await saveQuiet({ enabled: q.enabled, startHour: q.startHour, endHour: q.endHour }); setMsg(r.ok ? { ok: true, t: 'Saved.' } : { ok: false, t: r.error }); })}>{pending ? <Loader2 className="size-4 animate-spin" /> : null}Save quiet hours</Button> : <p className="text-sm text-muted">Only owners and admins can change this.</p>}
+    </section>
   );
 }
 
