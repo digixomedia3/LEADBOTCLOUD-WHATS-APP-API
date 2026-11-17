@@ -44,6 +44,21 @@ export function textMessage(opts: { to: string; body: string; previewUrl?: boole
   };
 }
 
+/**
+ * A picture, video or document typed into a chat (inside the 24-hour window). The file is sent by the media id from uploading it to THIS number.
+ * Only documents carry a file name, and only pictures, videos and documents carry a caption (WhatsApp rejects a caption on anything else).
+ */
+export function mediaMessage(opts: { to: string; kind: 'image' | 'video' | 'document'; mediaId: string; caption?: string | null; fileName?: string | null; messageId?: string }) {
+  if (!/^[A-Za-z0-9_.-]{1,128}$/.test(opts.mediaId)) throw new Error('Media id is not valid');
+  const caption = (opts.caption ?? '').trim();
+  if (caption.length > 1024) throw new Error('Caption is longer than 1024 characters');
+  return {
+    ...envelope(assertE164(opts.to), opts.messageId ? `msg:${opts.messageId}` : undefined),
+    type: opts.kind,
+    [opts.kind]: { id: opts.mediaId, ...(caption ? { caption } : {}), ...(opts.kind === 'document' && opts.fileName ? { filename: opts.fileName } : {}) },
+  };
+}
+
 /** Body parameters for a template. Pass `names` for NAMED format; omit for POSITIONAL ({{1}}, {{2}} in order). */
 export function bodyParams(values: string[], names?: string[]): TemplateComponent {
   return { type: 'body', parameters: values.map((text, i) => ({ type: 'text', text, ...(names?.[i] ? { parameter_name: names[i] } : {}) })) };

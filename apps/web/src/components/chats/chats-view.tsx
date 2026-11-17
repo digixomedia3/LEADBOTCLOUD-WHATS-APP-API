@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import { ArrowLeft, CheckCheck, CheckCircle2, FlaskConical, Lock, MessageSquare, Send, StickyNote, UserCheck } from 'lucide-react';
+import { ArrowLeft, CheckCheck, FileText, Loader2, Paperclip, X, CheckCircle2, FlaskConical, Lock, MessageSquare, Send, StickyNote, UserCheck } from 'lucide-react';
 import { formatPhone } from '@lbc/shared';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/form';
@@ -48,12 +48,32 @@ export function ChatsView({ initial, team, quick, me, canReply, live }: { initia
       setText(''); setThread(await openConversation(activeId)); void refreshList();
     });
   }
+  // A file waiting to be sent: shown first so a wrong picture is never sent by one tap.
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [picked, setPicked] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  useEffect(() => { if (!picked || !picked.type.startsWith('image/')) { setPreviewUrl(null); return; } const u = URL.createObjectURL(picked); setPreviewUrl(u); return () => URL.revokeObjectURL(u); }, [picked]);
+  useEffect(() => { setPicked(null); }, [activeId]);
+  async function sendFile() {
+    if (!activeId || !picked || uploading) return;
+    setError(''); setUploading(true);
+    try {
+      const form = new FormData(); form.set('file', picked); form.set('conversationId', activeId); form.set('caption', text);
+      const res = await fetch('/api/chat-attachments', { method: 'POST', body: form });
+      const r = (await res.json().catch(() => null)) as { ok: boolean; error?: string } | null;
+      if (!r?.ok) { setError(r?.error ?? 'The file could not be sent. Try again.'); return; }
+      setPicked(null); setText(''); if (fileRef.current) fileRef.current.value = '';
+      setThread(await openConversation(activeId)); void refreshList();
+    } catch { setError('The file could not be sent. Check your connection and try again.'); }
+    finally { setUploading(false); }
+  }
   const shortcutHits = text.startsWith('/') ? quick.filter((q) => q.shortcut.startsWith(text.slice(1).toLowerCase())) : [];
 
   return (
     <div className="flex flex-col gap-3">
       <p className="flex items-start gap-2 rounded-xl border border-dashed border-amber/50 bg-amber/5 p-3 text-sm"><FlaskConical className="mt-0.5 size-4 shrink-0 text-amber" /><span><strong>Test mode.</strong> Replies stay in this panel. Use “Customer replies” to try the 24-hour window, STOP and auto-replies.</span></p>
-      <div className="card grid h-[calc(100dvh-14.5rem)] min-h-[30rem] overflow-hidden p-0 md:h-[calc(100dvh-13rem)] lg:grid-cols-[21rem_minmax(0,1fr)_16rem]">
+      <div className="card grid h-[calc(100dvh-16rem)] min-h-[28rem] overflow-hidden p-0 md:h-[calc(100dvh-13rem)] lg:grid-cols-[21rem_minmax(0,1fr)_16rem]">
         {/* List */}
         <section className={cn('flex min-h-0 min-w-0 flex-col border-r border-line', activeId && 'hidden lg:flex')} aria-label="Conversations">
           <div className="flex gap-1.5 overflow-x-auto border-b border-line p-2" role="tablist">
@@ -99,9 +119,21 @@ export function ChatsView({ initial, team, quick, me, canReply, live }: { initia
                   {!c.windowOpen && mode === 'reply' ? <p className="mb-2 flex items-center gap-2 rounded-lg bg-amber/10 px-3 py-2 text-xs text-amber"><Lock className="size-3.5 shrink-0" />The 24-hour window is closed. You can add private notes, or wait for the customer to write.</p> : null}
                   {shortcutHits.length ? <ul className="mb-2 max-h-32 overflow-y-auto rounded-xl border border-line bg-card text-sm">{shortcutHits.map((q) => <li key={q.id}><button className="flex min-h-11 w-full flex-col px-3 text-left hover:bg-ink/5" onClick={() => setText(q.body)}><span className="font-mono text-xs text-brand">/{q.shortcut}</span><span className="truncate">{q.body}</span></button></li>)}</ul> : null}
                   <div className="mb-1.5 flex gap-1.5">{(['reply', 'note'] as const).map((m) => <button key={m} onClick={() => setMode(m)} className={cn('min-h-9 rounded-full px-3.5 text-xs font-bold', mode === m ? (m === 'note' ? 'bg-amber/20 text-amber' : 'bg-brand/15 text-brand') : 'text-muted')}>{m === 'reply' ? 'Reply' : 'Private note'}</button>)}</div>
-                  <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-end gap-2">
+                  {picked ? (
+                    <div className="mb-2 flex items-center gap-3 rounded-xl border border-line bg-card p-2" role="group" aria-label="File ready to send">
+                      {/* A local preview of the file the person just chose (a blob: address), which next/image cannot optimise. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {previewUrl ? <img src={previewUrl} alt="" className="size-14 shrink-0 rounded-lg object-cover" /> : <FileText className="size-8 shrink-0 text-muted" />}
+                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{picked.name}</p><p className="text-xs text-muted">{picked.size < 1048576 ? `${Math.max(1, Math.round(picked.size / 1024))} KB` : `${(picked.size / 1048576).toFixed(1)} MB`} · the text below is sent as its caption</p></div>
+                      <button type="button" onClick={() => { setPicked(null); if (fileRef.current) fileRef.current.value = ''; }} className="grid size-11 shrink-0 place-items-center rounded-lg text-muted hover:bg-ink/5" aria-label="Remove file"><X className="size-5" /></button>
+                    </div>) : null}
+                  <form onSubmit={(e) => { e.preventDefault(); if (picked && mode === 'reply') void sendFile(); else send(); }} className="flex items-end gap-2">
+                    {mode === 'reply' ? (<>
+                      <input ref={fileRef} type="file" accept="image/jpeg,image/png,video/mp4,application/pdf" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { setError(''); setPicked(e.target.files?.[0] ?? null); }} />
+                      <Button type="button" variant="outline" size="icon" disabled={uploading || !c.windowOpen} onClick={() => fileRef.current?.click()} aria-label="Attach a picture, video or PDF"><Paperclip className="size-5" /></Button>
+                    </>) : null}
                     <textarea value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} rows={1} placeholder={mode === 'note' ? 'Only your team sees this' : 'Type a message. Type / for quick replies'} aria-label="Message" className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-line bg-card px-3 py-2.5 text-base focus:border-brand" />
-                    <Button type="submit" size="icon" disabled={pending || !text.trim() || (mode === 'reply' && !c.windowOpen)} aria-label="Send"><Send className="size-5" /></Button>
+                    <Button type="submit" size="icon" disabled={pending || uploading || (!text.trim() && !(picked && mode === 'reply')) || (mode === 'reply' && !c.windowOpen)} aria-label="Send">{uploading ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}</Button>
                   </form>
                 </footer>) : <p className="border-t border-line p-3 text-center text-sm text-muted">Your role can view chats but not reply.</p>}
             </>)}

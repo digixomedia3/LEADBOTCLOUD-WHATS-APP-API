@@ -24,7 +24,7 @@ const HOUR = 3_600_000;
 
 export interface ConvRow { id: string; contactId: string; name: string | null; phone: string; status: string; assignedTo: string | null; unread: number; preview: string | null; lastAt: string; windowOpen: boolean; consent: string }
 /** A file the customer sent. `state` is stored (show it), pending (still fetching), failed or too_large (say so; the message text still shows). */
-export interface MediaRef { id: string; kind: string; state: string; mime: string | null; fileName: string | null; caption: string | null; sizeBytes: number | null; inline: boolean }
+export interface MediaRef { id: string; kind: string; state: string; mime: string | null; fileName: string | null; caption: string | null; sizeBytes: number | null; inline: boolean; /** true = a file the team sent, served from a different route */ sent?: boolean }
 export interface MsgRow { id: string; direction: 'in' | 'out' | 'note'; body: string; status: string; at: string; by: string | null; media: MediaRef | null }
 export interface TeamMember { userId: string; name: string }
 
@@ -49,12 +49,15 @@ export async function openConversation(id: string): Promise<{ conv: ConvRow; mes
     await tx.update(conversations).set({ unread: 0 }).where(eq(conversations.id, id));
     const ms = await tx.select().from(messages).where(eq(messages.conversationId, id)).orderBy(asc(messages.createdAt)).limit(500);
     const ids = ms.filter((m) => m.direction === 'in' && m.kind !== 'text').map((m) => m.id);
+    const outIds = ms.filter((m) => m.direction === 'out' && ['image', 'video', 'document'].includes(m.kind)).map((m) => m.id);
+    const sentFiles = outIds.length ? ((await tx.execute(sql`select id, message_id, kind, mime, file_name, size_bytes from message_attachments where message_id = any(${'{' + outIds.join(',') + '}'}::uuid[])`)) as unknown as { id: string; message_id: string; kind: string; mime: string; file_name: string; size_bytes: number }[]) : [];
+    const sentBy = new Map(sentFiles.map((f) => [f.message_id, f]));
     const files = ids.length ? ((await tx.execute(sql`select id, message_id, kind, state, mime, file_name, caption, size_bytes from inbound_media where message_id = any(${'{' + ids.join(',') + '}'}::uuid[])`)) as unknown as { id: string; message_id: string; kind: string; state: string; mime: string | null; file_name: string | null; caption: string | null; size_bytes: number | null }[]) : [];
     const byMsg = new Map(files.map((f) => [f.message_id, f]));
     const c = r.c;
     return {
       conv: { id: c.id, contactId: c.contactId, name: r.name, phone: r.phone, status: c.status, assignedTo: c.assignedTo, unread: 0, preview: c.lastPreview, lastAt: c.lastMessageAt.toISOString(), windowOpen: !!c.windowExpiresAt && c.windowExpiresAt.getTime() > Date.now(), consent: r.consent },
-      messages: ms.map((m) => ({ id: m.id, direction: m.direction as MsgRow['direction'], body: m.body, status: m.status, at: m.createdAt.toISOString(), by: m.senderUserId, media: ((f) => f ? { id: f.id, kind: f.kind, state: f.state, mime: f.mime, fileName: f.file_name, caption: f.caption, sizeBytes: f.size_bytes, inline: f.state === 'stored' && canShowInline(f.mime, f.kind) } : null)(byMsg.get(m.id)) })),
+      messages: ms.map((m) => ({ id: m.id, direction: m.direction as MsgRow['direction'], body: m.body, status: m.status, at: m.createdAt.toISOString(), by: m.senderUserId, media: ((s) => s ? { id: s.id, kind: s.kind, state: 'stored', mime: s.mime, fileName: s.file_name, caption: ((m.payload ?? {}) as { caption?: string }).caption ?? null, sizeBytes: s.size_bytes, inline: s.kind !== 'document', sent: true } : null)(sentBy.get(m.id)) ?? ((f) => f ? { id: f.id, kind: f.kind, state: f.state, mime: f.mime, fileName: f.file_name, caption: f.caption, sizeBytes: f.size_bytes, inline: f.state === 'stored' && canShowInline(f.mime, f.kind) } : null)(byMsg.get(m.id)) })),
     };
   });
 }

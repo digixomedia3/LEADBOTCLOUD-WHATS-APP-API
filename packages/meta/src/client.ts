@@ -148,6 +148,8 @@ export class GraphClient {
     catch (e) { throw new MetaUnknownOutcome('media', e); } finally { clearTimeout(timer); }
     const text = await res.text(); let json: { id?: string; error?: GraphError } = {};
     try { json = text ? JSON.parse(text) : {}; } catch { /* non-JSON */ }
+    // A 5xx with no readable error is a Meta hiccup, not a verdict on the file: same rule as every other call, so the send is retried, not failed.
+    if (!res.ok && !json.error && res.status >= 500) throw new MetaUnknownOutcome('media', `HTTP ${res.status}`);
     if (!res.ok) throw new MetaError(res.status, json.error ?? { message: `HTTP ${res.status}` }, 'media');
     if (!json.id) throw new MetaError(502, { message: 'Meta did not return a media id.' }, 'media');
     return json.id;

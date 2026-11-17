@@ -18,7 +18,8 @@
     "./send-window": "./src/send-window.ts",
     "./journeys": "./src/journeys.ts",
     "./ab-test": "./src/ab-test.ts",
-    "./inbound-media": "./src/inbound-media.ts"
+    "./inbound-media": "./src/inbound-media.ts",
+    "./chat-attachments": "./src/chat-attachments.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

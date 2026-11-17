@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { isTrackedButtonValue } from '@lbc/shared/tracked-links';
 import { nextAllowed, type QuietHours } from '@lbc/shared/send-window';
 import { backoffMs, errorPolicy, type ErrorPolicy } from '@lbc/shared';
-import { GraphClient, MetaError, MetaUnknownOutcome, bodyParams, copyCodeParam, headerMediaParam, limitedTimeOfferParam, chooseEndpoint, decryptSecret, rerouteFor, templateMessage, textMessage, withProductPolicy, type SendResponse, type TemplateCategory } from '@lbc/meta';
+import { GraphClient, MetaError, mediaMessage, MetaUnknownOutcome, bodyParams, copyCodeParam, headerMediaParam, limitedTimeOfferParam, chooseEndpoint, decryptSecret, rerouteFor, templateMessage, textMessage, withProductPolicy, type SendResponse, type TemplateCategory } from '@lbc/meta';
 import type { Db } from '@lbc/db';
 
 type Row = Record<string, unknown>;
@@ -56,6 +56,7 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
   if (tenant?.status === 'suspended' || tenant?.status === 'offboarded') return skip(db, tenantId, messageId, recipientId, 'This workspace is not active.');
 
   const isTemplate = !!m.template_name;
+  const isFile = !isTemplate && ['image', 'video', 'document'].includes(String(m.kind));
   let tpl: Row | null = null;
   const category = (m.template_category as string | null)?.toUpperCase() as TemplateCategory | undefined;
 
@@ -68,6 +69,11 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
   if (!isTemplate) {
     const open = conv?.window_expires_at && new Date(String(conv.window_expires_at)) > now;
     if (!open) return skip(db, tenantId, messageId, recipientId, 'The 24-hour reply window is closed. Send an approved template.');
+  }
+  let attachment: Row | null = null;
+  if (isFile) {
+    attachment = rows(await db.execute(sql`select id, kind, mime, file_name, data, media_ids from message_attachments where message_id = ${messageId} and tenant_id = ${tenantId}`))[0] ?? null;
+    if (!attachment) return skip(db, tenantId, messageId, recipientId, 'The file for this message is missing.');
   }
   if (isTemplate) {
     const t = rows(await db.execute(sql`select id, status, header_type, buttons, offer from templates where tenant_id = ${tenantId} and name = ${m.template_name} and language = ${m.template_language} limit 1`))[0];
@@ -124,9 +130,26 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
     }
   }
 
+  // A file typed into a chat is uploaded to this number once (Meta keeps it 30 days; reused for 25), then sent by its id.
+  let fileMediaId: string | null = null;
+  if (isFile && attachment) {
+    try { fileMediaId = await attachmentMediaId(d, tenantId, attachment, phoneNumberId, token); }
+    catch (e) {
+      if (e instanceof MetaUnknownOutcome || (e instanceof MetaError && (e.isTransient || errorPolicy(e.code).retry !== 'no'))) {
+        await db.execute(sql`update messages set status = 'queued' where id = ${messageId} and tenant_id = ${tenantId}`);
+        return { kind: 'retry', delayMs: 15_000 };
+      }
+      if (e instanceof MetaError) return handleSendError(d, tenantId, messageId, recipientId, e);
+      await db.execute(sql`update messages set status = 'failed', failed_at = now(), error_detail = ${JSON.stringify({ build_error: String((e as Error).message) })}::jsonb where id = ${messageId} and tenant_id = ${tenantId}`);
+      return { kind: 'failed', message: 'The file could not be prepared.', action: 'dlq', known: false };
+    }
+  }
+
   let body: object;
   try {
-    body = isTemplate
+    body = isFile && attachment && fileMediaId
+      ? mediaMessage({ to, kind: String(attachment.kind) as 'image' | 'video' | 'document', mediaId: fileMediaId, caption: String(((m.payload ?? {}) as { caption?: string }).caption ?? ''), fileName: String(attachment.file_name), messageId })
+      : isTemplate
       ? templateMessage({ to, name: String(m.template_name), language: String(m.template_language ?? 'en'), components: templateComponents(payload, tpl, headerMediaId, d.appUrl), messageId })
       : textMessage({ to, body: String(m.body), messageId });
   } catch (e) {
@@ -219,6 +242,15 @@ export function mediaIdFor(d: SendDeps, tenantId: string, templateId: string, ph
   inflight.set(key, p);
   return p;
 }
+/** Same upload-once rule as template headers, for a file attached to one message. Cached per sending number for 25 days. */
+async function attachmentMediaId(d: SendDeps, tenantId: string, a: Row, phoneNumberId: string, token: string): Promise<string> {
+  const cached = ((a.media_ids ?? {}) as Record<string, { id: string; at: string }>)[phoneNumberId];
+  if (cached && Date.now() - new Date(cached.at).getTime() < MEDIA_TTL_DAYS * 86_400_000) return cached.id;
+  const id = await d.graph.uploadMedia(phoneNumberId, token, { name: String(a.file_name), mime: String(a.mime), bytes: new Uint8Array(a.data as Buffer) });
+  await d.db.execute(sql`update message_attachments set media_ids = jsonb_set(media_ids, ARRAY[${phoneNumberId}]::text[], ${JSON.stringify({ id, at: new Date().toISOString() })}::jsonb, true) where id = ${a.id as string} and tenant_id = ${tenantId}`);
+  return id;
+}
+
 async function mediaIdForUncached(d: SendDeps, tenantId: string, templateId: string, phoneNumberId: string, token: string): Promise<string> {
   const a = rows(await d.db.execute(sql`select id, mime, file_name, kind, data, media_ids from template_assets where template_id = ${templateId} and tenant_id = ${tenantId}`))[0];
   if (!a) throw new Error('The header file is missing');
