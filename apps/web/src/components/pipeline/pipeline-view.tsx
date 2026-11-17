@@ -8,6 +8,7 @@ import { updateLead } from '@/app/(app)/leads/actions';
 import { loadPipeline, type Card } from '@/app/(app)/pipeline/actions';
 import { formatPhone } from '@lbc/shared';
 import { cn } from '@/lib/utils';
+import { ScoreBadge } from '@/components/leads/lead-score-ui';
 
 const COLS = [['new', 'New', 'bg-indigo'], ['contacted', 'Contacted', 'bg-cyan-500'], ['qualified', 'Qualified', 'bg-amber'], ['won', 'Won', 'bg-brand'], ['lost', 'Lost', 'bg-rose']] as const;
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
@@ -45,7 +46,7 @@ export function PipelineView({ initial, truncated: t0, canWrite }: { initial: Ca
                 {list.map((c) => (
                   <li key={c.id} className="card p-3">
                     <p className="truncate font-medium">{c.name ?? 'No name'}</p>
-                    <p className="text-xs text-muted">{formatPhone(c.phone)}</p>
+                    <p className="flex items-center gap-1.5 text-xs text-muted"><ScoreBadge score={c.score} band={c.band} />{formatPhone(c.phone)}</p>
                     <p className="mt-1 truncate text-xs text-muted">{[c.source, c.owner ? `Owner: ${c.owner}` : 'Unassigned', c.valueRupees > 0 ? inr(c.valueRupees) : null].filter(Boolean).join(' · ')}</p>
                     {canWrite ? (
                       <div className="mt-2 flex items-center justify-between gap-1">

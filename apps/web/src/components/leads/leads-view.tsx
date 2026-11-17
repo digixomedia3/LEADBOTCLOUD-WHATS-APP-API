@@ -12,6 +12,7 @@ import {
 } from '@/app/(app)/leads/actions';
 import { cn } from '@/lib/utils';
 import { ChannelsPanel } from './channels-panel';
+import { ScoreBadge, ScoreBreakdown, ScoringButton } from './lead-score-ui';
 
 const STATUS_LABEL: Record<string, string> = { new: 'New', contacted: 'Contacted', qualified: 'Qualified', won: 'Won', lost: 'Lost', junk: 'Junk' };
 const STATUS_STYLE: Record<string, string> = {
@@ -29,7 +30,7 @@ const wa = (phone: string) => `https://wa.me/${phone.replace(/\D/g, '')}`;
 export function LeadsView({ initial, canManage, canWrite }: { initial: LeadsData; canManage: boolean; canWrite: boolean }) {
   const [tab, setTab] = useState<'inbox' | 'channels' | 'sources'>('inbox');
   const [data, setData] = useState(initial);
-  const [filter, setFilter] = useState<{ status?: string; sourceId?: string; ownerId?: string; q?: string; mine?: boolean; page: number }>({ page: 1 });
+  const [filter, setFilter] = useState<{ status?: string; sourceId?: string; ownerId?: string; q?: string; mine?: boolean; page: number; sort?: 'new' | 'hot'; band?: 'hot' | 'warm' | 'cold' }>({ page: 1 });
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<LeadRow | null>(null);
   const [busy, start] = useTransition();
@@ -60,6 +61,13 @@ export function LeadsView({ initial, canManage, canWrite }: { initial: LeadsData
             <Chip on={!filter.status} onClick={() => apply({ status: undefined })}>All <b>{total}</b></Chip>
             {LEAD_STATUSES.map((s) => <Chip key={s} on={filter.status === s} onClick={() => apply({ status: filter.status === s ? undefined : s })}>{STATUS_LABEL[s]} <b>{data.counts[s] ?? 0}</b></Chip>)}
           </div>
+          <div className="flex flex-wrap items-center gap-2" aria-label="Lead score">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted">Score</span>
+            {(['hot', 'warm', 'cold'] as const).map((b) => <Chip key={b} on={filter.band === b} onClick={() => apply({ band: filter.band === b ? undefined : b })}>{b === 'hot' ? 'Hot' : b === 'warm' ? 'Warm' : 'Cold'}</Chip>)}
+            <Chip on={filter.sort === 'hot'} onClick={() => apply({ sort: filter.sort === 'hot' ? undefined : 'hot' })}>Highest score first</Chip>
+            {canManage ? <span className="ml-auto"><ScoringButton onSaved={() => load(filter)} /></span> : null}
+          </div>
+          {data.scanLimited ? <p className="rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900" role="status">You have a lot of leads. Sorting and filtering by score uses the newest 2,000 that match. Narrow the list (status, source or search) to see the rest.</p> : null}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-52 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" /><Input className="pl-9" placeholder="Search name, phone or email" value={q} onChange={(e) => setQ(e.target.value)} /></div>
             <Select className="w-[calc(50%-.25rem)] sm:w-auto" value={filter.sourceId ?? ''} onChange={(e) => apply({ sourceId: e.target.value || undefined })}><option value="">All sources</option>{data.sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select>
@@ -84,7 +92,7 @@ export function LeadsView({ initial, canManage, canWrite }: { initial: LeadsData
                 {data.rows.map((r) => (
                   <li key={r.id} className="grid cursor-pointer grid-cols-[2rem_1fr_auto] items-center gap-x-3 gap-y-1 px-4 py-3 hover:bg-ink/[0.03] md:grid-cols-[2rem_1.6fr_1.1fr_1fr_1fr_6rem]" onClick={() => setOpen(r)}>
                     <input type="checkbox" aria-label={`Select ${r.name ?? r.phone}`} checked={sel.has(r.id)} onClick={(e) => e.stopPropagation()} onChange={() => setSel((s) => { const n = new Set(s); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })} />
-                    <div className="min-w-0"><p className="truncate font-semibold">{r.name ?? 'No name'}{r.submissions > 1 ? <span className="ml-2 rounded bg-ink/10 px-1.5 py-0.5 text-[10px] font-bold">×{r.submissions}</span> : null}</p><p className="truncate text-xs text-muted">{r.phone}{r.email ? ` · ${r.email}` : ''}</p></div>
+                    <div className="min-w-0"><p className="truncate font-semibold">{r.name ?? 'No name'}{r.submissions > 1 ? <span className="ml-2 rounded bg-ink/10 px-1.5 py-0.5 text-[10px] font-bold">×{r.submissions}</span> : null}</p><p className="flex items-center gap-1.5 truncate text-xs text-muted"><ScoreBadge score={r.score} band={r.band} />{r.phone}{r.email ? ` · ${r.email}` : ''}</p></div>
                     <span className={cn('justify-self-end rounded-full px-2.5 py-0.5 text-xs font-semibold md:hidden', STATUS_STYLE[r.status])}>{STATUS_LABEL[r.status]}</span>
                     <p className="col-start-2 truncate text-xs text-muted md:col-start-auto md:text-sm">{r.sourceName ?? 'Deleted source'}{r.utmCampaign ? ` · ${r.utmCampaign}` : ''}</p>
                     <p className="hidden truncate text-sm md:block">{r.ownerName ?? <span className="text-muted">Unassigned</span>}</p>
@@ -149,6 +157,7 @@ function LeadPanel({ lead, members, canWrite, onClose, onSaved }: { lead: LeadRo
           <span className={cn('ml-auto text-xs font-semibold', CONSENT_STYLE[lead.consent])}>{CONSENT_LABEL[lead.consent] ?? lead.consent}</span>
         </div>
         {lead.consent !== 'allowed' ? <p className="rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">{lead.consent === 'stopped' ? 'This person opted out. Do not send them offers.' : 'This person has not agreed to marketing messages. You can reply if they message you first; offers and campaigns skip them until they opt in.'}</p> : null}
+        <ScoreBreakdown score={lead.score} band={lead.band} reasons={lead.scoreReasons} />
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <Item k="Source" v={lead.sourceName ?? 'Deleted source'} /><Item k="Received" v={new Date(lead.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' })} />
           {lead.email ? <Item k="Email" v={lead.email} /> : null}{lead.utmSource ? <Item k="Campaign" v={[lead.utmSource, lead.utmCampaign].filter(Boolean).join(' / ')} /> : null}

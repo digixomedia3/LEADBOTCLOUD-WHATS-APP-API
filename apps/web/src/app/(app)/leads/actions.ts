@@ -5,7 +5,9 @@ import { revalidatePath } from 'next/cache';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { CONSENT_MODES, LEAD_SOURCE_KINDS, LEAD_STATUSES } from '@lbc/shared';
+import type { Band, ScoreReason } from '@lbc/shared/lead-score';
 import { Forbidden, assertRole, db, requireCtx, type Ctx } from '@/lib/session';
+import { SCORE_SCAN_LIMIT, getScoringRules, resetScoringRules, saveScoringRules, scoreLeadsIn } from '@/lib/core/lead-score';
 
 export type Result<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
@@ -143,9 +145,11 @@ export interface LeadRow {
   id: string; status: string; name: string | null; phone: string; email: string | null; consent: string; sourceName: string | null; sourceKind: string | null;
   ownerId: string | null; ownerName: string | null; valueRupees: number; utmSource: string | null; utmCampaign: string | null; sourceUrl: string | null;
   submissions: number; createdAt: string; firstResponseAt: string | null; fields: Record<string, string>; note: string | null; contactId: string;
+  score: number; band: Band; scoreReasons: ScoreReason[];
 }
-export interface LeadFilter { status?: string; sourceId?: string; ownerId?: string; q?: string; mine?: boolean; page?: number }
-export interface LeadsData { rows: LeadRow[]; total: number; counts: Record<string, number>; page: number; pageSize: number; members: { id: string; name: string }[]; sources: { id: string; name: string }[]; me: string }
+export interface LeadFilter { status?: string; sourceId?: string; ownerId?: string; q?: string; mine?: boolean; page?: number; /** 'hot' = highest score first */ sort?: 'new' | 'hot'; band?: 'hot' | 'warm' | 'cold' }
+/** Sorting or filtering by score means scoring every matching lead first. Past this many, the list says so instead of quietly using a part. */
+export interface LeadsData { scanLimited: boolean; rows: LeadRow[]; total: number; counts: Record<string, number>; page: number; pageSize: number; members: { id: string; name: string }[]; sources: { id: string; name: string }[]; me: string }
 const PAGE = 25;
 
 export async function listLeads(f: LeadFilter = {}): Promise<LeadsData> {
@@ -158,19 +162,38 @@ export async function listLeads(f: LeadFilter = {}): Promise<LeadsData> {
     const where = sql`(${status}::text is null or l.status = ${status}) and (${f.sourceId ?? null}::uuid is null or l.source_id = ${f.sourceId ?? null}::uuid)
       and (${f.ownerId ?? null}::text is null or l.owner_user_id = ${f.ownerId ?? null}) and (${f.mine ? ctx.user.id : null}::text is null or l.owner_user_id = ${f.mine ? ctx.user.id : null})
       and (${like}::text is null or c.name ilike ${like} or c.phone_e164 ilike ${like} or c.email ilike ${like})`;
-    const total = Number((await rows(tx, sql`select count(*)::int as n from leads l join contacts c on c.id = l.contact_id where ${where}`))[0]!.n);
-    const r = await rows(tx, sql`select l.*, c.name, c.phone_e164, c.email, c.consent_status, s.name as source_name, s.kind as source_kind, u.name as owner_name
+    const select = (cond: ReturnType<typeof sql>, order: ReturnType<typeof sql>, lim: number, off: number) => rows(tx, sql`select l.*, c.name, c.phone_e164, c.email, c.consent_status, s.name as source_name, s.kind as source_kind, u.name as owner_name
       from leads l join contacts c on c.id = l.contact_id left join lead_sources s on s.id = l.source_id left join "user" u on u.id = l.owner_user_id
-      where ${where} order by l.created_at desc, l.id limit ${PAGE} offset ${(page - 1) * PAGE}`);
+      where ${cond} ${order} limit ${lim} offset ${off}`);
+    const byScore = f.sort === 'hot' || !!f.band;
+    let total: number, r: Row[], scores: Map<string, import('@lbc/shared/lead-score').Score>, scanLimited = false;
+    if (byScore) {
+      // Score every matching lead (up to the limit), then filter, sort and page by the score itself.
+      const all = await rows(tx, sql`select l.id, l.created_at from leads l join contacts c on c.id = l.contact_id where ${where} order by l.created_at desc, l.id limit ${SCORE_SCAN_LIMIT + 1}`);
+      scanLimited = all.length > SCORE_SCAN_LIMIT;
+      const ids = all.slice(0, SCORE_SCAN_LIMIT).map((x) => x.id as string);
+      const sc = await scoreLeadsIn(tx, ctx.tenantId, ids);
+      const keep = ids.filter((id) => sc.has(id) && (!f.band || sc.get(id)!.band === f.band));
+      if (f.sort === 'hot') keep.sort((x, y) => sc.get(y)!.score - sc.get(x)!.score);   // stable: ties stay newest first
+      total = keep.length;
+      const pageIds = keep.slice((page - 1) * PAGE, page * PAGE);
+      const got = pageIds.length ? await select(sql`l.id = any(${'{' + pageIds.join(',') + '}'}::uuid[])`, sql``, PAGE, 0) : [];
+      const pos = new Map(pageIds.map((id, i) => [id, i])); r = got.sort((x, y) => pos.get(x.id)! - pos.get(y.id)!); scores = sc;
+    } else {
+      total = Number((await rows(tx, sql`select count(*)::int as n from leads l join contacts c on c.id = l.contact_id where ${where}`))[0]!.n);
+      r = await select(where, sql`order by l.created_at desc, l.id`, PAGE, (page - 1) * PAGE);
+      scores = await scoreLeadsIn(tx, ctx.tenantId, r.map((x) => x.id as string));
+    }
     const cnt = await rows(tx, sql`select status, count(*)::int as n from leads group by status`);
     const m = await rows(tx, sql`select m.user_id as id, u.name from tenant_members m join "user" u on u.id = m.user_id order by u.name`);
     const s = await rows(tx, sql`select id, name from lead_sources order by name`);
     return {
-      page, pageSize: PAGE, total, me: ctx.user.id, counts: Object.fromEntries(cnt.map((x) => [x.status, x.n])),
+      page, pageSize: PAGE, total, scanLimited, me: ctx.user.id, counts: Object.fromEntries(cnt.map((x) => [x.status, x.n])),
       members: m.map((x) => ({ id: x.id, name: x.name })), sources: s.map((x) => ({ id: x.id, name: x.name })),
       rows: r.map((x) => ({ id: x.id, status: x.status, name: x.name, phone: x.phone_e164, email: x.email, consent: x.consent_status, sourceName: x.source_name, sourceKind: x.source_kind, ownerId: x.owner_user_id, ownerName: x.owner_name,
         valueRupees: Number(x.value_paise) / 100, utmSource: x.utm?.utm_source ?? null, utmCampaign: x.utm?.utm_campaign ?? null, sourceUrl: x.source_url, submissions: x.submissions, createdAt: new Date(x.created_at).toISOString(),
-        firstResponseAt: x.first_response_at ? new Date(x.first_response_at).toISOString() : null, fields: x.fields ?? {}, note: x.note, contactId: x.contact_id })),
+        firstResponseAt: x.first_response_at ? new Date(x.first_response_at).toISOString() : null, fields: x.fields ?? {}, note: x.note, contactId: x.contact_id,
+        score: scores.get(x.id)?.score ?? 0, band: scores.get(x.id)?.band ?? 'cold', scoreReasons: scores.get(x.id)?.reasons ?? [] })),
     };
   });
 }
@@ -240,4 +263,16 @@ export async function bulkUpdateLeads(ids: string[], patch: { status?: string; o
 export async function rejectsFor(sourceId: string): Promise<{ reason: string; detail: string | null; at: string }[]> {
   const ctx = await requireCtx();
   return db(ctx, async (tx) => (await rows(tx, sql`select reason, detail, created_at from lead_rejects where source_id = ${sourceId} order by id desc limit 20`)).map((x) => ({ reason: x.reason, detail: x.detail, at: new Date(x.created_at).toISOString() })));
+}
+
+/* ------------------------------------------------------------------ scoring rules */
+import type { Weights } from '@lbc/shared/lead-score';
+export async function loadScoringRules(): Promise<Weights> { const ctx = await requireCtx(); return getScoringRules(ctx); }
+export async function saveScoringRulesAction(weights: Weights): Promise<Result<Weights>> {
+  const g = await guard('admin'); if ('error' in g) return fail(g.error);
+  const r = await saveScoringRules(g.ctx, weights); if (r.ok) revalidatePath('/leads'); return r;
+}
+export async function resetScoringRulesAction(): Promise<Result<Weights>> {
+  const g = await guard('admin'); if ('error' in g) return fail(g.error);
+  const r = await resetScoringRules(g.ctx); if (r.ok) revalidatePath('/leads'); return r;
 }
