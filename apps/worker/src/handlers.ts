@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { errorPolicy, type GraphError } from '@lbc/shared';
 import { STATUS_RANK, fromUnixSeconds, isStartText, isStopText, nextStatus, parseCallbackData } from '@lbc/meta';
-import type { Db } from '@lbc/db';
+import { stopRunsFor, type Db } from '@lbc/db';
 import { recordAdClick } from './leads';
 
 /**
@@ -86,6 +86,7 @@ export async function applyErrorEffects(db: Db, tenantId: string, messageId: str
   else if (policy.action === 'unreachable') await db.execute(sql`update contacts set reachability = 'unreachable', unreachable_since = coalesce(unreachable_since, now()), updated_at = now() where ${contactFilter}`);
   else if (policy.action === 'opt_out_contact') {
     const c = rows(await db.execute(sql`update contacts set consent_status = 'stopped', opt_out_at = coalesce(opt_out_at, now()), opt_out_source = 'user_preferences', updated_at = now() where ${contactFilter} and consent_status <> 'stopped' returning id`))[0];
+    if (c) await stopRunsFor(db, tenantId, String(c.id), 'opted_out');
     if (c) await db.execute(sql`insert into contact_consent_events (tenant_id, contact_id, action, source, note) values (${tenantId}, ${c.id}, 'opt_out', 'user_preferences', ${`Meta reported error ${code} on message ${messageId}`})`);
   }
 }
@@ -137,6 +138,7 @@ export async function handleInbound(db: Db, tenantId: string, phoneNumberId: str
     const r = rows(await db.execute(sql`update contacts set consent_status = 'stopped', opt_out_at = now(), opt_out_source = ${isStopButton ? 'button' : 'stop_keyword'}, updated_at = now() where id = ${contactId} and tenant_id = ${tenantId} and consent_status <> 'stopped' returning id`));
     if (r[0]) await db.execute(sql`insert into contact_consent_events (tenant_id, contact_id, action, source, note) values (${tenantId}, ${contactId}, 'opt_out', ${isStopButton ? 'button' : 'keyword'}, ${`Customer wrote: ${text.slice(0, 40)}`})`);
     optedOut = true;
+    await stopRunsFor(db, tenantId, contactId, 'opted_out');
     autoReply = 'You will no longer receive promotional messages from us. Reply START to subscribe again.';
   } else if (isStartText(text) && String(c.consent_status) === 'stopped') {
     // Resume only when the customer themself asks, and record it.

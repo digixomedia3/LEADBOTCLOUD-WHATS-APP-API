@@ -14,7 +14,9 @@
     "test": "vitest run",
     "lint": "echo ok",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/migrate.ts"
+    "db:migrate": "tsx src/migrate.ts",
+    "admin:add": "tsx src/platform-admin.ts add",
+    "admin:remove": "tsx src/platform-admin.ts remove"
   },
   "dependencies": {
     "@lbc/shared": "workspace:*",

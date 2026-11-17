@@ -128,6 +128,9 @@ export async function queueCampaignFor(ctx: ActorCtx, id: string): Promise<Resul
 
 /** The queueing step itself, for callers that already hold a transaction (and locks) and must not open a second one. */
 async function queueInTx(tx: Tx, ctx: ActorCtx, id: string): Promise<Result<{ sent: number; testMode: false }>> {
+  // A suspended workspace cannot start sending. The sender would refuse every message anyway; this says so up front, once, in plain words.
+  const ws = (await tx.execute(sql`select status from tenants where id = ${ctx.tenantId}::uuid`)) as unknown as { status: string }[];
+  if (ws[0]?.status === 'suspended' || ws[0]?.status === 'offboarded') return fail('Sending is switched off for this workspace. Contact support.');
   const r = await tx.execute(sql`update campaigns set status = 'scheduled', scheduled_at = least(coalesce(scheduled_at, now()), now()) where id = ${id}::uuid and status in ('draft','scheduled','paused') returning (counts->>'audience')::int as n`);
   const row = (r as unknown as { n: number | null }[])[0];
   if (!row) return fail('This campaign has already been sent.');

@@ -15,7 +15,8 @@
     "./campaign-report": "./src/campaign-report.ts",
     "./tracked-links": "./src/tracked-links.ts",
     "./link-code": "./src/link-code.ts",
-    "./send-window": "./src/send-window.ts"
+    "./send-window": "./src/send-window.ts",
+    "./journeys": "./src/journeys.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

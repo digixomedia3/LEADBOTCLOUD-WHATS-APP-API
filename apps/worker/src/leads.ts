@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import type { Db } from '@lbc/db';
+import { enrollFromLead, type Db } from '@lbc/db';
 import { decideConsent, extractLead, parseBody, phoneFromLead, planLimits, type ConsentMode, type ExtractedLead } from '@lbc/shared';
 
 type Row = Record<string, any>;
@@ -115,6 +115,13 @@ export async function recordLead(db: Db, src: Row, lead: ExtractedLead, e164: st
     if (lead.externalId && out.status === 200) await t.execute(sql`update lead_external_ids set lead_id = ${out.leadId} where source_id = ${src.id} and external_id = ${lead.externalId}`);
     await t.execute(sql`update lead_sources set lead_count = lead_count + ${out.status === 200 && out.created ? 1 : 0}, rr_cursor = rr_cursor + ${out.status === 200 && out.created ? 1 : 0}, last_lead_at = now() where id = ${src.id}`);
   }).catch((e: Error) => { if (e.message !== '__over_limit__') throw e; });
+
+  // A new lead may start a journey. This runs after the lead is safely stored, and a problem here can never lose the lead.
+  const done = out as LeadResult;
+  if (done.status === 200 && done.created) {
+    const cid = (await rows(db, sql`select contact_id from leads where id = ${done.leadId}`))[0]?.contact_id;
+    if (cid) await enrollFromLead(db, String(src.tenant_id), String(src.id), String(cid)).catch((e: Error) => console.error('[journeys] enrol', e.message));
+  }
 
   if (overLimit) { await reject(db, src, 'plan_full', `Plan allows ${limit} contacts.`); return { status: 402, error: 'Contact limit of the plan reached.' }; }
   return out;

@@ -14,6 +14,7 @@ import { verifyInternal } from '@lbc/shared/internal-sign';
 import { processEvent } from './events';
 import { ingestMetaLeadgen, ingestShopify, pendingConnectorEvents, processConnectorEvent, syncSheets } from './connectors';
 import { sendOne } from './send';
+import { tickJourneys } from './journeys';
 import { deferredJobId, dueJobId, retryJobId } from './queue-ids';
 import { deleteQueuedTemplates, submitPendingTemplates, syncTemplates, tenantsDueForSync } from './templates';
 import { dueCampaigns, launchCampaign, queuedMessageIds, rollupCampaigns } from './campaigns';
@@ -88,6 +89,7 @@ async function templatesTick() {
 const connectorTimer = setInterval(async () => { for (const id of await pendingConnectorEvents(db)) await processConnectorEvent(connDeps, id); }, 20_000);
 const sheetsTimer = setInterval(() => syncSheets(connDeps).then((r) => { if (r.rows || r.errors) console.log('[sheets]', JSON.stringify(r)); }).catch((e) => console.error('sheets', e.message)), cfg.SHEETS_SYNC_MS);
 const templatesTimer = setInterval(() => templatesTick().catch((e) => console.error('templates', e.message)), 20_000);
+const journeyTimer = setInterval(() => tickJourneys({ db, appUrl: cfg.APP_URL }).then((r) => { if (r.due) console.log('[journeys]', JSON.stringify(r)); }).catch((e) => console.error('journeys', e.message)), 10_000);
 const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
 
 const app = Fastify({ bodyLimit: 8 * 1024 * 1024, trustProxy: cfg.TRUST_PROXY === 'true', logger: { level: 'info', serializers: { req: (r) => ({ method: r.method, url: String(r.url).replace(/([?&]key=)[^&]*/i, '$1***'), host: r.host, remoteAddress: r.ip }) }, redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]', 'req.headers["x-razorpay-signature"]', 'req.headers["x-lead-key"]', 'req.headers["x-lbc-sig"]'] } });

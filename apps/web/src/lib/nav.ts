@@ -12,6 +12,7 @@ import {
   MessageSquare,
   RefreshCw,
   Reply,
+  Route,
   Rocket,
   Settings,
   ShieldOff,
@@ -131,6 +132,14 @@ export const navGroups: NavGroup[] = [
         built: true,
         blurb: 'Reply automatically, without losing the human touch.',
         bullets: ['Welcome and away messages', 'Keyword replies in English and Hinglish', 'Always a way to reach a person'],
+      },
+      {
+        href: '/journeys',
+        label: 'Journeys',
+        Icon: Route,
+        built: true,
+        blurb: 'A few messages over days, stopping when a customer replies.',
+        bullets: ['Welcome new leads automatically', 'Wait, message, tag in any order', 'Stops the moment they reply or opt out'],
       },
       {
         href: '/renewals',

@@ -600,3 +600,18 @@ export const apiKeys = pgTable('api_keys', {
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
 });
+
+
+/** Journeys: a short list of steps (wait, send a template, add a tag) that people walk through one at a time. */
+export const journeys = pgTable('journeys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  name: text('name').notNull(),
+  status: text('status').notNull().default('draft'),
+  trigger: jsonb('trigger').notNull().default(sql`'{"type":"manual"}'::jsonb`),
+  steps: jsonb('steps').notNull().default(sql`'[]'::jsonb`),
+  stopOnReply: boolean('stop_on_reply').notNull().default(true),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
