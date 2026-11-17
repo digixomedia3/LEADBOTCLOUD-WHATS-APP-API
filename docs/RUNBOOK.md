@@ -39,9 +39,14 @@ If a migration itself is bad, restore from `/srv/lbc/backups` (the command is at
 - Meta, Razorpay and Shopify secrets go in `/etc/lbc/app.env` (names are in `.env.example`), then `sudo systemctl restart lbc-web lbc-worker`.
 - The server has no Google Cloud credentials on purpose. Do not add any.
 
+## Backups and watching
+- **Backup:** root cron `/etc/cron.d/lbc-backup` runs `backup.sh` at 00:30 UTC every night (log: `/var/log/lbc-backup.log`, 14 days kept). Every deploy also takes one first.
+- **Restore test (done):** the dump of the development database was restored into a scratch database and compared table by table (rows, migrations, triggers, row-security policies): all equal. Repeat this after any large schema change. Never restore over the live database without the owner's say-so.
+- **Watching:** a script-only cron on the Hermes VM (`lbc-live-watch-10min`) checks `/healthz`, `/login`, that the signed-out data download still redirects, and that the newest backup is under 30 hours old. It messages Telegram only when the state changes, so silence means healthy.
+
 ## Not set up yet
 - Real mail sending (`MAIL_TRANSPORT=console`: password-reset links appear in the web log).
 - A custom domain: until then the address is `<ip-with-dashes>.sslip.io`, which has a real certificate. When a domain is added, change `APP_URL`,
   `BETTER_AUTH_URL`, `TRUSTED_ORIGINS`, `WORKER_PUBLIC_URL` and the Caddyfile together, and do it before any template using a tracked link is approved
   (the address is fixed into the template by Meta).
-- Off-machine backups. Backups live on the same disk as the database.
+- Off-machine backups. Backups live on the same disk as the database, so a lost disk loses the backups too. The server holds no cloud credentials on purpose, so copying them off needs the owner to decide where (a bucket, or pulling them to another machine).
