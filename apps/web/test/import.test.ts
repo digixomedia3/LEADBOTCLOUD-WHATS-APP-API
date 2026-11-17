@@ -37,6 +37,8 @@ describe('buildPreview', () => {
   it('drops a malformed email instead of failing the row', () => {
     const p = buildPreview([['A', '9876543210', 'not-an-email', '']], [...map]);
     expect(p.rows[0]!.email).toBeUndefined();
+    expect(p.rows[0]!.badEmail).toBe('not-an-email');
+    expect(p.badEmails).toBe(1);
     expect(p.rows[0]!.error).toBeUndefined();
   });
   it('fails every row if no phone column is mapped', () => {
@@ -69,5 +71,12 @@ describe('toCsv: phone numbers', () => {
 describe('toCsv', () => {
   it('quotes fields and neutralises spreadsheet formulas', () => {
     expect(toCsv([['a,b', 'say "hi"', '=SUM(A1)', '+91 1']])).toBe(`"a,b","say ""hi""",'=SUM(A1),'+91 1`);
+  });
+
+  it('counts a bad email only on rows that will actually be imported', () => {
+    const map = ['name', 'phone', 'email', 'tags'] as const;
+    const p = buildPreview([['A', '9876543210', 'bad1', ''], ['B', '9876543210', 'bad2', ''], ['C', '12345', 'bad3', ''], ['D', '9811122233', 'ok@example.com', '']], [...map]);
+    expect(p.badEmails).toBe(1); // row B is a repeat and row C has a bad number, so only A counts
+    expect(buildPreview([['D', '9811122233', 'ok@example.com', '']], [...map]).badEmails).toBe(0);
   });
 });

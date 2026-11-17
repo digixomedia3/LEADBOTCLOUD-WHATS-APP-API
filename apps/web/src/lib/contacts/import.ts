@@ -40,8 +40,8 @@ export function suggestMapping(headers: string[], rows: string[][]): Field[] {
   return out;
 }
 
-export interface ParsedRow { line: number; phone?: string; name?: string; email?: string; tags: string[]; error?: string; duplicateOf?: number }
-export interface ImportPreview { rows: ParsedRow[]; valid: number; invalid: number; duplicates: number }
+export interface ParsedRow { line: number; phone?: string; name?: string; email?: string; tags: string[]; error?: string; duplicateOf?: number; badEmail?: string }
+export interface ImportPreview { rows: ParsedRow[]; valid: number; invalid: number; duplicates: number; badEmails: number }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const clean = (s: unknown) => String(s ?? '').replace(/\u00a0/g, ' ').trim();
@@ -64,7 +64,7 @@ export function buildPreview(rows: string[][], mapping: Field[], startLine = 2):
       }
     });
     if (!mapping.includes('phone')) row.error = 'No column is marked as the phone number.';
-    if (!row.error && row.email && !EMAIL_RE.test(row.email)) row.email = undefined; // bad email is dropped, not fatal
+    if (!row.error && row.email && !EMAIL_RE.test(row.email)) { row.badEmail = row.email; row.email = undefined; } // dropped, not fatal, but the preview says so
     if (!row.error && row.phone) {
       const first = seen.get(row.phone);
       if (first !== undefined) row.duplicateOf = first; else seen.set(row.phone, line);
@@ -73,7 +73,9 @@ export function buildPreview(rows: string[][], mapping: Field[], startLine = 2):
   });
   const invalid = out.filter((r) => r.error).length;
   const duplicates = out.filter((r) => !r.error && r.duplicateOf !== undefined).length;
-  return { rows: out, valid: out.length - invalid - duplicates, invalid, duplicates };
+  // Only count emails on rows that will actually be imported; a skipped row's email is irrelevant.
+  const badEmails = out.filter((r) => !r.error && r.duplicateOf === undefined && r.badEmail !== undefined).length;
+  return { rows: out, valid: out.length - invalid - duplicates, invalid, duplicates, badEmails };
 }
 
 /** Pasted numbers: one per line, optional "Name, number" or "number, name". */

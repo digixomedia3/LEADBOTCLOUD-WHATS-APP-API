@@ -140,10 +140,10 @@ export function ImportWizard({ open, onClose, groups, onDone }: { open: boolean;
               <div key={k as string} className="rounded-2xl border border-line p-3"><p className={cn('font-display text-3xl font-extrabold', c as string)}>{(v as number).toLocaleString('en-IN')}</p><p className="text-xs text-muted">{k as string}</p></div>
             ))}
           </div>
-          {preview.invalid + preview.duplicates > 0 ? (
+          {preview.invalid + preview.duplicates + preview.badEmails > 0 ? (
             <div className="max-h-52 overflow-y-auto rounded-xl border border-line text-sm">
-              {preview.rows.filter((r) => r.error || r.duplicateOf !== undefined).slice(0, 50).map((r) => (
-                <p key={r.line} className="flex gap-2 border-b border-line px-3 py-2 last:border-0"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber" /><span><strong>Line {r.line}:</strong> {r.error ?? `Same number as line ${r.duplicateOf}. It will be skipped.`}</span></p>
+              {preview.rows.filter((r) => r.error || r.duplicateOf !== undefined || r.badEmail !== undefined).slice(0, 50).map((r) => (
+                <p key={r.line} className="flex gap-2 border-b border-line px-3 py-2 last:border-0"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber" /><span><strong>Line {r.line}:</strong> {r.error ?? (r.duplicateOf !== undefined ? `Same number as line ${r.duplicateOf}. It will be skipped.` : `The email "${r.badEmail}" does not look right. The contact is added without it.`)}</span></p>
               ))}
             </div>
           ) : <p className="flex items-center gap-2 text-sm text-brand"><CheckCircle2 className="size-5" />Everything looks good.</p>}
