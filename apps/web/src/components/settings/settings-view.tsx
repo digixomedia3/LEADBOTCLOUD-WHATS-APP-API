@@ -1,5 +1,6 @@
 'use client';
 
+import { CloseWorkspace } from './close-workspace';
 import { useEffect, useState, useTransition } from 'react';
 import { Check, Copy, Loader2, Moon, Trash2, UserPlus } from 'lucide-react';
 import { hourLabel } from '@lbc/shared/send-window';
@@ -25,7 +26,7 @@ export function SettingsView({ team: t0, profile: p0, role, me }: { team: Team; 
     <div className="flex flex-col gap-5">
       <div><h2 className="font-display text-2xl font-extrabold">Settings</h2><p className="text-sm text-muted">Your business, team, WhatsApp number and plan.</p></div>
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0" role="tablist">{tabs.map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={cn('min-h-11 shrink-0 rounded-full border px-4 text-sm font-semibold', tab === id ? 'grad-bg border-transparent text-white' : 'border-line bg-card text-muted')}>{l}</button>)}</div>
-      {tab === 'workspace' ? <div className="flex flex-col gap-5"><WorkspaceTab p={p0} canEdit={isAdmin} /><QuietHoursCard canEdit={isAdmin} /></div> : null}
+      {tab === 'workspace' ? <div className="flex flex-col gap-5"><WorkspaceTab p={p0} canEdit={isAdmin} /><QuietHoursCard canEdit={isAdmin} />{isOwner ? <CloseWorkspace /> : null}</div> : null}
       {tab === 'team' ? <TeamTab team={team} reload={async () => setTeam(await loadTeam())} isOwner={isOwner} isAdmin={isAdmin} me={me} /> : null}
       {tab === 'whatsapp' ? <WhatsAppConnect /> : null}
       {tab === 'plan' ? <BillingPanel /> : null}

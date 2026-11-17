@@ -14,6 +14,7 @@ import { verifyInternal } from '@lbc/shared/internal-sign';
 import { processEvent } from './events';
 import { ingestMetaLeadgen, ingestShopify, pendingConnectorEvents, processConnectorEvent, syncSheets } from './connectors';
 import { sendOne } from './send';
+import { closeDueWorkspaces } from './closure';
 import { runRetention } from './retention';
 import { tickInboundMedia } from './inbound-media';
 import { tickJourneys } from './journeys';
@@ -94,6 +95,7 @@ const templatesTimer = setInterval(() => templatesTick().catch((e) => console.er
 const journeyTimer = setInterval(() => tickJourneys({ db, appUrl: cfg.APP_URL }).then((r) => { if (r.due) console.log('[journeys]', JSON.stringify(r)); }).catch((e) => console.error('journeys', e.message)), 10_000);
 const mediaTimer = setInterval(() => tickInboundMedia({ db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY }).then((r) => { if (r.due) console.log('[inbound-media]', JSON.stringify(r)); }).catch((e) => console.error('inbound-media', e.message)), 10_000);
 const retentionTimer = setInterval(() => runRetention(db, { days: Number(process.env.FILE_RETENTION_DAYS ?? 90) }).then((r) => { if (r.inbound || r.sent || r.orphanHeaders) console.log('[retention]', JSON.stringify(r)); }).catch((e) => console.error('retention', e.message)), 60 * 60_000);
+const closureTimer = setInterval(() => closeDueWorkspaces(db).then((r) => { if (r.due) console.log('[closure]', JSON.stringify(r)); }).catch((e) => console.error('closure', e.message)), 15 * 60_000);
 const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
 
 const app = Fastify({ bodyLimit: 8 * 1024 * 1024, trustProxy: cfg.TRUST_PROXY === 'true', logger: { level: 'info', serializers: { req: (r) => ({ method: r.method, url: String(r.url).replace(/([?&]key=)[^&]*/i, '$1***'), host: r.host, remoteAddress: r.ip }) }, redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]', 'req.headers["x-razorpay-signature"]', 'req.headers["x-lead-key"]', 'req.headers["x-lbc-sig"]'] } });
@@ -177,5 +179,5 @@ app.post('/internal/leads/import', async (req, reply) => {
 });
 
 await app.listen({ port: cfg.PORT, host: '0.0.0.0' });
-const stop = async () => { clearInterval(sweeper); clearInterval(mediaTimer); clearInterval(retentionTimer); clearInterval(launcher); clearInterval(templatesTimer); clearInterval(connectorTimer); clearInterval(sheetsTimer); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close(), billingWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
+const stop = async () => { clearInterval(sweeper); clearInterval(mediaTimer); clearInterval(retentionTimer); clearInterval(closureTimer); clearInterval(launcher); clearInterval(templatesTimer); clearInterval(connectorTimer); clearInterval(sheetsTimer); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close(), billingWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop);

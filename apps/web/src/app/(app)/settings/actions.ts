@@ -141,3 +141,15 @@ export async function saveQuiet(input: { enabled: boolean; startHour: number; en
     return { ok: true as const, data: null };
   });
 }
+
+/* ------------------------------------------------------------------ closing the workspace */
+import { cancelClosure, loadClosure, requestClosure, type ClosureInfo } from '@/lib/core/closure';
+export async function loadWorkspaceClosure(): Promise<ClosureInfo> { const ctx = await requireCtx(); return loadClosure(ctx); }
+export async function requestWorkspaceClosure(confirmName: string): Promise<Result<{ dueAt: string }>> {
+  const g = await guard('owner'); if ('error' in g) return fail(g.error);
+  const r = await requestClosure(g.ctx, confirmName); if (r.ok) revalidatePath('/settings'); return r;
+}
+export async function cancelWorkspaceClosure(): Promise<Result<{ cancelled: boolean }>> {
+  const g = await guard('owner'); if ('error' in g) return fail(g.error);
+  const r = await cancelClosure(g.ctx); if (r.ok) revalidatePath('/settings'); return r;
+}
