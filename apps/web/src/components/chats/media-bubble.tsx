@@ -10,6 +10,7 @@ const size = (n: number | null) => (n == null ? '' : n < 1024 * 1024 ? `${Math.m
 export function MediaBubble({ media: m }: { media: MediaRef }) {
   const url = `${m.sent ? '/api/chat-attachments' : '/api/inbound-media'}/${m.id}`;
   if (m.state === 'pending') return <p className="flex items-center gap-2 py-1 text-sm opacity-80" role="status"><Loader2 className="size-4 animate-spin" />Loading the {WORD[m.kind] ?? 'file'}…</p>;
+  if (m.state === 'expired') return <p className="flex items-start gap-2 py-1 text-sm opacity-80"><TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber" />This {WORD[m.kind] ?? 'file'} is old and was removed to save space.</p>;
   if (m.state === 'too_large') return <p className="flex items-start gap-2 py-1 text-sm"><TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber" />This {WORD[m.kind] ?? 'file'} is over 16 MB, so it was not saved. Ask the customer to send a smaller one.</p>;
   if (m.state === 'failed') return <p className="flex items-start gap-2 py-1 text-sm"><TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber" />The {WORD[m.kind] ?? 'file'} could not be loaded from WhatsApp. Ask the customer to send it again.</p>;
   if (m.inline && (m.kind === 'image' || m.kind === 'sticker')) {
