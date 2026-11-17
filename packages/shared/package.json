@@ -16,7 +16,8 @@
     "./tracked-links": "./src/tracked-links.ts",
     "./link-code": "./src/link-code.ts",
     "./send-window": "./src/send-window.ts",
-    "./journeys": "./src/journeys.ts"
+    "./journeys": "./src/journeys.ts",
+    "./ab-test": "./src/ab-test.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

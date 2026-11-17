@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, Download, FlaskConical, Info, Loader2, MousePointerClick, Target } from 'lucide-react';
 import { inr } from '@lbc/shared';
 import { Button } from '@/components/ui/button';
+import { AbTestCard } from '@/components/campaigns/ab-test-card';
 import { cn } from '@/lib/utils';
 import { loadRecipients, retargetFrom, type RetargetOp } from '@/app/(app)/campaigns/[id]/actions';
 import type { CampaignReportData, RecipientRow, ResultFilter } from '@/lib/core/campaign-report';
@@ -69,6 +70,8 @@ export function ReportView({ report: r, initial, canExport }: { report: Campaign
           </div>) : null}
         <p className="mt-4 text-xs text-muted">Each step counts only people who got through the one before. “Read” and “Replied” depend on the customer’s own WhatsApp settings: people who turn off read receipts show as delivered.</p>
       </section>
+
+      {r.abTest ? <AbTestCard ab={r.abTest} /> : null}
 
       {canExport ? (
         <section className="card p-5" aria-label="Retarget">

@@ -11,6 +11,7 @@ const rows = (r: unknown) => r as Row[];
 /** Resolves one template variable for one contact. "@name" is the first name (falls back to "there"), "@phone" the number; anything else is fixed text. */
 export { resolveVar } from '@lbc/shared';
 import { resolveVar as resolveVarShared } from '@lbc/shared';
+import { assignVersionB } from '@lbc/shared/ab-test';
 
 export const NEXT_MS: Record<string, number> = { daily: 86_400_000, weekly: 7 * 86_400_000, monthly: 30 * 86_400_000 };
 
@@ -32,6 +33,14 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
 
     const t = rows(await tx.execute(sql`select id, name, language, category, status, body, buttons, offer from templates where id = ${claimed.template_id} and tenant_id = ${tenantId}`))[0];
     if (!t || t.status !== 'approved') return fail('template_not_approved');
+    // A/B test: version B must also be approved, and must be the same kind of message (same category, no extra needs), or the two groups would not be comparable.
+    const tb = claimed.ab_template_id ? rows(await tx.execute(sql`select id, name, language, category, status, body, buttons, offer from templates where id = ${claimed.ab_template_id} and tenant_id = ${tenantId}`))[0] : null;
+    if (claimed.ab_template_id) {
+      if (!tb || tb.status !== 'approved') return fail('ab_template_not_approved');
+      if (String(tb.category) !== String(t.category)) return fail('ab_category_differs');
+    }
+    const needsOf = (x: Row) => ({ copy: ((x.buttons ?? []) as { type: string }[]).some((b) => b.type === 'copy_code'), countdown: !!(x.offer as { hasExpiration?: boolean } | null)?.hasExpiration });
+    if (tb && (needsOf(tb).copy !== needsOf(t).copy || needsOf(tb).countdown !== needsOf(t).countdown)) return fail('ab_offer_differs');
     const acc = rows(await tx.execute(sql`select token_status, health_state, payment_method_status from meta_accounts where tenant_id = ${tenantId} limit 1`))[0];
     if (!acc) return fail('not_connected');
     if (acc.token_status !== 'valid') return fail('reconnect');
@@ -45,7 +54,8 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     const offer = t.offer as { hasExpiration?: boolean } | null;
     if (hasCopy && !claimed.offer_code) return fail('offer_code_missing');
     // A tracked website button (APP_URL/r/{{1}}) needs a destination, and a permanent app address so the link still works next year.
-    const tracked = ((t.buttons ?? []) as { type: string; value?: string }[]).some((b) => b.type === 'url' && !!appUrl && isTrackedButtonValue(b.value, appUrl));
+    const isTracked = (x: Row) => ((x.buttons ?? []) as { type: string; value?: string }[]).some((b) => b.type === 'url' && !!appUrl && isTrackedButtonValue(b.value, appUrl));
+    const tracked = isTracked(t) || (!!tb && isTracked(tb));
     if (tracked) {
       if (!claimed.link_url) return fail('link_missing');
       if (!appUrl || (strictAppUrl && isTemporaryAppUrl(appUrl))) return fail('app_url_temporary');
@@ -77,6 +87,9 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     if (cap !== null && est.totalPaise > cap) return fail('spend_cap');
 
     const varMap = (claimed.var_map as string[]) ?? [];
+    const varMapB = (claimed.ab_var_map as string[] | null) ?? [];
+    // A/B: who gets version B is decided once, here, from the people who will really be messaged, so the split is exactly as asked and is recorded on each person.
+    const versionB = tb ? assignVersionB(sendable.map((c) => String(c.id)), campaignId, Number(claimed.ab_percent_b)) : new Set<string>();
     const counts = { audience: sendable.length, sent: 0, skipped: skipped.length, optedOut: all.filter((c) => c.consent_status === 'stopped').length, queued: sendable.length };
 
     for (const c of skipped) {
@@ -86,8 +99,10 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     let position = 0;
     for (const c of sendable) {
       const notBefore = startTimeFor(position++, claimed.send_per_minute as number | null, launchedAt);
-      const params = varMap.map((v) => resolveVarShared(String(v), { name: c.name as string | null, phone: String(c.phone_e164) }));
-      const cr = rows(await tx.execute(sql`insert into campaign_recipients (tenant_id, campaign_id, contact_id, phone_e164, name, state) values (${tenantId}, ${campaignId}, ${c.id}, ${c.phone_e164}, ${c.name}, 'queued') on conflict (campaign_id, contact_id) where contact_id is not null do nothing returning id`))[0];
+      const isB = !!tb && versionB.has(String(c.id));
+      const tpl = isB ? tb! : t;
+      const params = (isB ? varMapB : varMap).map((v) => resolveVarShared(String(v), { name: c.name as string | null, phone: String(c.phone_e164) }));
+      const cr = rows(await tx.execute(sql`insert into campaign_recipients (tenant_id, campaign_id, contact_id, phone_e164, name, state, version) values (${tenantId}, ${campaignId}, ${c.id}, ${c.phone_e164}, ${c.name}, 'queued', ${isB ? 'b' : 'a'}) on conflict (campaign_id, contact_id) where contact_id is not null do nothing returning id`))[0];
       if (!cr) continue; // already expanded (a retry of this function): never create a second message
       let linkCode: string | undefined;
       if (tracked) {
@@ -97,7 +112,7 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
       }
       const conv = rows(await tx.execute(sql`insert into conversations (tenant_id, contact_id, phone_number_id, status, unread) values (${tenantId}, ${c.id}, ${ph.phone_number_id}, 'open', 0) on conflict (tenant_id, contact_id) do update set phone_number_id = coalesce(conversations.phone_number_id, excluded.phone_number_id) returning id`))[0]!;
       await tx.execute(sql`insert into messages (tenant_id, conversation_id, direction, kind, body, status, template_name, template_language, template_category, payload, phone_number_id, campaign_recipient_id, not_before)
-        values (${tenantId}, ${conv.id}, 'out', 'template', ${t.name}, 'queued', ${t.name}, ${t.language}, ${category}, ${JSON.stringify({ params, ...(linkCode ? { linkCode } : {}), ...(claimed.offer_code ? { code: claimed.offer_code } : {}), ...(offer?.hasExpiration && offerEnds ? { offerExpiresMs: offerEnds } : {}) })}::jsonb, ${ph.phone_number_id}, ${cr.id}, ${notBefore.getTime() > launchedAt.getTime() ? notBefore.toISOString() : null}::timestamptz)`);
+        values (${tenantId}, ${conv.id}, 'out', 'template', ${tpl.name}, 'queued', ${tpl.name}, ${tpl.language}, ${category}, ${JSON.stringify({ params, ...(linkCode ? { linkCode } : {}), ...(claimed.offer_code ? { code: claimed.offer_code } : {}), ...(offer?.hasExpiration && offerEnds ? { offerExpiresMs: offerEnds } : {}) })}::jsonb, ${ph.phone_number_id}, ${cr.id}, ${notBefore.getTime() > launchedAt.getTime() ? notBefore.toISOString() : null}::timestamptz)`);
     }
     await tx.execute(sql`update campaigns set counts = ${JSON.stringify(counts)}::jsonb, est_cost_paise = ${est.totalPaise} where id = ${campaignId} and tenant_id = ${tenantId}`);
 

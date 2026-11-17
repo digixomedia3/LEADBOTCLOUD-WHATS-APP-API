@@ -325,6 +325,10 @@ export const campaigns = pgTable(
     linkUrl: text('link_url'),
     /** Messages per minute for this campaign; null means as fast as possible. */
     sendPerMinute: integer('send_per_minute'),
+    /** A/B test: the second template, its blanks, and the share of people (10 to 90) who get it. All three or none. */
+    abTemplateId: uuid('ab_template_id'),
+    abVarMap: jsonb('ab_var_map'),
+    abPercentB: integer('ab_percent_b'),
     offerExpiresAt: timestamp('offer_expires_at', { withTimezone: true }),
     varMap: jsonb('var_map').notNull().default(sql`'[]'::jsonb`),
     launchedAt: timestamp('launched_at', { withTimezone: true }),

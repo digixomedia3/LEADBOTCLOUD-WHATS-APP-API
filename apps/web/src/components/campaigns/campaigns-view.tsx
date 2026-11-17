@@ -10,6 +10,7 @@ import { Field, FormError, Input, Select } from '@/components/ui/form';
 import { Modal } from '@/components/ui/modal';
 import { WaBubble } from '@/components/ui/wa-bubble';
 import { TestSendPanel } from '@/components/campaigns/test-send-panel';
+import { AB_OFF, AbTestFields, abReady, comparableTemplates, type AbDraft } from '@/components/campaigns/ab-test-fields';
 import { cancelCampaign, connectionState, createCampaign, listCampaigns, previewAudience, sendCampaign, type AudiencePreview, type CampaignRow } from '@/app/(app)/campaigns/actions';
 import type { TemplateRow } from '@/app/(app)/templates/actions';
 import type { GroupRow } from '@/app/(app)/contacts/actions';
@@ -98,6 +99,7 @@ function Wizard({ live, templates, groups, appUrl, onClose, onDone }: { appUrl: 
   const [endsAt, setEndsAt] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [speed, setSpeed] = useState(0);
+  const [ab, setAb] = useState<AbDraft>(AB_OFF);
   const [aud, setAud] = useState<AudiencePreview | null>(null);
   const [error, setError] = useState('');
   const [pending, start] = useTransition();
@@ -124,7 +126,7 @@ function Wizard({ live, templates, groups, appUrl, onClose, onDone }: { appUrl: 
   function submit() {
     setError('');
     start(async () => {
-      const r = await createCampaign({ name, templateId: tid, groupIds: gids, when, scheduledAt: at ? new Date(at).toISOString() : undefined, repeat: needsEnd ? 'none' : repeat, spendCapRupees: capNum, varMap: vars, offerCode: needsCode ? code.trim() : undefined, linkUrl: needsLink ? linkUrl.trim() : undefined, sendPerMinute: speed || undefined, offerEndsAt: needsEnd && endsAt ? new Date(endsAt).toISOString() : undefined });
+      const r = await createCampaign({ name, templateId: tid, groupIds: gids, when, scheduledAt: at ? new Date(at).toISOString() : undefined, repeat: needsEnd ? 'none' : repeat, spendCapRupees: capNum, varMap: vars, offerCode: needsCode ? code.trim() : undefined, linkUrl: needsLink ? linkUrl.trim() : undefined, sendPerMinute: speed || undefined, offerEndsAt: needsEnd && endsAt ? new Date(endsAt).toISOString() : undefined, ...(ab.on ? { abTemplateId: ab.templateId, abVarMap: ab.vars, abPercentB: ab.percentB } : {}) });
       if (!r.ok) { setError(r.error); return; }
       if (when === 'now') { const s = await sendCampaign(r.data.id); if (!s.ok) { setError(s.error); return; } onDone(s.data.testMode ? `Test send done: ${s.data.sent} people.` : `Queued for ${s.data.sent} people. Sending starts within a minute.`); } else onDone('Campaign scheduled.');
     });
@@ -170,8 +172,9 @@ function Wizard({ live, templates, groups, appUrl, onClose, onDone }: { appUrl: 
                 {needsEnd ? <Field label="Offer ends (IST)" hint="WhatsApp shows a live countdown to this time. It must be at least an hour after you send."><Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></Field> : null}
               </div>
             ) : null}
+            <AbTestFields a={tpl} all={templates} appUrl={appUrl} value={ab} onChange={setAb} repeats={repeat !== 'none' && !needsEnd} />
             {live && tpl ? <TestSendPanel templateId={tpl.id} varMap={vars} offerCode={needsCode ? code.trim() : undefined} offerEndsAt={needsEnd ? endsAt : undefined} ready={varsOk && (!needsCode || /^[A-Za-z0-9_-]{1,15}$/.test(code.trim())) && (!needsEnd || !!endsAt)} tracked={needsLink} /> : null}
-            <Button disabled={name.trim().length < 2 || !tid || !varsOk || !offerOk} onClick={() => setStep(2)}>Next: who gets it</Button>
+            <Button disabled={name.trim().length < 2 || !tid || !varsOk || !offerOk || !abReady(ab, comparableTemplates(tpl, templates, appUrl).find((t) => t.id === ab.templateId))} onClick={() => setStep(2)}>Next: who gets it</Button>
           </div>
           {tpl ? <WaBubble offer={tpl.offer} media={tpl.headerMedia ? { kind: tpl.headerMedia, src: tpl.assetId ? `/api/template-assets/${tpl.assetId}` : null, name: tpl.assetName } : null} header={tpl.headerText} body={tpl.body} footer={tpl.footer} buttons={tpl.buttons} values={tpl.samples} /> : null}
         </div>
@@ -213,7 +216,7 @@ function Wizard({ live, templates, groups, appUrl, onClose, onDone }: { appUrl: 
       {step === 4 && aud && tpl ? (
         <div className="mt-3 flex flex-col gap-4">
           <dl className="divide-y divide-line rounded-2xl border border-line text-sm">
-            {[['Campaign', name], ['Template', tpl.name], ['People', aud.sendable.toLocaleString('en-IN')], ['When', when === 'now' ? 'Right now' : `${new Date(at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} IST${repeat !== 'none' ? `, repeats ${repeat}` : ''}`]].map(([k, v]) => <div key={k} className="flex justify-between gap-4 px-4 py-2.5"><dt className="text-muted">{k}</dt><dd className="text-right font-semibold">{v}</dd></div>)}
+            {[['Campaign', name], ['Template', ab.on ? `${tpl.name} (A) vs ${templates.find((t) => t.id === ab.templateId)?.name ?? '?'} (B), ${100 - ab.percentB}% / ${ab.percentB}%` : tpl.name], ['People', aud.sendable.toLocaleString('en-IN')], ['When', when === 'now' ? 'Right now' : `${new Date(at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} IST${repeat !== 'none' ? `, repeats ${repeat}` : ''}`]].map(([k, v]) => <div key={k} className="flex justify-between gap-4 px-4 py-2.5"><dt className="text-muted">{k}</dt><dd className="text-right font-semibold">{v}</dd></div>)}
             <div className="px-4 py-3"><div className="flex justify-between"><dt className="text-muted">{aud.cost.messages.toLocaleString('en-IN')} × ₹{aud.cost.ratePerMessage.toFixed(4)}</dt><dd className="tabular">{aud.cost.baseLabel}</dd></div>
               <div className="flex justify-between"><dt className="text-muted">GST 18%</dt><dd className="tabular">{aud.cost.gstLabel}</dd></div>
               <div className="mt-1 flex justify-between text-base font-bold"><dt>Estimated total</dt><dd className="grad-text font-display text-xl tabular">{aud.cost.totalLabel}</dd></div></div>

@@ -51,6 +51,12 @@ export const campaignInput = z.object({
   linkUrl: z.string().trim().max(2000).optional(),
   /** Messages per minute; leave out (or 0) for as fast as possible. */
   sendPerMinute: z.number().int().min(0).max(6000).optional(),
+  /** A/B test: a second template sent to a share of the people, so the report can compare the two. */
+  abTemplateId: z.string().uuid('Choose the second template.').optional(),
+  /** The blanks for the second template, same rules as varMap. */
+  abVarMap: z.array(z.string().trim().min(1, 'Fill in every variable.').max(200)).max(20).optional(),
+  /** Share of people who get the second template, 10 to 90. */
+  abPercentB: z.number().int().min(10, 'Give the second template at least 10% of people.').max(90, 'Give the second template at most 90% of people.').optional(),
 });
 export type CampaignInput = z.input<typeof campaignInput>;
 
@@ -97,15 +103,35 @@ export async function createCampaignFor(ctx: ActorCtx, raw: CampaignInput): Prom
     }
     const needed = new Set(variablesIn(t.body)).size;
     if (d.varMap.length !== needed) return fail(needed ? `This template has ${needed} variable${needed > 1 ? 's' : ''}. Fill in each one.` : 'This template has no variables.');
+    // A/B test: version B must be a different, approved template of the same kind, with nothing extra to fill in that A does not also need, so the two groups are comparable.
+    let ab: { id: string; varMap: string[]; percent: number } | null = null;
+    if (d.abTemplateId || d.abVarMap || d.abPercentB) {
+      if (!d.abTemplateId) return fail('Choose the second template for the test.');
+      if (d.abTemplateId === d.templateId) return fail('The two versions must be different templates.');
+      if (d.repeat !== 'none') return fail('A test cannot repeat. Run it once, then repeat the winner.');
+      const [tb] = await tx.select().from(templates).where(eq(templates.id, d.abTemplateId));
+      if (!tb) return fail('The second template was not found.');
+      if (tb.status !== 'approved') return fail('The second template is not approved yet.');
+      if (tb.category !== t.category) return fail('Both versions must be the same kind of message (both promotional, or both updates). Different kinds are charged and limited differently, so the comparison would not be fair.');
+      const copyB = ((tb.buttons ?? []) as { type: string }[]).some((b) => b.type === 'copy_code'), countB = !!(tb.offer as { hasExpiration?: boolean } | null)?.hasExpiration;
+      if (copyB !== hasCopy || countB !== !!offerCfg?.hasExpiration) return fail('Both versions must be the same kind of offer: both with a Copy code button and a countdown, or neither.');
+      const trackedB = ((tb.buttons ?? []) as { type: string; value?: string }[]).some((b) => b.type === 'url' && !!appUrl && isTrackedButtonValue(b.value, appUrl));
+      if (trackedB !== hasTracked) return fail('Both versions need the same kind of website button: both tracked, or neither.');
+      const neededB = new Set(variablesIn(tb.body)).size; const mapB = d.abVarMap ?? [];
+      if (mapB.length !== neededB) return fail(neededB ? `The second template has ${neededB} variable${neededB > 1 ? 's' : ''}. Fill in each one.` : 'The second template has no variables.');
+      if (d.abPercentB === undefined) return fail('Choose what share of people get the second template.');
+      ab = { id: tb.id, varMap: mapB, percent: d.abPercentB };
+    }
     const aud = await previewAudienceFor(ctx, d.groupIds, t.category);
     if (aud.sendable === 0) return fail('No contact in these groups has agreed to messages, so there is nobody to send to.');
+    if (ab && aud.sendable < 2) return fail('A test needs at least 2 people, one for each version.');
     const capPaise = d.spendCapRupees ? Math.round(d.spendCapRupees * 100) : null;
     if (capPaise !== null && aud.cost.totalPaise > capPaise) return fail(`The estimated cost ${aud.cost.totalLabel} is above your spend cap. Raise the cap or choose fewer people.`);
     const [row] = await tx.insert(campaigns).values({
       tenantId: ctx.tenantId, name: d.name, templateId: t.id, groupIds: d.groupIds, status: d.when === 'now' ? 'draft' : 'scheduled', scheduledAt: when, repeat: d.repeat,
-      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: ctx.user.id, varMap: d.varMap, offerCode: hasCopy ? d.offerCode! : null, linkUrl, sendPerMinute: d.sendPerMinute || null, offerExpiresAt: offerEnds, apiKeyId: ctx.via?.keyId ?? null,
+      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: ctx.user.id, varMap: d.varMap, offerCode: hasCopy ? d.offerCode! : null, linkUrl, sendPerMinute: d.sendPerMinute || null, abTemplateId: ab?.id ?? null, abVarMap: ab ? ab.varMap : null, abPercentB: ab?.percent ?? null, offerExpiresAt: offerEnds, apiKeyId: ctx.via?.keyId ?? null,
     }).returning({ id: campaigns.id, status: campaigns.status });
-    await auditAs(tx, ctx, 'campaign.created', 'campaign', row!.id, { audience: aud.sendable });
+    await auditAs(tx, ctx, 'campaign.created', 'campaign', row!.id, { audience: aud.sendable, ...(ab ? { abTest: { templateB: ab.id, percentB: ab.percent } } : {}) });
     return { ok: true as const, data: { id: row!.id, status: row!.status, estCostPaise: aud.cost.totalPaise, audience: aud.sendable } };
   });
 }

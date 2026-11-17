@@ -4,6 +4,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { abHeadline, compareVersions, MIN_PER_VERSION, type AbResult, type VersionCounts } from '@lbc/shared/ab-test';
 import { billedCost, buildFunnel, countRecipients, groupReasons, outcomeBreakdown, type CostSummary, type FunnelStep } from '@lbc/shared/campaign-report';
 import { db, type ActorCtx } from '@/lib/tenant-db';
 import { fail, type Result } from './campaigns';
@@ -24,16 +25,21 @@ export interface CampaignReportData {
   sendsByHour: { hour: string; count: number }[];
   /** Only present when the template has a tracked website button. People = different people who clicked; robots (link previews, scanners) are never counted. */
   clicks: { destination: string; people: number; total: number; botVisits: number; ofDelivered: number | null } | null;
+  /** Only present when the campaign was an A/B test. Each person is counted once, in the version they got. */
+  abTest: null | {
+    percentB: number; minPerVersion: number; headline: string; result: AbResult;
+    a: { template: string | null; counts: VersionCounts }; b: { template: string | null; counts: VersionCounts };
+  };
 }
 
 export async function campaignReportFor(ctx: ActorCtx, id: string): Promise<Result<CampaignReportData>> {
   if (!uuid.safeParse(id).success) return fail('That campaign id is not valid.');
   return db(ctx, async (tx) => {
     const [c] = (await tx.execute(sql`
-      select c.id, c.name, c.status, c.scheduled_at, c.started_at, c.completed_at, c.pause_reason, c.est_cost_paise, c.group_ids, c.offer_code, c.offer_expires_at, c.link_url, t.name as tname, t.category
-      from campaigns c left join templates t on t.id = c.template_id where c.id = ${id}::uuid`)) as unknown as { id: string; name: string; status: string; scheduled_at: Date | null; started_at: Date | null; completed_at: Date | null; pause_reason: string | null; est_cost_paise: number; group_ids: string[]; offer_code: string | null; offer_expires_at: Date | null; link_url: string | null; tname: string | null; category: string | null }[];
+      select c.id, c.name, c.status, c.scheduled_at, c.started_at, c.completed_at, c.pause_reason, c.est_cost_paise, c.group_ids, c.offer_code, c.offer_expires_at, c.link_url, t.name as tname, t.category, c.ab_template_id, c.ab_percent_b, tb.name as tbname
+      from campaigns c left join templates t on t.id = c.template_id left join templates tb on tb.id = c.ab_template_id where c.id = ${id}::uuid`)) as unknown as { id: string; name: string; status: string; scheduled_at: Date | null; started_at: Date | null; completed_at: Date | null; pause_reason: string | null; est_cost_paise: number; group_ids: string[]; offer_code: string | null; offer_expires_at: Date | null; link_url: string | null; ab_template_id: string | null; ab_percent_b: number | null; tbname: string | null; tname: string | null; category: string | null }[];
     if (!c) return fail('That campaign was not found.');
-    const recs = (await tx.execute(sql`select state, reason from campaign_recipients where campaign_id = ${id}::uuid`)) as unknown as { state: string; reason: string | null }[];
+    const recs = (await tx.execute(sql`select state, reason, version from campaign_recipients where campaign_id = ${id}::uuid`)) as unknown as { state: string; reason: string | null; version: string }[];
     const counts = countRecipients(recs.map((r) => r.state));
     const billable = (await tx.execute(sql`
       select lower(coalesce(m.pricing_category, m.template_category, '')) as category, count(*)::int as messages
@@ -52,6 +58,18 @@ export async function campaignReportFor(ctx: ActorCtx, id: string): Promise<Resu
       clicks = { destination: c.link_url, people: k?.people ?? 0, total: k?.total ?? 0, botVisits: k?.bots ?? 0, ofDelivered: delivered > 0 ? Math.round(((k?.people ?? 0) / delivered) * 1000) / 10 : null };
     }
     const names = c.group_ids.length ? ((await tx.execute(sql`select name from contact_groups where id = any(${'{' + c.group_ids.filter((g) => /^[0-9a-f-]{36}$/i.test(g)).join(',') + '}'}::uuid[]) order by name`)) as unknown as { name: string }[]).map((g) => g.name) : [];
+    // A/B: split the people who were actually messaged by version. Skipped people never received anything, so they belong to neither group.
+    let abTest: CampaignReportData['abTest'] = null;
+    if (c.ab_template_id && c.ab_percent_b) {
+      // countRecipients already leaves skipped people out of every measure below, so a person who was never messaged cannot appear in either group.
+      const by = (v: string): VersionCounts => {
+        const k = countRecipients(recs.filter((r) => r.version === v).map((r) => r.state));
+        return { received: k.sent + k.failed + k.capped + k.queued, delivered: k.delivered, read: k.read, replied: k.replied };
+      };
+      const ca = by('a'), cb = by('b'); const result = compareVersions(ca, cb);
+      abTest = { percentB: c.ab_percent_b, minPerVersion: MIN_PER_VERSION, headline: abHeadline(result, `Version A (${c.tname ?? 'template'})`, `Version B (${c.tbname ?? 'template'})`), result,
+        a: { template: c.tname, counts: ca }, b: { template: c.tbname, counts: cb } };
+    }
     const billed = billedCost(billable.map((b) => ({ category: b.category || null, messages: b.messages })));
     const iso = (d: Date | null) => (d ? new Date(d).toISOString() : null);
     return {
@@ -63,7 +81,7 @@ export async function campaignReportFor(ctx: ActorCtx, id: string): Promise<Resu
         billed: { ...billed, billableMessages: billable.reduce((n, b) => n + b.messages, 0), awaitingPricing: waiting },
         simulated: real === 0 && counts.sent > 0,
         offer: { code: c.offer_code, endsAt: iso(c.offer_expires_at) },
-        sendsByHour: hours, clicks,
+        sendsByHour: hours, clicks, abTest,
       },
     };
   });
