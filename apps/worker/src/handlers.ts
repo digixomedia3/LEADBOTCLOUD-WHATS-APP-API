@@ -1,3 +1,4 @@
+import { mediaRefOf, previewFor } from '@lbc/shared/inbound-media';
 import { sql } from 'drizzle-orm';
 import { errorPolicy, type GraphError } from '@lbc/shared';
 import { STATUS_RANK, fromUnixSeconds, isStartText, isStopText, nextStatus, parseCallbackData } from '@lbc/meta';
@@ -91,7 +92,7 @@ export async function applyErrorEffects(db: Db, tenantId: string, messageId: str
   }
 }
 
-interface InboundPayload { id: string; from?: string; from_user_id?: string; timestamp?: string; type?: string; text?: { body?: string }; button?: { payload?: string; text?: string }; interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } }; context?: { id?: string }; _contacts?: { wa_id?: string; profile?: { name?: string } }[]; referral?: Record<string, unknown> }
+interface InboundPayload { [k: string]: unknown; id: string; from?: string; from_user_id?: string; timestamp?: string; type?: string; text?: { body?: string }; button?: { payload?: string; text?: string }; interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } }; context?: { id?: string }; _contacts?: { wa_id?: string; profile?: { name?: string } }[]; referral?: Record<string, unknown> }
 
 /** A message from a customer. Opens the 24-hour window, handles STOP / START, and runs keyword auto-replies. */
 export async function handleInbound(db: Db, tenantId: string, phoneNumberId: string | null, m: InboundPayload): Promise<{ outcome: Outcome; autoReply?: string; optedOut?: boolean }> {
@@ -101,7 +102,8 @@ export async function handleInbound(db: Db, tenantId: string, phoneNumberId: str
   const ts = fromUnixSeconds(m.timestamp) ?? new Date();
   const profile = m._contacts?.find((c) => c.wa_id === fromWa)?.profile?.name ?? null;
   const text = m.type === 'text' ? (m.text?.body ?? '') : m.type === 'button' ? (m.button?.payload ?? m.button?.text ?? '') : m.type === 'interactive' ? (m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? '') : '';
-  const preview = text || (m.type ? `[${m.type}]` : '[message]');
+  const preview = text || previewFor(m as never);
+  if (m.type === 'reaction') return { outcome: 'ignored' };   // an emoji on an earlier message is not a new message and must not raise unread
 
   // contact: match on E.164, create when new (no consent is implied by a customer writing to us)
   let c = rows(await db.execute(sql`select id, consent_status from contacts where tenant_id = ${tenantId} and phone_e164 = ${phone} limit 1`))[0];
@@ -120,6 +122,8 @@ export async function handleInbound(db: Db, tenantId: string, phoneNumberId: str
   // Idempotent: the wamid is unique, so a replay inserts nothing and we stop before any counter moves.
   const ins = rows(await db.execute(sql`insert into messages (tenant_id, conversation_id, direction, kind, body, status, wamid, phone_number_id, created_at) values (${tenantId}, ${convId}, 'in', ${m.type ?? 'text'}, ${preview}, 'received', ${m.id}, ${phoneNumberId}, ${ts.toISOString()}::timestamptz) on conflict (wamid) where wamid is not null do nothing returning id`));
   if (!ins[0]) return { outcome: 'ok' };
+  const ref = mediaRefOf(m as never);
+  if (ref) await db.execute(sql`insert into inbound_media (tenant_id, message_id, kind, meta_media_id, mime, file_name, caption) values (${tenantId}, ${ins[0].id}, ${ref.kind}, ${ref.id}, ${ref.mime}, ${ref.fileName}, ${ref.caption}) on conflict (message_id) do nothing`);
   await db.execute(sql`update conversations set last_preview = ${preview.slice(0, 120)}, last_message_at = greatest(coalesce(last_message_at, ${ts.toISOString()}::timestamptz), ${ts.toISOString()}::timestamptz),
     window_expires_at = greatest(coalesce(window_expires_at, ${ts.toISOString()}::timestamptz), ${new Date(ts.getTime() + 24 * 3600_000).toISOString()}::timestamptz), unread = unread + 1, status = 'open' where id = ${convId} and tenant_id = ${tenantId}`);
 

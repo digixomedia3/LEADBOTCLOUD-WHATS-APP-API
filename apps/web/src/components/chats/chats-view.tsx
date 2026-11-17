@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/form';
 import { addNote, assign, listConversations, openConversation, sendReply, setStatus, simulateInbound, type ConvRow, type MsgRow, type TeamMember } from '@/app/(app)/chats/actions';
 import { cn } from '@/lib/utils';
+import { MediaBubble } from './media-bubble';
 
 type Filter = 'open' | 'mine' | 'unassigned' | 'resolved';
 type QR = { id: string; shortcut: string; body: string };
@@ -85,7 +86,8 @@ export function ChatsView({ initial, team, quick, me, canReply, live }: { initia
                   <div key={m.id} className={cn('flex', m.direction === 'in' ? 'justify-start' : 'justify-end')}>
                     <div className={cn('max-w-[82%] rounded-xl px-3 py-2 text-[14px] leading-snug shadow-sm', m.direction === 'in' && 'rounded-tl-none bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]', m.direction === 'out' && 'rounded-tr-none bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]', m.direction === 'note' && 'border border-amber/50 bg-amber/15 text-ink')}>
                       {m.direction === 'note' ? <p className="mb-0.5 flex items-center gap-1 text-[11px] font-bold text-amber"><StickyNote className="size-3" />Private note</p> : null}
-                      <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                      {m.media ? <MediaBubble media={m.media} /> : null}
+                      {m.media ? (m.media.caption ? <p className="mt-1 whitespace-pre-wrap break-words">{m.media.caption}</p> : null) : <p className="whitespace-pre-wrap break-words">{m.body}</p>}
                       <p className="mt-0.5 flex items-center justify-end gap-1 text-[10.5px] opacity-60">{new Date(m.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}{m.direction === 'out' ? <CheckCheck className="size-3.5 text-[#53bdeb]" /> : null}</p>
                     </div>
                   </div>))}

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { canShowInline } from '@lbc/shared/inbound-media';
 import { z } from 'zod';
 import { automationRules, contacts, contactConsentEvents, conversations, messages, quickReplies, tenantMembers, user } from '@lbc/db';
 import { Forbidden, assertRole, db, requireCtx, type Ctx } from '@/lib/session';
@@ -22,7 +23,9 @@ const STOP_WORDS = /^\s*(stop|unsubscribe|band karo|बंद करो|रो�
 const HOUR = 3_600_000;
 
 export interface ConvRow { id: string; contactId: string; name: string | null; phone: string; status: string; assignedTo: string | null; unread: number; preview: string | null; lastAt: string; windowOpen: boolean; consent: string }
-export interface MsgRow { id: string; direction: 'in' | 'out' | 'note'; body: string; status: string; at: string; by: string | null }
+/** A file the customer sent. `state` is stored (show it), pending (still fetching), failed or too_large (say so; the message text still shows). */
+export interface MediaRef { id: string; kind: string; state: string; mime: string | null; fileName: string | null; caption: string | null; sizeBytes: number | null; inline: boolean }
+export interface MsgRow { id: string; direction: 'in' | 'out' | 'note'; body: string; status: string; at: string; by: string | null; media: MediaRef | null }
 export interface TeamMember { userId: string; name: string }
 
 export async function listConversations(filter: 'open' | 'mine' | 'unassigned' | 'resolved' = 'open'): Promise<ConvRow[]> {
@@ -45,10 +48,13 @@ export async function openConversation(id: string): Promise<{ conv: ConvRow; mes
     if (!r) return null;
     await tx.update(conversations).set({ unread: 0 }).where(eq(conversations.id, id));
     const ms = await tx.select().from(messages).where(eq(messages.conversationId, id)).orderBy(asc(messages.createdAt)).limit(500);
+    const ids = ms.filter((m) => m.direction === 'in' && m.kind !== 'text').map((m) => m.id);
+    const files = ids.length ? ((await tx.execute(sql`select id, message_id, kind, state, mime, file_name, caption, size_bytes from inbound_media where message_id = any(${'{' + ids.join(',') + '}'}::uuid[])`)) as unknown as { id: string; message_id: string; kind: string; state: string; mime: string | null; file_name: string | null; caption: string | null; size_bytes: number | null }[]) : [];
+    const byMsg = new Map(files.map((f) => [f.message_id, f]));
     const c = r.c;
     return {
       conv: { id: c.id, contactId: c.contactId, name: r.name, phone: r.phone, status: c.status, assignedTo: c.assignedTo, unread: 0, preview: c.lastPreview, lastAt: c.lastMessageAt.toISOString(), windowOpen: !!c.windowExpiresAt && c.windowExpiresAt.getTime() > Date.now(), consent: r.consent },
-      messages: ms.map((m) => ({ id: m.id, direction: m.direction as MsgRow['direction'], body: m.body, status: m.status, at: m.createdAt.toISOString(), by: m.senderUserId })),
+      messages: ms.map((m) => ({ id: m.id, direction: m.direction as MsgRow['direction'], body: m.body, status: m.status, at: m.createdAt.toISOString(), by: m.senderUserId, media: ((f) => f ? { id: f.id, kind: f.kind, state: f.state, mime: f.mime, fileName: f.file_name, caption: f.caption, sizeBytes: f.size_bytes, inline: f.state === 'stored' && canShowInline(f.mime, f.kind) } : null)(byMsg.get(m.id)) })),
     };
   });
 }

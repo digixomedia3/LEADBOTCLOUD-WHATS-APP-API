@@ -27,6 +27,7 @@ export class MetaError extends Error {
 }
 
 /** A network failure or timeout. The request may or may not have been accepted, so marketing sends must NOT be blindly retried (spec 4.5 step 6). */
+export class MediaTooLarge extends Error { constructor(readonly size: number) { super(`File is ${size} bytes, over the limit.`); this.name = 'MediaTooLarge'; } }
 export class MetaUnknownOutcome extends Error {
   constructor(public readonly path: string, public readonly cause_: unknown) {
     super('Meta request outcome unknown (timeout or network error)');
@@ -150,6 +151,35 @@ export class GraphClient {
     if (!res.ok) throw new MetaError(res.status, json.error ?? { message: `HTTP ${res.status}` }, 'media');
     if (!json.id) throw new MetaError(502, { message: 'Meta did not return a media id.' }, 'media');
     return json.id;
+  }
+
+  /** Step 1 of getting a customer's file: the media id from the webhook becomes a short-lived download link. */
+  getMediaInfo(mediaId: string, token: string) { return this.request<{ id?: string; url?: string; mime_type?: string; file_size?: number }>('GET', mediaId, { token }); }
+
+  /**
+   * Step 2: download the file. The link comes from Meta's reply, so the token is only ever sent to a Meta host (or the configured test server),
+   * never to an address a stranger could have put in a message. The size is checked from the headers AND while reading, so a lying server cannot fill memory.
+   */
+  async downloadMedia(url: string, token: string, maxBytes: number): Promise<{ bytes: Uint8Array; mime: string | null }> {
+    let u: URL; try { u = new URL(url); } catch { throw new MetaError(502, { message: 'Meta sent a bad download link.' }, 'media'); }
+    const base = new URL(this.cfg.baseUrl ?? 'https://graph.facebook.com');
+    const metaHost = /(^|\.)(fbsbx\.com|facebook\.com|fbcdn\.net|whatsapp\.net|whatsapp\.com)$/i.test(u.hostname);
+    if (!((u.protocol === 'https:' && metaHost) || u.origin === base.origin)) throw new MetaError(502, { message: 'Download link is not a Meta address.' }, 'media');
+    const f = this.cfg.fetchImpl ?? fetch;
+    const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), this.cfg.timeoutMs ?? 60_000);
+    try {
+      let res: Response;
+      try { res = await f(u.toString(), { method: 'GET', headers: { Authorization: `Bearer ${token}` }, signal: ctl.signal, redirect: 'error' }); }
+      catch (e) { throw new MetaUnknownOutcome('media', e); }
+      if (!res.ok) throw new MetaError(res.status, { message: `HTTP ${res.status}` }, 'media');
+      const declared = Number(res.headers.get('content-length') ?? 0);
+      if (declared > maxBytes) throw new MediaTooLarge(declared);
+      const chunks: Uint8Array[] = []; let n = 0;
+      const rd = res.body?.getReader(); if (!rd) throw new MetaError(502, { message: 'Empty download.' }, 'media');
+      for (;;) { const { done, value } = await rd.read(); if (done) break; n += value.byteLength; if (n > maxBytes) { void rd.cancel(); throw new MediaTooLarge(n); } chunks.push(value); }
+      const out = new Uint8Array(n); let o = 0; for (const c of chunks) { out.set(c, o); o += c.byteLength; }
+      return { bytes: out, mime: (res.headers.get('content-type') ?? '').split(';')[0]!.trim() || null };
+    } finally { clearTimeout(timer); }
   }
 
   createTemplate(wabaId: string, token: string, body: unknown) { return this.request<{ id: string; status: string; category: string }>('POST', `${wabaId}/message_templates`, { token, body }); }
