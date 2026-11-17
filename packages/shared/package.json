@@ -17,7 +17,8 @@
     "./link-code": "./src/link-code.ts",
     "./send-window": "./src/send-window.ts",
     "./journeys": "./src/journeys.ts",
-    "./ab-test": "./src/ab-test.ts"
+    "./ab-test": "./src/ab-test.ts",
+    "./lead-score": "./src/lead-score.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
