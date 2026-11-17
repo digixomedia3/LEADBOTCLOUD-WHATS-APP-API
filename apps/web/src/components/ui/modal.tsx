@@ -16,6 +16,24 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', h); document.body.style.overflow = ''; prev?.focus(); };
   }, [open, onClose]);
+  // When a form inside the dialog reports a problem, bring it into view. The dialog body scrolls on a phone, so the message at its top would otherwise be
+  // out of sight right when the person presses the button at the bottom, and it would look as if nothing happened.
+  useEffect(() => {
+    if (!open || !ref.current) return;
+    const root = ref.current;
+    const seen = new WeakSet<Element>();
+    const reveal = () => {
+      for (const el of root.querySelectorAll('[role="alert"]')) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+        el.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      }
+    };
+    reveal();
+    const mo = new MutationObserver(reveal);
+    mo.observe(root, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={onClose} role="presentation">
