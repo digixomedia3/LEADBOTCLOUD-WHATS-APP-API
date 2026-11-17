@@ -9,12 +9,8 @@ type Row = Record<string, unknown>;
 const rows = (r: unknown) => r as Row[];
 
 /** Resolves one template variable for one contact. "@name" is the first name (falls back to "there"), "@phone" the number; anything else is fixed text. */
-export function resolveVar(spec: string, c: { name: string | null; phone: string }): string {
-  if (spec === '@name') return (c.name ?? '').trim().split(/\s+/)[0] || 'there';
-  if (spec === '@fullname') return (c.name ?? '').trim() || 'there';
-  if (spec === '@phone') return c.phone;
-  return spec;
-}
+export { resolveVar } from '@lbc/shared';
+import { resolveVar as resolveVarShared } from '@lbc/shared';
 
 export const NEXT_MS: Record<string, number> = { daily: 86_400_000, weekly: 7 * 86_400_000, monthly: 30 * 86_400_000 };
 
@@ -90,7 +86,7 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     let position = 0;
     for (const c of sendable) {
       const notBefore = startTimeFor(position++, claimed.send_per_minute as number | null, launchedAt);
-      const params = varMap.map((v) => resolveVar(String(v), { name: c.name as string | null, phone: String(c.phone_e164) }));
+      const params = varMap.map((v) => resolveVarShared(String(v), { name: c.name as string | null, phone: String(c.phone_e164) }));
       const cr = rows(await tx.execute(sql`insert into campaign_recipients (tenant_id, campaign_id, contact_id, phone_e164, name, state) values (${tenantId}, ${campaignId}, ${c.id}, ${c.phone_e164}, ${c.name}, 'queued') on conflict (campaign_id, contact_id) where contact_id is not null do nothing returning id`))[0];
       if (!cr) continue; // already expanded (a retry of this function): never create a second message
       let linkCode: string | undefined;

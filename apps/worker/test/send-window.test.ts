@@ -82,6 +82,15 @@ describe('the sender respects speed and quiet hours', () => {
   it('quiet hours switched off means promotions go at night', async () => {
     const x = await one({ quiet: false }, ist(23, 30)); expect(x.r.kind).not.toBe('deferred');
   });
+  it('a TEST message to your own saved number is never held at night, but the same promotion to a customer is', async () => {
+    const asTest = async (isTest: boolean) => {
+      const s = await setup({ people: 1 }); await launchCampaign(db, s.t, s.camp); const [m] = await msgs(s.camp);
+      await A(`update messages set is_test = ${isTest} where id = '${m!.id}'`);
+      return sendOne({ db, graph: graph(), tokenKey: KEY, now: () => ist(23, 30) }, s.t, m!.id);
+    };
+    expect((await asTest(false)).kind).toBe('deferred');
+    expect((await asTest(true)).kind).not.toBe('deferred');
+  });
   it('a workspace can choose its own hours', async () => {
     const x = await one({ start: 22, end: 7 }, ist(8, 0)); expect(x.r.kind).not.toBe('deferred');
     const y = await one({ start: 22, end: 7 }, ist(6, 59)); expect(y.r.kind === 'deferred' && y.r.until).toEqual(ist(7, 0));

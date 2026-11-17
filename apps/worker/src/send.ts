@@ -84,7 +84,8 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
   // Speed: this message has a turn that has not come yet.
   if (m.not_before && new Date(String(m.not_before)) > now) return { kind: 'deferred', until: new Date(String(m.not_before)), why: 'speed' };
   // Quiet hours hold PROMOTIONS only. Replies and updates a customer expects are never delayed.
-  if (category === 'MARKETING') {
+  // A test to your own saved number is also never held: a test that arrives at 9 am tomorrow is no test.
+  if (category === 'MARKETING' && !m.is_test) {
     const q = rows(await db.execute(sql`select quiet_hours_enabled, quiet_start_hour, quiet_end_hour, timezone from tenants where id = ${tenantId}`))[0];
     if (q) {
       const win: QuietHours = { enabled: !!q.quiet_hours_enabled, startHour: Number(q.quiet_start_hour), endHour: Number(q.quiet_end_hour), timezone: String(q.timezone || 'Asia/Kolkata') };

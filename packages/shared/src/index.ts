@@ -13,3 +13,4 @@ export * from './leads';
 export * from './template-library';
 export * from './template-media';
 export * from './segments';
+export * from './vars';

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FormError, Input, Select } from '@/components/ui/form';
 import { Modal } from '@/components/ui/modal';
 import { WaBubble } from '@/components/ui/wa-bubble';
+import { TestSendPanel } from '@/components/campaigns/test-send-panel';
 import { cancelCampaign, connectionState, createCampaign, listCampaigns, previewAudience, sendCampaign, type AudiencePreview, type CampaignRow } from '@/app/(app)/campaigns/actions';
 import type { TemplateRow } from '@/app/(app)/templates/actions';
 import type { GroupRow } from '@/app/(app)/contacts/actions';
@@ -169,6 +170,7 @@ function Wizard({ live, templates, groups, appUrl, onClose, onDone }: { appUrl: 
                 {needsEnd ? <Field label="Offer ends (IST)" hint="WhatsApp shows a live countdown to this time. It must be at least an hour after you send."><Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></Field> : null}
               </div>
             ) : null}
+            {live && tpl ? <TestSendPanel templateId={tpl.id} varMap={vars} offerCode={needsCode ? code.trim() : undefined} offerEndsAt={needsEnd ? endsAt : undefined} ready={varsOk && (!needsCode || /^[A-Za-z0-9_-]{1,15}$/.test(code.trim())) && (!needsEnd || !!endsAt)} tracked={needsLink} /> : null}
             <Button disabled={name.trim().length < 2 || !tid || !varsOk || !offerOk} onClick={() => setStep(2)}>Next: who gets it</Button>
           </div>
           {tpl ? <WaBubble offer={tpl.offer} media={tpl.headerMedia ? { kind: tpl.headerMedia, src: tpl.assetId ? `/api/template-assets/${tpl.assetId}` : null, name: tpl.assetName } : null} header={tpl.headerText} body={tpl.body} footer={tpl.footer} buttons={tpl.buttons} values={tpl.samples} /> : null}
