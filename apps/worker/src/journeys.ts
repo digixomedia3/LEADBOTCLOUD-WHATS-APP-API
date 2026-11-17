@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { variablesIn } from '@lbc/shared';
-import { journeyTemplateProblem, parseSteps, type JourneyStep } from '@lbc/shared/journeys';
-import type { Db } from '@lbc/db';
+import { checkNeedsTag, journeyTemplateProblem, parseSteps, type JourneyStep } from '@lbc/shared/journeys';
+import { sweepTagJourneys, type Db } from '@lbc/db';
 import { resolveVar } from './campaigns';
 
 /**
@@ -20,9 +20,12 @@ const BATCH = 100;
 /** A template that is not approved yet (paused, in review) is waited for, up to two days, then the person leaves the journey. */
 const TEMPLATE_WAIT_MS = 30 * 60_000, TEMPLATE_WAIT_TRIES = 96;
 const RETRY_MS = 5 * 60_000, MAX_ERRORS = 5;
+/** A read check waits for the last message to actually go out (same patience as an unapproved template: up to two days). */
 
 export async function tickJourneys(d: JourneyDeps): Promise<TickResult> {
   const out: TickResult = { due: 0, advanced: 0, sent: 0, stopped: 0, failed: 0 };
+  // People who just got a tag join their journey first, so they can be moved on in the same pass.
+  await sweepTagJourneys(d.db).catch((e) => console.error('tag sweep', (e as Error).message));
   const due = rows(await d.db.execute(sql`
     select r.id, r.tenant_id from journey_runs r join journeys j on j.id = r.journey_id and j.tenant_id = r.tenant_id
     where r.status = 'active' and r.next_run_at <= now() and j.status = 'active' order by r.next_run_at limit ${BATCH}`));
@@ -63,7 +66,7 @@ export async function advanceRun(d: JourneyDeps, tenantId: string, runId: string
       await t.execute(sql`update journey_runs set status = 'stopped', stop_reason = ${reason}, finished_at = now() where id = ${runId}::uuid and tenant_id = ${tenantId}::uuid`);
       return { moved: true, sent: 0, stopped: true } as Advance;
     };
-    const c = rows(await t.execute(sql`select id, name, phone_e164, consent_status, reachability, last_inbound_at from contacts where id = ${String(run.contact_id)}::uuid and tenant_id = ${tenantId}::uuid`))[0];
+    const c = rows(await t.execute(sql`select id, name, phone_e164, consent_status, reachability, last_inbound_at, tags from contacts where id = ${String(run.contact_id)}::uuid and tenant_id = ${tenantId}::uuid`))[0];
     if (!c) return stop('contact_deleted');
     if (c.consent_status === 'stopped') return stop('opted_out');
     if (c.reachability === 'unreachable') return stop('unreachable');
@@ -83,6 +86,40 @@ export async function advanceRun(d: JourneyDeps, tenantId: string, runId: string
       }
       if (step.type === 'add_tag') {
         await t.execute(sql`update contacts set tags = (select coalesce(array_agg(distinct x), '{}'::text[]) from unnest(tags || ARRAY[${step.tag}]::text[]) x), updated_at = now() where id = ${String(c.id)}::uuid and tenant_id = ${tenantId}::uuid`);
+        index++; continue;
+      }
+      if (step.type === 'only_if') {
+        // A gate. If it is not met the person's journey ENDS here (it never skips ahead), and the reason is recorded so the owner can see it.
+        let ok: boolean;
+        if (checkNeedsTag(step.check)) {
+          const has = ((c.tags ?? []) as string[]).includes(String(step.tag));
+          ok = step.check === 'has_tag' ? has : !has;
+        } else {
+          // The most recent message THIS journey sent this person. Failed or unsent messages cannot be answered: that ends the journey rather than guessing.
+          const last = rows(await t.execute(sql`select status, read_at from messages where journey_run_id = ${runId}::uuid and tenant_id = ${tenantId}::uuid order by journey_step desc limit 1`))[0];
+          if (!last) return stop('condition_unknown');
+          if (['queued', 'sending', 'held', 'paused', 'send_unknown', 'failed'].includes(String(last.status)) && !last.read_at) {
+            // Still waiting to go out: wait for it instead of judging a message that has not been delivered yet. Failed: nothing to read.
+            if (String(last.status) === 'failed') return stop('condition_unknown');
+            const tries = Number(run.attempts) + 1;
+            if (tries >= TEMPLATE_WAIT_TRIES) return stop('condition_unknown');
+            await t.execute(sql`update journey_runs set attempts = ${tries}, next_run_at = ${new Date(now.getTime() + TEMPLATE_WAIT_MS).toISOString()}::timestamptz where id = ${runId}::uuid and tenant_id = ${tenantId}::uuid`);
+            return { moved: true, sent, stopped: false };
+          }
+          const read = !!last.read_at || String(last.status) === 'read' || String(last.status) === 'played';
+          ok = step.check === 'read_last' ? read : !read;
+        }
+        if (!ok) return stop('condition_not_met');
+        index++; continue;
+      }
+      if (step.type === 'assign') {
+        // Only hand over a chat nobody has, and only to someone who is still on the team. Never steal a chat a person is already working.
+        const member = rows(await t.execute(sql`select 1 as ok from tenant_members where tenant_id = ${tenantId}::uuid and user_id = ${step.userId}`))[0];
+        if (member) {
+          await t.execute(sql`
+            insert into conversations (tenant_id, contact_id, status, unread, assigned_to) values (${tenantId}::uuid, ${String(c.id)}::uuid, 'open', 0, ${step.userId})
+            on conflict (tenant_id, contact_id) do update set assigned_to = ${step.userId} where conversations.assigned_to is null`);
+        }
         index++; continue;
       }
       // send_template

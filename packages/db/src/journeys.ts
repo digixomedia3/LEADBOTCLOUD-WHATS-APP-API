@@ -50,6 +50,29 @@ export async function enrollFromLead(ex: Executor, tenantId: string, sourceId: s
   return n;
 }
 
+/**
+ * "Start when someone gets a tag". Tags are set from many places (lead intake, imports, manual edits, other journeys), so instead of hooking each one
+ * this sweeps: it finds people who carry the tag and are not in the journey yet, and enrols them through the same rules as every other way in.
+ * Because a person can only ever be in a journey once, a tag that is removed and added again does not start it a second time.
+ * Only a small batch per pass, so a tag on 50,000 people becomes a steady trickle bounded by the daily limit, not a flood.
+ */
+export const TAG_SWEEP_BATCH = 200;
+export async function sweepTagJourneys(ex: Executor): Promise<{ journeys: number; enrolled: number }> {
+  const js = rows(await ex.execute(sql`select id, tenant_id, trigger->>'tag' as tag from journeys where status = 'active' and trigger->>'type' = 'tag_added'`));
+  let enrolled = 0;
+  for (const j of js) {
+    const tenantId = String(j.tenant_id), journeyId = String(j.id), tag = String(j.tag ?? '');
+    if (!tag) continue;
+    const ids = rows(await ex.execute(sql`
+      select c.id from contacts c
+      where c.tenant_id = ${tenantId}::uuid and ${tag} = any(c.tags) and c.consent_status <> 'stopped'
+        and not exists (select 1 from journey_runs r where r.journey_id = ${journeyId}::uuid and r.contact_id = c.id)
+      order by c.id limit ${TAG_SWEEP_BATCH}`)).map((r) => String(r.id));
+    if (ids.length) enrolled += (await enrollContacts(ex, tenantId, journeyId, ids)).enrolled;
+  }
+  return { journeys: js.length, enrolled };
+}
+
 /** Stops every running journey for one person (used when they opt out or are removed). Returns how many were stopped. */
 export async function stopRunsFor(ex: Executor, tenantId: string, contactId: string, reason: string): Promise<number> {
   return rows(await ex.execute(sql`update journey_runs set status = 'stopped', stop_reason = ${reason}, finished_at = now() where tenant_id = ${tenantId}::uuid and contact_id = ${contactId}::uuid and status = 'active' returning id`)).length;

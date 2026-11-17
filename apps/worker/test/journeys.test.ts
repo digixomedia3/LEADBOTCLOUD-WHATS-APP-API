@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
-import { createDb, enrollContacts, enrollFromLead, MAX_ENROLL_PER_DAY, stopRunsFor } from '@lbc/db';
+import { createDb, enrollContacts, enrollFromLead, MAX_ENROLL_PER_DAY, stopRunsFor, sweepTagJourneys } from '@lbc/db';
 import { encryptSecret } from '@lbc/meta';
 import { advanceRun, tickJourneys } from '../src/journeys';
 
@@ -181,6 +181,157 @@ describe('when a journey must stop', () => {
   it('a damaged journey (unreadable steps) does nothing and never sends', async () => {
     const s = await started(); await A(`update journeys set steps = '[{"type":"explode"}]'::jsonb where id = '${s.j}'`); await advanceRun({ db, appUrl: APP }, s.t, s.id);
     expect(await msgs(s.t)).toHaveLength(0); expect((await run(s.j, s.c))!.status).toBe('completed');
+  });
+});
+
+describe('conditions and hand-over', () => {
+  const SEND = { type: 'send_template', templateId: '$T', varMap: ['@name'] };
+  const WAIT = { type: 'wait', minutes: 60 };
+  /** Runs the journey through the first message and its wait, with the message in the given state. */
+  async function afterFirstMessage(steps: Step[], msg: { status: string; readAt?: boolean } | null, o: { tags?: string[] } = {}) {
+    const s = await setup({ steps }); await enrollContacts(db, s.t, s.j, [s.c]); const t0 = Date.now();
+    if (o.tags) await A(`update contacts set tags = ARRAY[${o.tags.map((x) => `'${x}'`).join(',')}]::text[] where id = '${s.c}'`);
+    const id = (await run(s.j, s.c))!.id;
+    await advanceRun({ db, appUrl: APP, now: at(t0) }, s.t, id);
+    if (msg) await A(`update messages set status = '${msg.status}', read_at = ${msg.readAt ? 'now()' : 'null'} where journey_run_id = '${id}'`);
+    await advanceRun({ db, appUrl: APP, now: at(t0 + 61 * MIN) }, s.t, id);
+    return { s, id, r: (await run(s.j, s.c))!, m: await msgs(s.t) };
+  }
+
+  it('a gate on a tag lets people through who have it, and ends the journey for people who do not, saying why', async () => {
+    const steps = [SEND, WAIT, { type: 'only_if', check: 'has_tag', tag: 'interested' }, { type: 'add_tag', tag: 'followed-up' }];
+    const yes = await afterFirstMessage(steps, null, { tags: ['interested'] }); expect(yes.r.status).toBe('completed');
+    expect((await A(`select tags from contacts where id = '${yes.s.c}'`))[0]!.tags).toContain('followed-up');
+    const no = await afterFirstMessage(steps, null, { tags: ['other'] }); expect(no.r).toMatchObject({ status: 'stopped', stop_reason: 'condition_not_met' });
+    expect((await A(`select tags from contacts where id = '${no.s.c}'`))[0]!.tags).not.toContain('followed-up');   // nothing after the gate ran
+  });
+  it('"does not have the tag" is the opposite, and a tag name is matched exactly', async () => {
+    const steps = [SEND, WAIT, { type: 'only_if', check: 'no_tag', tag: 'bought' }, { type: 'add_tag', tag: 'nudged' }];
+    expect((await afterFirstMessage(steps, null, { tags: [] })).r.status).toBe('completed');
+    expect((await afterFirstMessage(steps, null, { tags: ['bought'] })).r.stop_reason).toBe('condition_not_met');
+    expect((await afterFirstMessage(steps, null, { tags: ['bought-late'] })).r.status).toBe('completed');   // a different tag does not count
+  });
+  it('a gate does not skip ahead: after a failed check no later message is sent', async () => {
+    const steps = [SEND, WAIT, { type: 'only_if', check: 'has_tag', tag: 'x' }, SEND];
+    const x = await afterFirstMessage(steps, null, { tags: [] }); expect(x.m).toHaveLength(1);
+  });
+  it('"read my last message" and "has not read it" look at the last message this journey sent', async () => {
+    const read = [SEND, WAIT, { type: 'only_if', check: 'read_last' }, { type: 'add_tag', tag: 'engaged' }];
+    const unread = [SEND, WAIT, { type: 'only_if', check: 'not_read_last' }, { type: 'add_tag', tag: 'nudge' }];
+    expect((await afterFirstMessage(read, { status: 'read', readAt: true })).r.status).toBe('completed');
+    expect((await afterFirstMessage(read, { status: 'delivered' })).r.stop_reason).toBe('condition_not_met');
+    expect((await afterFirstMessage(unread, { status: 'delivered' })).r.status).toBe('completed');
+    expect((await afterFirstMessage(unread, { status: 'read', readAt: true })).r.stop_reason).toBe('condition_not_met');
+  });
+  it('with two messages sent, the check looks at the LAST one, not the first', async () => {
+    const steps = [SEND, WAIT, SEND, WAIT, { type: 'only_if', check: 'read_last' }, { type: 'add_tag', tag: 'engaged' }];
+    const run2 = async (firstRead: boolean, secondRead: boolean) => {
+      const s = await setup({ steps }); await enrollContacts(db, s.t, s.j, [s.c]); const t0 = Date.now(); const id = (await run(s.j, s.c))!.id;
+      await advanceRun({ db, appUrl: APP, now: at(t0) }, s.t, id); await advanceRun({ db, appUrl: APP, now: at(t0 + 61 * MIN) }, s.t, id);       // first, then second message
+      await A(`update messages set status = '${firstRead ? 'read' : 'delivered'}', read_at = ${firstRead ? 'now()' : 'null'} where journey_run_id = '${id}' and journey_step = 0`);
+      await A(`update messages set status = '${secondRead ? 'read' : 'delivered'}', read_at = ${secondRead ? 'now()' : 'null'} where journey_run_id = '${id}' and journey_step = 2`);
+      await advanceRun({ db, appUrl: APP, now: at(t0 + 125 * MIN) }, s.t, id); return (await run(s.j, s.c))!;
+    };
+    expect((await run2(true, false)).stop_reason).toBe('condition_not_met');   // read the old one, not the new one: not read
+    expect((await run2(false, true)).status).toBe('completed');                // read the new one only: read
+  });
+  it('a message that has not gone out yet is waited for, not judged as "not read"', async () => {
+    const steps = [SEND, WAIT, { type: 'only_if', check: 'not_read_last' }, { type: 'add_tag', tag: 'nudge' }];
+    const x = await afterFirstMessage(steps, { status: 'queued' }); expect(x.r.status).toBe('active'); expect(x.r.attempts).toBe(1); expect(new Date(x.r.next_run_at).getTime()).toBeGreaterThan(Date.now() + 20 * MIN);
+    await A(`update messages set status = 'delivered' where journey_run_id = '${x.id}'`); await A(`update journey_runs set next_run_at = now() where id = '${x.id}'`);
+    await advanceRun({ db, appUrl: APP }, x.s.t, x.id); expect((await run(x.s.j, x.s.c))!.status).toBe('completed');
+  });
+  it('a message that failed cannot be answered, so the journey ends instead of guessing', async () => {
+    const steps = [SEND, WAIT, { type: 'only_if', check: 'not_read_last' }, { type: 'add_tag', tag: 'nudge' }];
+    const x = await afterFirstMessage(steps, { status: 'failed' }); expect(x.r).toMatchObject({ status: 'stopped', stop_reason: 'condition_unknown' });
+  });
+  it('a read check with no message before it ends the journey rather than guessing', async () => {
+    const x = await afterFirstMessage([{ type: 'only_if', check: 'read_last' }, SEND], null); expect(x.r).toMatchObject({ status: 'stopped', stop_reason: 'condition_unknown' });
+  });
+  it('a read check waits for a long-stuck message only so long, then ends', async () => {
+    const x = await afterFirstMessage([SEND, WAIT, { type: 'only_if', check: 'not_read_last' }, { type: 'add_tag', tag: 'n' }], { status: 'queued' });
+    await A(`update journey_runs set attempts = 95, next_run_at = now() where id = '${x.id}'`); await advanceRun({ db, appUrl: APP }, x.s.t, x.id);
+    expect((await run(x.s.j, x.s.c))).toMatchObject({ status: 'stopped', stop_reason: 'condition_unknown' });
+  });
+
+  it('hands the chat to a teammate only when nobody has it, never taking one that someone is working', async () => {
+    const s = await setup({ steps: [{ type: 'assign', userId: 'u-boss' }, { type: 'add_tag', tag: 'assigned' }, SEND] });
+    await A(`insert into "user" (id, name, email, email_verified, created_at, updated_at) values ('u-boss', 'Boss', 'u-boss-${s.t.slice(0, 6)}@example.com', true, now(), now()), ('u-other', 'Other', 'u-other-${s.t.slice(0, 6)}@example.com', true, now(), now()) on conflict do nothing`);
+    await A(`insert into tenant_members (tenant_id, user_id, role) values ('${s.t}', 'u-boss', 'agent'), ('${s.t}', 'u-other', 'agent')`);
+    const [a, b] = [s.people[0]!, (await A(`insert into contacts (tenant_id, phone_e164, name, consent_status) values ('${s.t}', '+919000000777', 'Second', 'allowed') returning id`))[0]!.id as string];
+    await A(`insert into conversations (tenant_id, contact_id, status, unread, assigned_to) values ('${s.t}', '${b}', 'open', 0, 'u-other')`);   // already someone's
+    await enrollContacts(db, s.t, s.j, [a, b]);
+    for (const c of [a, b]) await advanceRun({ db, appUrl: APP }, s.t, (await run(s.j, c))!.id);
+    const own = async (c: string) => (await A(`select assigned_to from conversations where tenant_id = '${s.t}' and contact_id = '${c}'`))[0]!.assigned_to;
+    expect(await own(a)).toBe('u-boss'); expect(await own(b)).toBe('u-other');                          // the one already held is left alone
+    expect((await run(s.j, a))!.status).toBe('completed'); expect((await run(s.j, b))!.status).toBe('completed');   // and the journey still carried on
+    await A(`delete from "user" where id in ('u-boss', 'u-other')`);
+  });
+  it('does not assign to someone who has left the team (the journey carries on, nobody is assigned)', async () => {
+    const s = await setup({ steps: [{ type: 'assign', userId: 'u-gone' }, { type: 'add_tag', tag: 'after' }, SEND] }); await enrollContacts(db, s.t, s.j, [s.c]);
+    await advanceRun({ db, appUrl: APP }, s.t, (await run(s.j, s.c))!.id);
+    expect((await A(`select assigned_to from conversations where tenant_id = '${s.t}' and contact_id = '${s.c}'`))[0]!.assigned_to).toBeNull();
+    expect((await run(s.j, s.c))!.status).toBe('completed'); expect((await A(`select tags from contacts where id = '${s.c}'`))[0]!.tags).toContain('after');
+  });
+});
+
+describe('starting when someone gets a tag', () => {
+  const tagJourney = async (o: { status?: string; tag?: string } = {}) => {
+    const s = await setup({ status: o.status ?? 'active' });
+    await A(`update journeys set trigger = '{"type":"tag_added","tag":"${o.tag ?? 'hot'}"}'::jsonb where id = '${s.j}'`); return s;
+  };
+  it('enrols people who have the tag, once, and not people without it', async () => {
+    const s = await tagJourney(); const [a] = s.people; const b = (await A(`insert into contacts (tenant_id, phone_e164, name, consent_status, tags) values ('${s.t}', '+919000000555', 'No tag', 'allowed', '{}') returning id`))[0]!.id as string;
+    await A(`update contacts set tags = ARRAY['hot']::text[] where id = '${a}'`);
+    await sweepTagJourneys(db); expect(await run(s.j, a!)).toBeDefined(); expect(await run(s.j, b)).toBeUndefined();
+    await sweepTagJourneys(db); await sweepTagJourneys(db); expect((await A(`select count(*)::int n from journey_runs where journey_id = '${s.j}'`))[0]!.n).toBe(1);
+  });
+  it('picks up a tag added later, and a tag removed and added again does not start it a second time', async () => {
+    const s = await tagJourney(); await sweepTagJourneys(db); expect(await run(s.j, s.c)).toBeUndefined();
+    await A(`update contacts set tags = ARRAY['hot']::text[] where id = '${s.c}'`); await sweepTagJourneys(db); const first = (await run(s.j, s.c))!;
+    await A(`update contacts set tags = '{}' where id = '${s.c}'`); await A(`update contacts set tags = ARRAY['hot']::text[] where id = '${s.c}'`); await sweepTagJourneys(db);
+    expect((await run(s.j, s.c))!.id).toBe(first.id); expect((await A(`select count(*)::int n from journey_runs where contact_id = '${s.c}'`))[0]!.n).toBe(1);
+  });
+  it('never enrols someone who opted out, a paused journey takes nobody, and another workspace\'s tag does not count', async () => {
+    const s = await tagJourney(); await A(`update contacts set tags = ARRAY['hot']::text[], consent_status = 'stopped' where id = '${s.c}'`);
+    const other = await setup(); await A(`update contacts set tags = ARRAY['hot']::text[] where id = '${other.c}'`);
+    await sweepTagJourneys(db); expect(await run(s.j, s.c)).toBeUndefined(); expect(await run(s.j, other.c)).toBeUndefined();   // other has no tag journey of its own
+    const p = await tagJourney({ status: 'paused' }); await A(`update contacts set tags = ARRAY['hot']::text[] where id = '${p.c}'`); await sweepTagJourneys(db); expect(await run(p.j, p.c)).toBeUndefined();
+  });
+  it('the sweep itself leaves out opted-out people and paused journeys, before enrolment is even tried', async () => {
+    // A recording executor in front of the real database shows exactly which people the sweep put forward and which journeys it looked at.
+    const seen: { sql: string }[] = [];
+    const spy = { execute: async (q: any) => { seen.push({ sql: JSON.stringify(q.queryChunks ?? q).slice(0, 4000) }); return db.execute(q); } };
+    const s = await tagJourney(); const stopped = (await A(`insert into contacts (tenant_id, phone_e164, name, consent_status, tags) values ('${s.t}', '+919000000901', 'Gone', 'stopped', ARRAY['hot']) returning id`))[0]!.id as string;
+    await A(`update contacts set tags = ARRAY['hot']::text[] where id = '${s.c}'`);
+    await A(`update journeys set status = 'paused' where trigger->>'type' = 'tag_added' and id <> '${s.j}'`);
+    const r = await sweepTagJourneys(spy);
+    expect(r.enrolled).toBe(1);
+    // The enrolment step also refuses opted-out people, so a missing filter here would be invisible from the outside. Look at who was PUT FORWARD: the ids handed to enrolment.
+    const forward = seen.filter((x) => x.sql.includes('id = any(') || x.sql.includes('::uuid[]')).map((x) => x.sql).join(' ');
+    expect(forward).toContain(s.c); expect(forward, 'an opted-out person was put forward for enrolment').not.toContain(stopped);
+    // The sweep reads every workspace's tag journeys, and other tests share this database. Pause all of them except the one under test, so only this one's search shows up.
+    await A(`update journeys set status = 'paused' where trigger->>'type' = 'tag_added' and id <> '${s.j}'`);
+    const live = Number((await A(`select count(*)::int n from journeys where status = 'active' and trigger->>'type' = 'tag_added'`))[0]!.n); expect(live).toBe(1);
+    await A(`update journeys set status = 'paused' where id = '${s.j}'`); seen.length = 0; const r2 = await sweepTagJourneys(spy);
+    expect(r2.journeys).toBe(0); expect(seen.some((x) => x.sql.includes('contacts'))).toBe(false);   // a paused journey is not even searched
+    await A(`delete from journey_runs where tenant_id = '${s.t}'`);
+  });
+  it('one pass takes at most a small batch, so a tag on thousands of people is a steady trickle, not a flood', async () => {
+    const s = await tagJourney(); await A(`insert into contacts (tenant_id, phone_e164, name, consent_status, tags) select '${s.t}', '+91444' || lpad(g::text, 7, '0'), 'Many', 'allowed', ARRAY['hot']::text[] from generate_series(1, 260) g`);
+    const r = await sweepTagJourneys(db); expect(r.enrolled).toBe(200);
+    const r2 = await sweepTagJourneys(db); expect(r2.enrolled).toBe(60);
+    await A(`delete from journey_runs where tenant_id = '${s.t}'`); await A(`update journeys set status = 'paused' where tenant_id = '${s.t}'`);
+  });
+  it('the tag is matched exactly and the daily cap still applies', async () => {
+    const s = await tagJourney({ tag: 'hot' }); await A(`update contacts set tags = ARRAY['hotter','HOT']::text[] where id = '${s.c}'`); await sweepTagJourneys(db); expect(await run(s.j, s.c)).toBeUndefined();
+    await A(`insert into contacts (tenant_id, phone_e164, name, consent_status, tags) select '${s.t}', '+91555' || lpad(g::text, 7, '0'), 'Crowd', 'allowed', ARRAY['hot']::text[] from generate_series(1, 620) g`);
+    for (let i = 0; i < 6; i++) await sweepTagJourneys(db);
+    expect((await A(`select count(*)::int n from journey_runs where journey_id = '${s.j}'`))[0]!.n).toBe(MAX_ENROLL_PER_DAY);   // 620 have the tag, 500 may join today
+    await A(`delete from journey_runs where tenant_id = '${s.t}'`); await A(`update journeys set status = 'paused' where tenant_id = '${s.t}'`);   // leave nothing due behind for the other tests, which share this database
+  });
+  it('the database refuses a tag trigger with no tag', async () => {
+    const s = await setup(); await expect(A(`update journeys set trigger = '{"type":"tag_added"}'::jsonb where id = '${s.j}'`)).rejects.toThrow(); await expect(A(`update journeys set trigger = '{"type":"tag_added","tag":""}'::jsonb where id = '${s.j}'`)).rejects.toThrow();
   });
 });
 

@@ -7,6 +7,13 @@ import { z } from 'zod';
 export const MAX_STEPS = 20;
 export const MAX_WAIT_MINUTES = 60 * 24 * 60;   // 60 days
 
+export const CHECKS = ['has_tag', 'no_tag', 'read_last', 'not_read_last'] as const;
+export type Check = (typeof CHECKS)[number];
+export const CHECK_LABEL: Record<Check, string> = {
+  has_tag: 'has the tag', no_tag: 'does not have the tag', read_last: 'read my last message', not_read_last: 'has not read my last message',
+};
+export const checkNeedsTag = (c: Check) => c === 'has_tag' || c === 'no_tag';
+
 export const journeyStep = z.discriminatedUnion('type', [
   z.object({ type: z.literal('wait'), minutes: z.number().int().min(1, 'A wait must be at least 1 minute.').max(MAX_WAIT_MINUTES, 'A wait can be 60 days at most.') }),
   z.object({
@@ -16,12 +23,22 @@ export const journeyStep = z.discriminatedUnion('type', [
     varMap: z.array(z.string().trim().min(1, 'Fill in every blank.').max(200)).max(20).default([]),
   }),
   z.object({ type: z.literal('add_tag'), tag: z.string().trim().min(1, 'Enter a tag.').max(40, 'Tags can be 40 characters at most.').regex(/^[^,;\n]+$/, 'A tag cannot contain commas or new lines.') }),
+  /**
+   * A gate: the person carries on only if the check is true, otherwise their journey ends. The read checks look at the most recent message this
+   * journey sent them, so they only make sense after a message and a wait.
+   */
+  z.object({ type: z.literal('only_if'), check: z.enum(CHECKS), tag: z.string().trim().min(1, 'Enter a tag.').max(40, 'Tags can be 40 characters at most.').regex(/^[^,;\n]+$/, 'A tag cannot contain commas or new lines.').optional() }),
+  /** Hand the conversation to a teammate, but only if nobody has taken it yet, so it never steals one that someone is already working. */
+  z.object({ type: z.literal('assign'), userId: z.string().min(1, 'Choose a teammate.').max(100) }),
 ]);
 export type JourneyStep = z.infer<typeof journeyStep>;
 
 export const journeyTrigger = z.discriminatedUnion('type', [
   z.object({ type: z.literal('manual') }),
   z.object({ type: z.literal('lead_created'), sourceId: z.string().uuid().optional() }),
+  /** Starts for everyone who has this tag, now or later. Each person goes through it once. */
+  // The pattern needs at least one character, so a blank tag is refused with the message below.
+  z.object({ type: z.literal('tag_added'), tag: z.string().trim().max(40).regex(/^[^,;\n]+$/, 'Enter the tag that starts this journey. A tag cannot contain commas or new lines.') }),
 ]);
 export type JourneyTrigger = z.infer<typeof journeyTrigger>;
 
@@ -47,9 +64,26 @@ export function parseTrigger(raw: unknown): JourneyTrigger {
 /** Problems that would make a journey misbehave, in plain words. Null when fine. Whole-journey rules the schema cannot express. */
 export function journeyProblem(steps: JourneyStep[]): string | null {
   if (!steps.some((s) => s.type === 'send_template')) return 'A journey needs at least one message to send.';
-  if (steps[steps.length - 1]?.type === 'wait') return 'A journey cannot end with a wait. Remove it, or add a message after it.';
-  // Several messages back to back would arrive together, which feels like spam. Make people wait between them.
-  for (let i = 1; i < steps.length; i++) if (steps[i]!.type === 'send_template' && steps[i - 1]!.type === 'send_template') return 'Put a wait between two messages so they do not arrive together.';
+  const last = steps[steps.length - 1]!.type;
+  if (last === 'wait') return 'A journey cannot end with a wait. Remove it, or add a message after it.';
+  if (last === 'only_if') return 'A journey cannot end with a check, because nothing would follow it. Remove it, or add a step after it.';
+  // Messages with only quiet steps between them would arrive together, which feels like spam. Make people wait between them.
+  let sentSinceWait = false, sentAny = false, waitedSinceSend = false;
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i]!;
+    if (s.type === 'wait') { sentSinceWait = false; waitedSinceSend = sentAny; continue; }
+    if (s.type === 'send_template') {
+      if (sentSinceWait) return 'Put a wait between two messages so they do not arrive together.';
+      sentSinceWait = true; sentAny = true; waitedSinceSend = false; continue;
+    }
+    if (s.type === 'only_if') {
+      if (checkNeedsTag(s.check) && !s.tag?.trim()) return `Step ${i + 1}: enter the tag to check.`;
+      if (!checkNeedsTag(s.check)) {
+        if (!sentAny) return `Step ${i + 1}: a read check needs a message before it. Add a message first.`;
+        if (!waitedSinceSend) return `Step ${i + 1}: put a wait between the message and the read check, so there is time to read it.`;
+      }
+    }
+  }
   return null;
 }
 
@@ -69,10 +103,18 @@ export function journeyTemplateProblem(t: TemplateFacts, blankCount: number, app
   return null;
 }
 
-export function describeStep(s: JourneyStep, names: { templates?: Record<string, string> } = {}): string {
+export function describeStep(s: JourneyStep, names: { templates?: Record<string, string>; people?: Record<string, string> } = {}): string {
   if (s.type === 'wait') return `Wait ${describeMinutes(s.minutes)}`;
   if (s.type === 'add_tag') return `Add the tag “${s.tag}”`;
+  if (s.type === 'only_if') return `Only continue if the person ${CHECK_LABEL[s.check]}${checkNeedsTag(s.check) ? ` “${s.tag ?? ''}”` : ''}`;
+  if (s.type === 'assign') return `Give the chat to ${names.people?.[s.userId] ?? 'a teammate'} (if nobody has it)`;
   return `Send “${names.templates?.[s.templateId] ?? 'a template'}”`;
+}
+
+export function describeTrigger(t: JourneyTrigger): string {
+  if (t.type === 'lead_created') return 'Starts when a new lead arrives';
+  if (t.type === 'tag_added') return `Starts for everyone with the tag “${t.tag}”`;
+  return 'You add people to it';
 }
 
 export function describeMinutes(m: number): string {
@@ -96,4 +138,6 @@ export const STOP_REASONS: Record<string, string> = {
   template_missing: 'The template was deleted.',
   template_changed: 'The template changed after this journey was built.',
   template_not_approved: 'The template stayed unapproved for too long.',
+  condition_not_met: 'A check along the way was not met, so the journey ended for this person.',
+  condition_unknown: 'The last message never got a result, so a read check could not be answered.',
 };

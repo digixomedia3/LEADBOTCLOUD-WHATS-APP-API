@@ -116,6 +116,45 @@ describe('journeys (web actions)', () => {
     const after = await m.listRuns(mk.data.id); expect(after.every((r) => r.status === 'stopped' && /Stopped by you/.test(r.reason ?? ''))).toBe(true);
     expect((await m.listRuns('nope'))).toEqual([]); expect((await m.stopAllRuns(randomUUID())).ok && true).toBe(true);
   });
+  it('saves checks, tag triggers and hand-over steps, and reads them back unchanged', async () => {
+    const [{ id: agent }] = await sql`select id from "user" where id = ${user}`;   // the signed-in owner is a member, so they can be assigned
+    const steps = [{ type: 'send_template', templateId: tpl, varMap: ['@name'] }, { type: 'wait', minutes: 1440 }, { type: 'only_if', check: 'not_read_last' }, { type: 'assign', userId: agent }, { type: 'only_if', check: 'has_tag', tag: 'vip' }, { type: 'add_tag', tag: 'done' }];
+    const r = await save({ name: 'Rich one', trigger: { type: 'tag_added', tag: 'interested' }, steps }); expect(r.ok, JSON.stringify(r)).toBe(true);
+    const j = (await sql`select trigger, steps from journeys where id = ${r.ok ? r.data.id : ''}`)[0]!; expect(j.trigger).toEqual({ type: 'tag_added', tag: 'interested' }); expect(j.steps).toEqual(steps);
+    const m = await import('../src/app/(app)/journeys/actions'); const row = (await m.listJourneys()).find((x) => x.name === 'Rich one')!; expect(row.steps).toEqual(steps); expect(row.trigger).toEqual({ type: 'tag_added', tag: 'interested' });
+  });
+  it('refuses a hand-over to someone outside the workspace, to a viewer, or to nobody, and a check with a missing tag or no wait', async () => {
+    const m = await import('../src/app/(app)/journeys/actions');
+    await sql`insert into "user" (id, name, email, email_verified, created_at, updated_at) values (${'vw-' + user}, 'Viewer', ${'vw-' + user + '@example.com'}, true, now(), now()), (${'ot-' + user}, 'Outsider', ${'ot-' + user + '@example.com'}, true, now(), now())`;
+    await sql`insert into tenant_members (tenant_id, user_id, role) values (${tenant}, ${'vw-' + user}, 'viewer')`; await sql`insert into tenant_members (tenant_id, user_id, role) values (${other}, ${'ot-' + user}, 'owner')`;
+    const base = (extra: object[]) => [{ type: 'send_template', templateId: tpl, varMap: ['@name'] }, { type: 'wait', minutes: 60 }, ...extra, { type: 'add_tag', tag: 'z' }];
+    const cases: [string, object[], RegExp][] = [
+      ['a viewer', [{ type: 'assign', userId: 'vw-' + user }], /viewers cannot work chats/],
+      ['someone from another workspace', [{ type: 'assign', userId: 'ot-' + user }], /not in this workspace/],
+      ['a person who does not exist', [{ type: 'assign', userId: 'nobody-at-all' }], /not in this workspace/],
+      ['no teammate chosen', [{ type: 'assign', userId: '' }], /Choose a teammate/],
+      ['a tag check without a tag', [{ type: 'only_if', check: 'has_tag' }], /enter the tag/],
+    ];
+    for (const [why, extra, reason] of cases) { const r = await m.saveJourney({ name: 'Bad ' + why, trigger: { type: 'manual' }, steps: base(extra) as never }); expect(r.ok, why).toBe(false); expect(r.ok ? '' : r.error, why).toMatch(reason); }
+    const noWait = await m.saveJourney({ name: 'Bad no wait', trigger: { type: 'manual' }, steps: [{ type: 'send_template', templateId: tpl, varMap: ['@name'] }, { type: 'only_if', check: 'read_last' }, { type: 'add_tag', tag: 'z' }] as never }); expect(noWait.ok).toBe(false); expect(!noWait.ok && noWait.error).toMatch(/put a wait/);
+    const tagless = await m.saveJourney({ name: 'Bad tag trigger', trigger: { type: 'tag_added', tag: '' } as never, steps: base([]) as never }); expect(tagless.ok).toBe(false);
+    expect((await sql`select 1 from journeys where tenant_id = ${tenant} and name like 'Bad %'`).length).toBe(0);
+    await sql`delete from tenant_members where user_id in (${'vw-' + user}, ${'ot-' + user})`; await sql`delete from "user" where id in (${'vw-' + user}, ${'ot-' + user})`;
+  });
+  it('a teammate who left after the journey was built stops it from starting, rather than failing later', async () => {
+    const m = await import('../src/app/(app)/journeys/actions'); await sql`insert into "user" (id, name, email, email_verified, created_at, updated_at) values (${'lv-' + user}, 'Leaver', ${'lv-' + user + '@example.com'}, true, now(), now())`; await sql`insert into tenant_members (tenant_id, user_id, role) values (${tenant}, ${'lv-' + user}, 'agent')`;
+    const r = await m.saveJourney({ name: 'Leaver journey', trigger: { type: 'manual' }, steps: [{ type: 'assign', userId: 'lv-' + user }, { type: 'send_template', templateId: tpl, varMap: ['@name'] }] as never }); expect(r.ok).toBe(true); if (!r.ok) return;
+    await sql`delete from tenant_members where user_id = ${'lv-' + user}`;
+    const a = await sql`select id from meta_accounts where tenant_id = ${tenant} limit 1`; void a;
+    const start = await m.setJourneyStatus(r.data.id, 'active'); expect(start.ok).toBe(false); expect(!start.ok && start.error).toMatch(/not in this workspace/);
+    await sql`delete from "user" where id = ${'lv-' + user}`;
+  });
+  it('lists teammates for the hand-over step, without viewers, and only this workspace\'s', async () => {
+    const m = await import('../src/app/(app)/journeys/actions'); await sql`insert into "user" (id, name, email, email_verified, created_at, updated_at) values (${'tv-' + user}, 'Tv', ${'tv-' + user + '@example.com'}, true, now(), now()), (${'ta-' + user}, 'Ta', ${'ta-' + user + '@example.com'}, true, now(), now())`;
+    await sql`insert into tenant_members (tenant_id, user_id, role) values (${tenant}, ${'tv-' + user}, 'viewer'), (${other}, ${'ta-' + user}, 'agent')`;
+    const ids = (await m.listAssignees()).map((x) => x.userId); expect(ids).toContain(user); expect(ids).not.toContain('tv-' + user); expect(ids).not.toContain('ta-' + user);
+    await sql`delete from tenant_members where user_id in (${'tv-' + user}, ${'ta-' + user})`; await sql`delete from "user" where id in (${'tv-' + user}, ${'ta-' + user})`;
+  });
   it('one workspace never sees another\'s journeys', async () => {
     await sql`insert into journeys (tenant_id, name, status, steps) values (${other}, 'Theirs only', 'active', '[]'::jsonb)`;
     const { listJourneys } = await import('../src/app/(app)/journeys/actions'); expect((await listJourneys()).some((j) => j.name === 'Theirs only')).toBe(false);

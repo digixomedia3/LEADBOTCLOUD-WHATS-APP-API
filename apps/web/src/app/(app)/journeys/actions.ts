@@ -50,6 +50,13 @@ export async function listTemplateChoices(): Promise<TemplateChoice[]> {
   });
 }
 
+export interface Teammate { userId: string; name: string; role: string }
+/** People who can be given a chat. Viewers cannot work chats, so they are not offered. */
+export async function listAssignees(): Promise<Teammate[]> {
+  const ctx = await requireCtx();
+  return db(ctx, async (tx) => (await tx.execute(sql`select m.user_id as "userId", u.name, m.role from tenant_members m join "user" u on u.id = m.user_id where m.tenant_id = ${ctx.tenantId}::uuid and m.role <> 'viewer' order by u.name`)) as unknown as Teammate[]);
+}
+
 export async function listLeadSources(): Promise<{ id: string; name: string }[]> {
   const ctx = await requireCtx();
   return db(ctx, async (tx) => (await tx.execute(sql`select id, name from lead_sources order by name`)) as unknown as { id: string; name: string }[]);
@@ -66,6 +73,12 @@ async function checkAgainstTemplates(tx: Parameters<Parameters<typeof db>[1]>[0]
     if (!t) return `Step ${n}: that template was not found.`;
     const p = journeyTemplateProblem({ status: t.status, category: t.category, body: t.body, buttons: t.buttons ?? [], offer: t.offer }, new Set(variablesIn(t.body)).size, appUrl(), s.varMap.length);
     if (p) return `Step ${n} (“${t.name}”): ${p}`;
+  }
+  for (const [i, s] of steps.entries()) {
+    if (s.type !== 'assign') continue;
+    const [m] = (await tx.execute(sql`select role from tenant_members where user_id = ${s.userId}`)) as unknown as { role: string }[];
+    if (!m) return `Step ${i + 1}: that teammate is not in this workspace.`;
+    if (m.role === 'viewer') return `Step ${i + 1}: viewers cannot work chats, so they cannot be given one.`;
   }
   if (trigger.type === 'lead_created' && trigger.sourceId) {
     const [src] = (await tx.execute(sql`select id from lead_sources where id = ${trigger.sourceId}::uuid`)) as unknown as { id: string }[];
