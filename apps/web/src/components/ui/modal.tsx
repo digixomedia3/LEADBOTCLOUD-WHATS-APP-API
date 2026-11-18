@@ -7,15 +7,19 @@ import { cn } from '@/lib/utils';
 /** Accessible modal: bottom sheet on phones, centred card on desktop. Esc and backdrop close it. */
 export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Always call the newest onClose without making it a dependency. Many parents pass a fresh function on every render; if it were a dependency, every
+  // keystroke in a form inside the dialog would re-run this effect, re-focus the dialog box and throw the cursor out of the field after one character.
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; });
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     ref.current?.focus();
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') closeRef.current(); };
     document.addEventListener('keydown', h);
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', h); document.body.style.overflow = ''; prev?.focus(); };
-  }, [open, onClose]);
+  }, [open]);
   // When a form inside the dialog reports a problem, bring it into view. The dialog body scrolls on a phone, so the message at its top would otherwise be
   // out of sight right when the person presses the button at the bottom, and it would look as if nothing happened.
   useEffect(() => {
