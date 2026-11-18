@@ -80,3 +80,65 @@ export async function endAnnouncement(id: string): Promise<Result<{ ended: boole
   const r = await adminCall(a, async (tx) => ({ ended: one<boolean>(await tx.execute(sql`select public.admin_end_announcement(${id}::uuid) as r`), 'r') }));
   revalidatePath('/', 'layout'); return r;
 }
+
+/* ------------------------------------------------------------------ round two: attention, closures, accounts, revenue, staff, notes */
+export interface AttentionReason { code: string; severity: 'high' | 'warn' | 'info'; weight: number; detail: string }
+export interface AttentionRow { id: string; name: string; status: string; plan: string; owner: string | null; reasons: AttentionReason[]; score: number }
+export async function loadAttention(): Promise<Result<AttentionRow[]>> {
+  const a = await requireAdmin();
+  return adminCall(a, async (tx) => one<AttentionRow[]>(await tx.execute(sql`select public.admin_attention() as r`), 'r'));
+}
+
+export interface ClosureRow { id: string; name: string; status: string; plan: string; requestedAt: string; dueAt: string; requestedBy: string | null; daysLeft: number; inProgress: boolean; contacts: number; members: number }
+export interface ClosedRow { id: string; name: string; plan: string; closedAt: string; requestedAt: string | null }
+export async function loadClosures(): Promise<Result<{ pending: ClosureRow[]; closed: ClosedRow[] }>> {
+  const a = await requireAdmin();
+  return adminCall(a, async (tx) => one<{ pending: ClosureRow[]; closed: ClosedRow[] }>(await tx.execute(sql`select public.admin_closures() as r`), 'r'));
+}
+export async function cancelClosure(id: string, reason: string): Promise<Result<{ changed: boolean }>> {
+  const a = await requireAdmin(); if (!UUID.test(id)) return bad('That workspace id is not valid.');
+  const r = await adminCall(a, async (tx) => one<{ changed: boolean }>(await tx.execute(sql`select public.admin_cancel_closure(${id}::uuid, ${String(reason ?? '').slice(0, 300)}) as r`), 'r'));
+  revalidatePath('/admin', 'layout'); return r;
+}
+
+export interface UserRow { id: string; name: string; email: string; verified: boolean; createdAt: string; staff: boolean; sessions: number; lastSeen: string | null; workspaces: { id: string; name: string; role: string; status: string }[] }
+export async function searchUsers(search: string): Promise<Result<UserRow[]>> {
+  const a = await requireAdmin();
+  return adminCall(a, async (tx) => one<UserRow[]>(await tx.execute(sql`select public.admin_users(${String(search ?? '').slice(0, 80)}, 25) as r`), 'r'));
+}
+export async function signOutUser(userId: string, reason: string): Promise<Result<{ ended: number }>> {
+  const a = await requireAdmin(); const id = String(userId ?? '');
+  if (!id || id.length > 100) return bad('That account id is not valid.');
+  const r = await adminCall(a, async (tx) => one<{ ended: number }>(await tx.execute(sql`select public.admin_sign_out_user(${id}, ${String(reason ?? '').slice(0, 300)}) as r`), 'r'));
+  revalidatePath('/admin', 'layout'); return r;
+}
+
+export interface Revenue {
+  byPlan: { plan: string; count: number; paise: number; unpriced: number }[]; subs: Record<string, number>;
+  months: { month: string; count: number; basePaise: number; gstPaise: number; totalPaise: number }[];
+  renewals: { id: string; name: string; plan: string; end: string; cancelAtEnd: boolean }[];
+  recent: { number: string; tenantId: string; tenant: string | null; totalPaise: number; at: string }[];
+}
+export async function loadRevenue(): Promise<Result<Revenue>> {
+  const a = await requireAdmin();
+  return adminCall(a, async (tx) => one<Revenue>(await tx.execute(sql`select public.admin_revenue() as r`), 'r'));
+}
+
+export interface StaffRow { id: string; name: string; email: string; since: string; addedBy: string | null; actions30d: number; lastAction: string | null; sessions: number }
+export async function loadStaff(): Promise<Result<StaffRow[]>> {
+  const a = await requireAdmin();
+  return adminCall(a, async (tx) => one<StaffRow[]>(await tx.execute(sql`select public.admin_staff() as r`), 'r'));
+}
+
+export interface TenantExtra { notes: { id: string; note: string; by: string | null; at: string }[]; errors: { code: number | null; count: number; last: string }[]; closure: null | { requestedAt: string; dueAt: string; closedAt: string | null; requestedBy: string | null } }
+export async function loadTenantExtra(id: string): Promise<Result<TenantExtra>> {
+  const a = await requireAdmin(); if (!UUID.test(id)) return bad('That workspace id is not valid.');
+  return adminCall(a, async (tx) => one<TenantExtra>(await tx.execute(sql`select public.admin_tenant_extra(${id}::uuid) as r`), 'r'));
+}
+export async function addNote(id: string, note: string): Promise<Result<{ id: string }>> {
+  const a = await requireAdmin(); if (!UUID.test(id)) return bad('That workspace id is not valid.');
+  // Refuse a long note instead of cutting it: a note that quietly loses its end is worse than one that is rejected.
+  if (String(note ?? '').trim().length > 1000) return bad('A note can be up to 1000 characters. Shorten it and try again.');
+  const r = await adminCall(a, async (tx) => ({ id: one<string>(await tx.execute(sql`select public.admin_add_note(${id}::uuid, ${String(note ?? '')}) as r`), 'r') }));
+  revalidatePath(`/admin/workspaces/${id}`); return r;
+}
