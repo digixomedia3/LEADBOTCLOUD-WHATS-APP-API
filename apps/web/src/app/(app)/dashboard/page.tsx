@@ -5,6 +5,7 @@ import { CountUp } from '@/components/dashboard/count-up';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
 import { Ring } from '@/components/dashboard/ring';
 import { Sparkline } from '@/components/dashboard/sparkline';
+import { requireCtx } from '@/lib/session';
 import { getDashboard } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +24,8 @@ function Delta({ v }: { v: number | null }) {
 
 export default async function DashboardPage() {
   const d = await getDashboard();
+  // Campaigns and imports are for owners and admins; showing the buttons to an agent or viewer would lead to a page they cannot use.
+  const canManage = ['owner', 'admin'].includes((await requireCtx()).role);
   const doneCount = d.steps.filter((s) => s.done).length;
   const q = d.number?.quality ? QUALITY[d.number.quality] : undefined;
   const usedPct = d.number && d.number.limit ? Math.min(100, Math.round((d.number.used24h / d.number.limit) * 100)) : null;
@@ -54,10 +57,16 @@ export default async function DashboardPage() {
             <p className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold"><Sparkles className="size-3.5 text-emerald-300" />{d.hello}, {d.workspace}</p>
             <h2 className="font-display text-3xl font-extrabold leading-tight md:text-4xl">{d.empty ? <>Let’s send your <span className="grad-text">first message</span></> : <>Your WhatsApp is <span className="grad-text">working for you</span></>}</h2>
             <p className="mt-2 text-sm text-white/75 md:text-base">{d.empty ? 'Add contacts, get a template approved, and send. Your numbers appear here as soon as you do.' : summary}</p>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Button asChild><Link href="/campaigns"><Send className="size-4" />Create campaign</Link></Button>
-              <Button asChild variant="glass"><Link href="/contacts"><Upload className="size-4" />Import contacts</Link></Button>
-            </div>
+            {canManage ? (
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Button asChild><Link href="/campaigns"><Send className="size-4" />Create campaign</Link></Button>
+                <Button asChild variant="glass"><Link href="/contacts"><Upload className="size-4" />Import contacts</Link></Button>
+              </div>
+            ) : (
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Button asChild variant="glass"><Link href="/chats"><MessageCircle className="size-4" />Open chats</Link></Button>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-5">
             {d.number ? (

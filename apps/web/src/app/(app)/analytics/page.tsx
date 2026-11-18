@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { BarChart3, Clock, IndianRupee, MailX, Send, UserMinus } from 'lucide-react';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
 import { cn } from '@/lib/utils';
+import { requireCtx } from '@/lib/session';
 import { getAnalytics, type Range } from './actions';
 
 export const metadata: Metadata = { title: 'Analytics' };
@@ -17,6 +18,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const r = (RANGES.find((x) => String(x) === sp.range) ?? 30) as Range;
   const a = await getAnalytics(r);
+  const canManage = ['owner', 'admin'].includes((await requireCtx()).role);
   const t = a.totals;
   const funnel = [
     { k: 'Sent', v: t.sent, c: 'bg-indigo' },
@@ -36,7 +38,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       </div>
 
       {a.empty ? (
-        <div className="card flex flex-col items-center gap-3 p-10 text-center"><BarChart3 className="size-9 text-muted" /><p className="font-display text-lg font-bold">No activity in the last {r} days</p><p className="max-w-sm text-sm text-muted">Send a campaign or get a reply and this page fills in with delivery, reading and cost figures.</p><Link href="/campaigns" className="grad-bg mt-1 inline-flex min-h-11 items-center rounded-full px-5 text-sm font-semibold text-white">Create campaign</Link></div>
+        <div className="card flex flex-col items-center gap-3 p-10 text-center"><BarChart3 className="size-9 text-muted" /><p className="font-display text-lg font-bold">No activity in the last {r} days</p><p className="max-w-sm text-sm text-muted">Send a campaign or get a reply and this page fills in with delivery, reading and cost figures.</p>{canManage ? <Link href="/campaigns" className="grad-bg mt-1 inline-flex min-h-11 items-center rounded-full px-5 text-sm font-semibold text-white">Create campaign</Link> : null}</div>
       ) : (
         <>
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Totals">
