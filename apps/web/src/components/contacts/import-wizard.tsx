@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 
 const FIELD_LABEL: Record<ColField, string> = { phone: 'Phone number', name: 'Name', email: 'Email', tags: 'Tags', ignore: 'Skip this column' };
 const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_ROWS = 20_000; // same limit the server enforces
 
 export function ImportWizard({ open, onClose, groups, onDone }: { open: boolean; onClose: () => void; groups: GroupRow[]; onDone: (msg: string) => void }) {
   const [step, setStep] = useState(1);
@@ -45,6 +46,7 @@ export function ImportWizard({ open, onClose, groups, onDone }: { open: boolean;
         const all = res.data as string[][];
         if (all.length < 2) { setError('The file needs a header row and at least one customer.'); return; }
         const [h, ...body] = all;
+        if (body.length > MAX_ROWS) { setError(`This file has ${body.length.toLocaleString('en-IN')} customers. Please import up to ${MAX_ROWS.toLocaleString('en-IN')} at a time: split the file and import the parts one after another.`); return; }
         setFileName(file.name); setHeaders(h!.map((x) => String(x ?? ''))); setRows(body);
         setMapping(suggestMapping(h!.map(String), body)); setStep(2);
       },
