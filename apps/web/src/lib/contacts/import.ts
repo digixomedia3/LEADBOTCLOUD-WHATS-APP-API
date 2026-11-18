@@ -78,11 +78,28 @@ export function buildPreview(rows: string[][], mapping: Field[], startLine = 2):
   return { rows: out, valid: out.length - invalid - duplicates, invalid, duplicates, badEmails };
 }
 
+/**
+ * One pasted line with no comma, such as "Neha 98111 55510" or "+91 98111-55503 Kabir": find the run of words that is a valid phone number
+ * (only digits, spaces, dashes, dots, brackets and a leading +) and treat everything else as the name. A line that has no valid number inside it
+ * is passed on whole so the Check step reports it as a bad number.
+ */
+function splitNameAndNumber(line: string): string[] {
+  const t = line.split(/\s+/);
+  for (let start = 0; start < t.length; start++) {
+    for (let end = t.length; end > start; end--) {
+      const cand = t.slice(start, end).join(' ');
+      if (!/^[+\d\s\-().]+$/.test(cand) || !normalizePhone(cand).ok) continue;
+      return [[...t.slice(0, start), ...t.slice(end)].join(' '), cand];
+    }
+  }
+  return ['', line];
+}
+
 /** Pasted numbers: one per line, optional "Name, number" or "number, name". */
 export function parsePasted(text: string): string[][] {
   return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => {
     const parts = l.split(/[,;\t]/).map((p) => p.trim());
-    if (parts.length === 1) return ['', parts[0]!];
+    if (parts.length === 1) return splitNameAndNumber(parts[0]!);
     const phoneIdx = parts.findIndex((p) => normalizePhone(p).ok);
     if (phoneIdx === -1) return [parts[0]!, parts[1]!];
     const name = parts.filter((_, i) => i !== phoneIdx).join(' ');

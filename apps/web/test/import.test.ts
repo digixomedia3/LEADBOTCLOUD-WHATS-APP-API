@@ -59,6 +59,25 @@ describe('parsePasted', () => {
   });
 });
 
+describe('parsePasted: a name and a number with no comma', () => {
+  it('splits the number from the words around it', () => {
+    expect(parsePasted('Neha 98111 55510\n+91 98111-55503 Kabir\nShop 2 9876543210\nAsha Devi Sharma 9811155512')).toEqual([
+      ['Neha', '98111 55510'], ['Kabir', '+91 98111-55503'], ['Shop 2', '9876543210'], ['Asha Devi Sharma', '9811155512'],
+    ]);
+  });
+  it('keeps a line with no valid number whole, so it is reported as a bad number', () => {
+    expect(parsePasted('not a number\nAsha 12345')).toEqual([['', 'not a number'], ['', 'Asha 12345']]);
+  });
+  it('takes the whole number when it is written in several parts', () => {
+    // Longest candidate first: "98111 55510" is one number, not a short fragment with the rest left in the name.
+    expect(parsePasted('+91 98111 55510 Neha')).toEqual([['Neha', '+91 98111 55510']]);
+    expect(parsePasted('Neha +91 98111 55510')).toEqual([['Neha', '+91 98111 55510']]);
+  });
+  it('does not change a bare number', () => {
+    expect(parsePasted('98765 43210')).toEqual([['', '98765 43210']]);
+  });
+});
+
 describe('toCsv: phone numbers', () => {
   it('keeps a real phone number readable but still escapes anything else that starts with a plus', () => {
     expect(toCsv([['+919876543210']])).toBe('+919876543210');
