@@ -28,6 +28,7 @@ describe('super admin panel', () => {
     tag = mk(); staff = `sa-${tag}`; plain = `sp-${tag}`; t1 = randomUUID(); t2 = randomUUID();
     for (const u of [staff, plain]) await sql`insert into "user" (id, name, email, email_verified, created_at, updated_at) values (${u}, ${u}, ${u + '@example.com'}, true, now(), now())`;
     await sql`insert into platform_admins (user_id) values (${staff})`;
+    await sql`update "user" set two_factor_enabled = true where id = ${staff}`;      // staff must have two-step sign-in on, or the panel stays closed
     await sql`insert into tenants (id, name, plan_id, status) values (${t1}, ${'Zed Traders ' + tag}, 'starter', 'ready')`;
     await sql`insert into tenants (id, name, plan_id, status) values (${t2}, ${'Other ' + tag}, 'free', 'onboarding')`;
     await sql`insert into tenant_members (tenant_id, user_id, role) values (${t1}, ${plain}, 'owner')`;

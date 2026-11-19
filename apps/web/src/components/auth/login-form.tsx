@@ -19,7 +19,9 @@ export function LoginForm() {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     setBusy(true); setError('');
-    const { error } = await authClient.signIn.email({ email: String(f.get('email')).trim(), password: String(f.get('password')) });
+    const { data, error } = await authClient.signIn.email({ email: String(f.get('email')).trim(), password: String(f.get('password')) });
+    // Someone with an authenticator app is not signed in yet: send them to the code step, and keep where they were going (an invite link, say).
+    if (!error && (data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect) { router.push(`/login/verify${next ? `?next=${encodeURIComponent(next)}` : ''}`); return; }
     setBusy(false);
     if (error) {
       setError(error.status === 429 ? 'Too many attempts. Wait a minute and try again.' : 'That email or password is not right. Check it and try again.');

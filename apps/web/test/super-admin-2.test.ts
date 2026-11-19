@@ -35,6 +35,7 @@ describe('super admin, round two', () => {
     tBad = randomUUID(); tFine = randomUUID(); tClosing = randomUUID(); tMeta = randomUUID();
     for (const u of [staff, staff2, plain, victim]) await sql`insert into "user" (id, name, email, email_verified, created_at, updated_at) values (${u}, ${'Person ' + u}, ${u + '@example.com'}, true, now(), now())`;
     await sql`insert into platform_admins (user_id) values (${staff}), (${staff2})`;
+    await sql`update "user" set two_factor_enabled = true where id in (${staff}, ${staff2})`;      // staff must have two-step sign-in on, or the panel stays closed
     for (const [id, n] of [[tBad, 'Failing Co'], [tFine, 'Fine Co'], [tClosing, 'Closing Co'], [tMeta, 'Meta Co']] as const) await sql`insert into tenants (id, name, plan_id, status) values (${id}, ${n + ' ' + tag}, 'starter', 'ready')`;
     await sql`insert into tenant_members (tenant_id, user_id, role) values (${tBad}, ${plain}, 'owner'), (${tFine}, ${victim}, 'owner'), (${tClosing}, ${victim}, 'owner')`;
     // tBad: 30 sends in the last 7 days, 12 failed (40%), with two different error codes.

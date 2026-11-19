@@ -1,5 +1,6 @@
 'use client';
 
+import { SecurityTab } from '@/components/settings/security-tab';
 import { CloseWorkspace } from './close-workspace';
 import { useEffect, useState, useTransition } from 'react';
 import { Check, Copy, Loader2, Moon, Trash2, UserPlus } from 'lucide-react';
@@ -15,13 +16,13 @@ import { cn } from '@/lib/utils';
 
 type Team = Awaited<ReturnType<typeof loadTeam>>;
 interface Profile { name: string; legalName: string; gstin: string; vertical: string | null; review: string; plan: string; status: string }
-type Tab = 'workspace' | 'team' | 'whatsapp' | 'plan' | 'ai';
+type Tab = 'workspace' | 'team' | 'whatsapp' | 'plan' | 'ai' | 'security';
 
 export function SettingsView({ team: t0, profile: p0, role, me }: { team: Team; profile: Profile; role: string; me: string }) {
-  const [tab, setTab] = useState<Tab>('workspace');
+  const [tab, setTab] = useState<Tab>(typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'security' ? 'security' : 'workspace');
   const [team, setTeam] = useState(t0);
   const isOwner = role === 'owner', isAdmin = isOwner || role === 'admin';
-  const tabs: [Tab, string][] = [['workspace', 'Business'], ['team', 'Team'], ['whatsapp', 'WhatsApp'], ['plan', 'Plan and billing'], ['ai', 'AI assistants']];
+  const tabs: [Tab, string][] = [['workspace', 'Business'], ['team', 'Team'], ['whatsapp', 'WhatsApp'], ['plan', 'Plan and billing'], ['ai', 'AI assistants'], ['security', 'Security']];
   return (
     <div className="flex flex-col gap-5">
       <div><h2 className="font-display text-2xl font-extrabold">Settings</h2><p className="text-sm text-muted">Your business, team, WhatsApp number and plan.</p></div>
@@ -31,6 +32,7 @@ export function SettingsView({ team: t0, profile: p0, role, me }: { team: Team; 
       {tab === 'whatsapp' ? <WhatsAppConnect /> : null}
       {tab === 'plan' ? <BillingPanel /> : null}
       {tab === 'ai' ? <ApiKeysPanel canManage={isAdmin} /> : null}
+      {tab === 'security' ? <SecurityTab /> : null}
     </div>
   );
 }

@@ -15,10 +15,21 @@ export interface AdminSession { userId: string; name: string; email: string }
 
 /** Null for everyone who is not platform staff, including signed-out visitors. */
 export const getAdmin = cache(async (): Promise<AdminSession | null> => {
+  const r = await getAdminState();
+  return r.state === 'ok' ? r.admin : null;
+});
+
+/**
+ * Staff must have two-step sign-in on. Without it the admin pages behave as if they did not exist, exactly like for any customer, and /settings explains why.
+ * `needs2fa` is only ever returned to someone who IS staff, so the pages stay undiscoverable to everyone else.
+ */
+export const getAdminState = cache(async (): Promise<{ state: 'ok'; admin: AdminSession } | { state: 'needs2fa'; admin: AdminSession } | { state: 'no' }> => {
   const s = await getSession();
-  if (!s) return null;
-  const ok = await withUser(appDb, s.user.id, async (tx) => ((await tx.execute(sql`select public.is_platform_admin() as ok`)) as unknown as { ok: boolean }[])[0]?.ok === true);
-  return ok ? { userId: s.user.id, name: s.user.name, email: s.user.email } : null;
+  if (!s) return { state: 'no' };
+  const row = await withUser(appDb, s.user.id, async (tx) => ((await tx.execute(sql`select public.is_platform_admin() as staff, (select u.two_factor_enabled from public."user" u where u.id = ${s.user.id}) as tf`)) as unknown as { staff: boolean; tf: boolean }[])[0]);
+  if (row?.staff !== true) return { state: 'no' };
+  const admin = { userId: s.user.id, name: s.user.name, email: s.user.email };
+  return row.tf === true ? { state: 'ok', admin } : { state: 'needs2fa', admin };
 });
 
 export async function requireAdmin(): Promise<AdminSession> {
