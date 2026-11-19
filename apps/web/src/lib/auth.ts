@@ -1,3 +1,4 @@
+import { authRateStorage } from '@/lib/rate-store';
 import 'server-only';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -66,7 +67,7 @@ export const auth = betterAuth({
       ? { google: { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET } }
       : undefined,
   session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
-  rateLimit: { enabled: true, window: 60, max: 30, customRules: { '/sign-in/email': { window: 60, max: 8 }, '/two-factor/verify-totp': { window: 60, max: 5 }, '/two-factor/verify-backup-code': { window: 60, max: 5 }, '/sign-up/email': { window: 60, max: 5 }, '/request-password-reset': { window: 300, max: 5 }, '/reset-password': { window: 300, max: 10 } } },
+  rateLimit: { enabled: true, window: 60, max: 30, ...(authRateStorage ? { customStorage: authRateStorage } : {}), customRules: { '/sign-in/email': { window: 60, max: 8 }, '/two-factor/verify-totp': { window: 60, max: 5 }, '/two-factor/verify-backup-code': { window: 60, max: 5 }, '/sign-up/email': { window: 60, max: 5 }, '/request-password-reset': { window: 300, max: 5 }, '/reset-password': { window: 300, max: 10 } } },
   advanced: { database: { generateId: () => crypto.randomUUID() } },
   trustedOrigins: [process.env.APP_URL ?? 'http://localhost:3000', ...(process.env.TRUSTED_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean)],
   plugins: [

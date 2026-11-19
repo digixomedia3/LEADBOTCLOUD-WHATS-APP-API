@@ -1,3 +1,4 @@
+import { RedisFairShareStore } from './fair-share-redis';
 import { Queue, Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { sql } from 'drizzle-orm';
@@ -39,8 +40,9 @@ export const sendQueue = new Queue('send', { connection: redis, defaultJobOption
 const eventQueue = new Queue('events', { connection: redis, defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 5000, attempts: 6, backoff: { type: 'exponential', delay: 5000 } } });
 
 /** Send consumer. jobId = message id, so a message can be queued only once. */
+const fairShare = new RedisFairShareStore(redis);
 const sendWorker = new Worker('send', async (job: Job<{ tenantId: string; messageId: string }>) => {
-  const r = await sendOne({ db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY, appUrl: cfg.APP_URL }, job.data.tenantId, job.data.messageId);
+  const r = await sendOne({ db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY, appUrl: cfg.APP_URL, fairShare }, job.data.tenantId, job.data.messageId);
   if (r.kind === 'retry') { await sendQueue.add('send', job.data, { jobId: retryJobId(job.data.messageId, job.attemptsMade + 1), delay: r.delayMs }); }
   // A held message comes back at its time. The id carries the time, so a finished job can never block it.
   if (r.kind === 'deferred') { await sendQueue.add('send', job.data, { jobId: deferredJobId(job.data.messageId, r.until.getTime()), delay: Math.max(1000, r.until.getTime() - Date.now()) }); }

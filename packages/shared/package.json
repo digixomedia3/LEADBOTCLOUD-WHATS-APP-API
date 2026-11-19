@@ -19,7 +19,8 @@
     "./journeys": "./src/journeys.ts",
     "./ab-test": "./src/ab-test.ts",
     "./inbound-media": "./src/inbound-media.ts",
-    "./chat-attachments": "./src/chat-attachments.ts"
+    "./chat-attachments": "./src/chat-attachments.ts",
+    "./fair-share": "./src/fair-share.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

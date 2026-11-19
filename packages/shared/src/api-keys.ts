@@ -76,3 +76,32 @@ export const DAILY_SPEND_MULTIPLE = 3;
 export function dailyLimitPaise(sendCapPaise: number): number {
   return sendCapPaise * DAILY_SPEND_MULTIPLE;
 }
+
+/**
+ * Where a rate limiter keeps its counts. The memory store is private to one process; a shared store (Redis in production) is seen by every web process, so the
+ * limit means the same thing however many processes run. A store may throw: the limiter then falls back to its own memory so a store outage never takes the site down.
+ */
+export interface RateStore {
+  /** Count one hit for `id` inside a sliding window and return how many hits (including this one) are inside it, plus the ms until the oldest one leaves. */
+  hit(id: string, windowMs: number, now: number): Promise<{ count: number; oldestAgeMs: number }>;
+  /** Same, without counting. */
+  look(id: string, windowMs: number, now: number): Promise<{ count: number; oldestAgeMs: number }>;
+}
+
+export class SharedRateLimiter {
+  private readonly local: RateLimiter;
+  constructor(private readonly store: RateStore | null, private readonly limit: number, private readonly windowMs: number, private readonly name: string, private readonly now: () => number = Date.now, private readonly onFallback: (e: unknown) => void = () => undefined) {
+    this.local = new RateLimiter(limit, windowMs, now);
+  }
+  private wait(r: { count: number; oldestAgeMs: number }) { return r.count > this.limit ? Math.max(1, Math.ceil((this.windowMs - r.oldestAgeMs) / 1000)) : 0; }
+  /** 0 when allowed (and counted), otherwise the seconds to wait. */
+  async check(id: string): Promise<number> {
+    if (!this.store) return this.local.check(id);
+    try { return this.wait(await this.store.hit(`${this.name}:${id}`, this.windowMs, this.now())); } catch (e) { this.onFallback(e); return this.local.check(id); }
+  }
+  /** Like check but does not count. 0 if there is room. */
+  async peek(id: string): Promise<number> {
+    if (!this.store) return this.local.peek(id);
+    try { const r = await this.store.look(`${this.name}:${id}`, this.windowMs, this.now()); return r.count >= this.limit ? Math.max(1, Math.ceil((this.windowMs - r.oldestAgeMs) / 1000)) : 0; } catch (e) { this.onFallback(e); return this.local.peek(id); }
+  }
+}

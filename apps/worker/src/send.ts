@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { isTrackedButtonValue } from '@lbc/shared/tracked-links';
 import { nextAllowed, type QuietHours } from '@lbc/shared/send-window';
+import { decide as fairShareDecide, laneFor, type FairShareStore } from '@lbc/shared/fair-share';
 import { backoffMs, errorPolicy, type ErrorPolicy } from '@lbc/shared';
 import { GraphClient, MetaError, mediaMessage, MetaUnknownOutcome, bodyParams, copyCodeParam, headerMediaParam, limitedTimeOfferParam, chooseEndpoint, decryptSecret, rerouteFor, templateMessage, textMessage, withProductPolicy, type SendResponse, type TemplateCategory } from '@lbc/meta';
 import type { Db } from '@lbc/db';
@@ -8,14 +9,14 @@ import type { Db } from '@lbc/db';
 type Row = Record<string, unknown>;
 const rows = (r: unknown) => r as Row[];
 
-export interface SendDeps { db: Db; graph: GraphClient; tokenKey: string; now?: () => Date; appUrl?: string }
+export interface SendDeps { db: Db; graph: GraphClient; tokenKey: string; now?: () => Date; appUrl?: string; /** When set, bulk messages share the line fairly between workspaces. Chat replies are never held. */ fairShare?: FairShareStore }
 /** What the queue should do next with this job. */
 export type SendResult =
   | { kind: 'skipped'; reason: string }
   | { kind: 'sent'; wamid: string; path: 'mm_api' | 'cloud_api'; held?: boolean }
   | { kind: 'retry'; delayMs: number; code?: number }
   /** Not time yet (campaign speed or quiet hours). The message stays queued with a new earliest time; nothing is lost or counted as sent. */
-  | { kind: 'deferred'; until: Date; why: 'speed' | 'quiet_hours' }
+  | { kind: 'deferred'; until: Date; why: 'speed' | 'quiet_hours' | 'fair_share' }
   | { kind: 'unknown_outcome' }
   | { kind: 'failed'; code?: number; message: string; action: ErrorPolicy['action']; known: boolean };
 
@@ -101,6 +102,13 @@ export async function sendOne(d: SendDeps, tenantId: string, messageId: string):
         return { kind: 'deferred', until: ok, why: 'quiet_hours' };
       }
     }
+  }
+
+  // Fair share: the very last gate, after speed and quiet hours, so a message that is simply not due yet never uses up this workspace's share of the line.
+  // A held message keeps its place (status stays queued) and comes back about a second later; nothing is lost or counted as sent.
+  if (d.fairShare) {
+    const f = await fairShareDecide(d.fairShare, tenantId, laneFor(m), now.getTime());
+    if (!f.allow) return { kind: 'deferred', until: new Date(now.getTime() + f.retryAfterMs), why: 'fair_share' };
   }
 
   const ph = rows(await db.execute(sql`select phone_number_id, status from phone_numbers where tenant_id = ${tenantId} and (phone_number_id = ${m.phone_number_id} or ${m.phone_number_id}::text is null) order by created_at limit 1`))[0];
