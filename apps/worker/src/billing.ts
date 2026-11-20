@@ -93,10 +93,12 @@ export async function processBillingEvent(db: Db, id: number): Promise<Outcome> 
     // Entitlement. active/authenticated-with-a-payment grants the plan; an ended subscription returns the workspace to free. Data is never deleted.
     const grant = (status === 'active' && (e.event === 'subscription.activated' || e.event === 'subscription.charged' || e.event === 'subscription.updated' || e.event === 'subscription.resumed'));
     if (grant) {
-      await t.execute(sql`update tenants set plan_id = ${plan}, updated_at = now() where id = ${cur.tenant_id}`);
+      // The better of what they pay for and any free grant, decided in one place in the database, so a payment can never quietly remove a gift or the other way round.
+      await t.execute(sql`update tenants set plan_id = public.effective_plan(${cur.tenant_id}::uuid), updated_at = now() where id = ${cur.tenant_id}`);
       await t.execute(sql`insert into audit_log (tenant_id, actor_type, action, entity, entity_id, after) values (${cur.tenant_id}, 'system', 'billing.plan_granted', 'tenant', ${String(cur.tenant_id)}, ${JSON.stringify({ plan, event: e.event })}::jsonb)`);
     } else if (ENDED.has(status)) {
-      await t.execute(sql`update tenants set plan_id = 'free', updated_at = now() where id = ${cur.tenant_id}`);
+      // An ended subscription returns the workspace to free, unless staff have given it a plan that is still running.
+      await t.execute(sql`update tenants set plan_id = public.effective_plan(${cur.tenant_id}::uuid), updated_at = now() where id = ${cur.tenant_id}`);
       await t.execute(sql`insert into audit_log (tenant_id, actor_type, action, entity, entity_id, after) values (${cur.tenant_id}, 'system', 'billing.plan_ended', 'tenant', ${String(cur.tenant_id)}, ${JSON.stringify({ status, event: e.event })}::jsonb)`);
     }
   });

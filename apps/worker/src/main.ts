@@ -23,6 +23,7 @@ import { deferredJobId, dueJobId, retryJobId } from './queue-ids';
 import { deleteQueuedTemplates, submitPendingTemplates, syncTemplates, tenantsDueForSync } from './templates';
 import { dueCampaigns, launchCampaign, queuedMessageIds, rollupCampaigns } from './campaigns';
 import { dueReleases, releaseWinner } from './ab-release';
+import { expireGrants } from './grants';
 
 /**
  * Process entry. Two jobs: (1) the HTTP receiver for Meta webhooks, (2) the queue consumers. They share one image but can be
@@ -104,6 +105,7 @@ const templatesTimer = setInterval(() => templatesTick().catch((e) => console.er
 const journeyTimer = setInterval(() => tickJourneys({ db, appUrl: cfg.APP_URL }).then((r) => { if (r.due) console.log('[journeys]', JSON.stringify(r)); }).catch((e) => console.error('journeys', e.message)), 10_000);
 const mediaTimer = setInterval(() => tickInboundMedia({ db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY }).then((r) => { if (r.due) console.log('[inbound-media]', JSON.stringify(r)); }).catch((e) => console.error('inbound-media', e.message)), 10_000);
 const retentionTimer = setInterval(() => runRetention(db, { days: Number(process.env.FILE_RETENTION_DAYS ?? 90) }).then((r) => { if (r.inbound || r.sent || r.orphanHeaders) console.log('[retention]', JSON.stringify(r)); }).catch((e) => console.error('retention', e.message)), 60 * 60_000);
+const grantTimer = setInterval(() => expireGrants(db).then((r) => { if (r.expired) console.log('[grants]', JSON.stringify(r)); }).catch((e) => console.error('grants', e.message)), 60_000);
 const closureTimer = setInterval(() => closeDueWorkspaces(db).then((r) => { if (r.due) console.log('[closure]', JSON.stringify(r)); }).catch((e) => console.error('closure', e.message)), 15 * 60_000);
 const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
 

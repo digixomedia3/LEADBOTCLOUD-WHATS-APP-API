@@ -53,13 +53,13 @@ describe('super admin panel', () => {
     await expect(a.loadOverview()).rejects.toThrow('NEXT_NOT_FOUND');
     await expect(a.loadTenants('', '', 1)).rejects.toThrow('NEXT_NOT_FOUND');
     await expect(a.setSuspended(t1, true, 'because reasons')).rejects.toThrow('NEXT_NOT_FOUND');
-    await expect(a.setPlan(t1, 'pro', '')).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(a.grantPlan(t1, 'pro', 30, 'a fine reason')).rejects.toThrow('NEXT_NOT_FOUND');
     await expect(a.announce('hello everyone ' + tag, 'info', 1)).rejects.toThrow('NEXT_NOT_FOUND');
     const [{ status }] = await sql`select status from tenants where id = ${t1}`; expect(status).toBe('ready');
   });
 
   it('refuses at the database even when the app layer is bypassed', async () => {
-    for (const q of [(tx: postgres.TransactionSql) => tx`select admin_overview()`, (tx: postgres.TransactionSql) => tx`select admin_set_plan(${t1}::uuid, 'pro', '')`, (tx: postgres.TransactionSql) => tx`select admin_set_suspended(${t1}::uuid, true, 'sneaky attempt')`, (tx: postgres.TransactionSql) => tx`select admin_announce(${'sneaky ' + tag}, 'info', 1)`])
+    for (const q of [(tx: postgres.TransactionSql) => tx`select admin_overview()`, (tx: postgres.TransactionSql) => tx`select admin_grant_plan(${t1}::uuid, 'pro', 30, 'a fine reason')`, (tx: postgres.TransactionSql) => tx`select admin_end_grant(${t1}::uuid, 'a fine reason')`, (tx: postgres.TransactionSql) => tx`select admin_plan_info(${t1}::uuid)`, (tx: postgres.TransactionSql) => tx`select admin_set_suspended(${t1}::uuid, true, 'sneaky attempt')`, (tx: postgres.TransactionSql) => tx`select admin_announce(${'sneaky ' + tag}, 'info', 1)`])
       await expect(asApp(plain, q)).rejects.toMatchObject({ code: '42501' });
     await expect(asApp('', (tx) => tx`select admin_overview()`)).rejects.toMatchObject({ code: '42501' });
     await expect(asApp(plain, (tx) => tx`select admin_guard()`)).rejects.toMatchObject({ code: '42501' });     // the internal helper is not callable at all
@@ -92,16 +92,11 @@ describe('super admin panel', () => {
     expect(l).toMatchObject({ actor_user_id: staff, actor_type: 'super_admin' });
   });
 
-  it('changes plan and review, validates input, and records who did it', async () => {
+  it('changes the review status, validates input, and records who did it', async () => {
     signedIn = staff; const a = await A();
-    expect((await a.setPlan(t1, 'pro', 'goodwill ' + tag)).ok).toBe(true);
-    expect((await sql`select plan_id from tenants where id = ${t1}`)[0]!.plan_id).toBe('pro');
-    expect(await a.setPlan(t1, 'pro', '')).toMatchObject({ ok: true, data: { changed: false } });
-    expect(await a.setPlan(t1, 'platinum', '')).toMatchObject({ ok: false });
-    expect(await a.setPlan(randomUUID(), 'pro', '')).toMatchObject({ ok: false });
     expect((await a.setReview(t1, 'flagged')).ok).toBe(true); expect(await a.setReview(t1, 'nonsense')).toMatchObject({ ok: false });
-    const [l] = await sql`select actor_user_id, after from audit_log where tenant_id = ${t1} and action = 'admin.plan_changed'`;
-    expect(l!.actor_user_id).toBe(staff); expect(l!.after).toMatchObject({ from: 'starter', to: 'pro' });
+    const [l] = await sql`select actor_user_id, after from audit_log where tenant_id = ${t1} and action = 'admin.review_changed'`;
+    expect(l!.actor_user_id).toBe(staff); expect(l!.after).toMatchObject({ to: 'flagged' });
   });
 
   it('suspends: needs a reason, pauses sending, blocks starting a campaign, and reactivating restores without restarting', async () => {

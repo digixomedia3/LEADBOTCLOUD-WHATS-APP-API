@@ -48,9 +48,25 @@ export async function setSuspended(id: string, suspend: boolean, reason: string)
   const r = await adminCall(a, async (tx) => one<{ changed: boolean; campaignsPaused?: number; journeysPaused?: number }>(await tx.execute(sql`select public.admin_set_suspended(${id}::uuid, ${!!suspend}, ${String(reason ?? '').slice(0, 300)}) as r`), 'r'));
   revalidatePath('/admin', 'layout'); return r;
 }
-export async function setPlan(id: string, plan: string, note: string): Promise<Result<{ changed: boolean }>> {
+export interface PlanInfo {
+  plan: string; effective: string;
+  paid: null | { plan: string; status: string; currentEnd: string | null; cancelAtCycleEnd: boolean };
+  grant: null | { plan: string; until: string; reason: string; grantedAt: string; by: string | null; live: boolean };
+}
+export async function loadPlan(id: string): Promise<Result<PlanInfo | null>> {
+  const a = await requireAdmin(); if (!UUID.test(id)) return { ok: true, data: null };
+  return adminCall(a, async (tx) => one<PlanInfo | null>(await tx.execute(sql`select public.admin_plan_info(${id}::uuid) as p`), 'p'));
+}
+/** Gives a workspace a plan for free for a set number of days. It ends by itself; a reason is required and shows in the customer's log. */
+export async function grantPlan(id: string, plan: string, days: number, reason: string): Promise<Result<{ plan: string; until: string }>> {
   const a = await requireAdmin(); if (!UUID.test(id)) return bad('That workspace id is not valid.');
-  const r = await adminCall(a, async (tx) => one<{ changed: boolean }>(await tx.execute(sql`select public.admin_set_plan(${id}::uuid, ${String(plan)}, ${String(note ?? '').slice(0, 200)}) as r`), 'r'));
+  const d = Math.floor(Number(days)); if (!Number.isFinite(d)) return bad('Choose how many days.');
+  const r = await adminCall(a, async (tx) => one<{ plan: string; until: string }>(await tx.execute(sql`select public.admin_grant_plan(${id}::uuid, ${String(plan)}, ${d}, ${String(reason ?? '').slice(0, 300)}) as r`), 'r'));
+  revalidatePath('/admin', 'layout'); return r;
+}
+export async function endGrant(id: string, reason: string): Promise<Result<{ ended: boolean; plan?: string }>> {
+  const a = await requireAdmin(); if (!UUID.test(id)) return bad('That workspace id is not valid.');
+  const r = await adminCall(a, async (tx) => one<{ ended: boolean; plan?: string }>(await tx.execute(sql`select public.admin_end_grant(${id}::uuid, ${String(reason ?? '').slice(0, 300)}) as r`), 'r'));
   revalidatePath('/admin', 'layout'); return r;
 }
 export async function setReview(id: string, review: string): Promise<Result<{ changed: boolean }>> {

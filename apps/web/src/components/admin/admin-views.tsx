@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FormError, Input, Select } from '@/components/ui/form';
 import { Modal } from '@/components/ui/modal';
 import { cn } from '@/lib/utils';
-import { announce, endAnnouncement, loadAnnouncements, loadAudit, loadTenants, setPlan, setReview, setSuspended, type AnnouncementRow, type AuditRow, type TenantDetail, type TenantRow } from '@/app/(admin)/admin/actions';
+import { announce, endAnnouncement, loadAnnouncements, loadAudit, loadTenants, setReview, setSuspended, type AnnouncementRow, type AuditRow, type TenantDetail, type TenantRow } from '@/app/(admin)/admin/actions';
 
 const num = (n: number) => n.toLocaleString('en-IN');
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) : 'Never');
@@ -51,7 +51,7 @@ export function WorkspaceDetail({ t }: { t: TenantDetail }) {
   const [cur, setCur] = useState(t);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [dlg, setDlg] = useState<'suspend' | 'reactivate' | null>(null);
-  const [reason, setReason] = useState(''); const [plan, setPlanV] = useState(t.plan); const [note, setNote] = useState('');
+  const [reason, setReason] = useState('');
   const [pending, start] = useTransition();
   const say = (ok: boolean, text: string) => setMsg({ ok, text });
   return (
@@ -71,13 +71,7 @@ export function WorkspaceDetail({ t }: { t: TenantDetail }) {
       </div>
 
       <section className="card flex flex-col gap-4 p-4" aria-label="Actions"><h2 className="font-display text-lg font-bold">Actions</h2>
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-          <Field label="Plan"><Select value={plan} onChange={(e) => setPlanV(e.target.value)}>{['free', 'starter', 'growth', 'pro'].map((p) => <option key={p} value={p}>{p[0]!.toUpperCase() + p.slice(1)}</option>)}</Select></Field>
-          <Field label="Note (kept in the log)"><Input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="e.g. goodwill upgrade, ticket 123" /></Field>
-          <div className="flex items-end"><Button disabled={pending || plan === cur.plan} onClick={() => start(async () => { const r = await setPlan(cur.id, plan, note); if (!r.ok) say(false, r.error); else { say(true, `Plan set to ${plan}.`); setCur({ ...cur, plan }); setNote(''); } })}>Change plan</Button></div>
-        </div>
-        <p className="text-xs text-muted">This changes what the workspace can do. It does not charge or refund anything; billing stays with Razorpay.</p>
-        <div className="flex flex-wrap gap-2 border-t border-line pt-3">
+        <div className="flex flex-wrap gap-2 pt-1">
           {(['none', 'flagged', 'approved', 'blocked'] as const).map((v) => <Button key={v} size="sm" variant={cur.review === v ? 'primary' : 'outline'} disabled={pending || cur.review === v} onClick={() => start(async () => { const r = await setReview(cur.id, v); if (!r.ok) say(false, r.error); else { say(true, `Business review: ${v}.`); setCur({ ...cur, review: v }); } })}>{{ none: 'No review needed', flagged: 'Flag for review', approved: 'Approve', blocked: 'Block' }[v]}</Button>)}
         </div>
         <div className="flex flex-wrap gap-2 border-t border-line pt-3">
