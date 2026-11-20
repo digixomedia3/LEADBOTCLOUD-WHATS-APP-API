@@ -44,6 +44,13 @@ If a migration itself is bad, restore from `/srv/lbc/backups` (the command is at
 - **Restore test (done):** the dump of the development database was restored into a scratch database and compared table by table (rows, migrations, triggers, row-security policies): all equal. Repeat this after any large schema change. Never restore over the live database without the owner's say-so.
 - **Watching:** a script-only cron on the Hermes VM (`lbc-live-watch-10min`) checks `/healthz`, `/login`, that the signed-out data download still redirects, and that the newest backup is under 30 hours old. It messages Telegram only when the state changes, so silence means healthy.
 
+## Platform staff (admin panel)
+Staff are managed only from the server, by whoever holds the database owner credentials. The app has no way to add or remove staff.
+- Add: `pnpm --filter @lbc/db admin:add someone@company.com` (they must already have an account). Remove: `admin:remove`.
+- Staff must have two-step sign-in (authenticator app) turned on in Settings > Security, or the admin panel stays closed to them with an explanation.
+- **Locked out (lost phone and backup codes):** `pnpm --filter @lbc/db admin:reset-2fa someone@company.com`. It clears their two-step setup, signs them out everywhere, and writes `admin.two_factor_reset` to the audit log. They sign in with the password and set two-step up again. Run it only after you are sure the person is who they say they are: it is the one way around the second step.
+- Wrong codes: five in a row lock that account for 15 minutes. That clears by itself; no action needed.
+
 ## Not set up yet
 - Real mail sending (`MAIL_TRANSPORT=console`: password-reset links appear in the web log).
 - A custom domain: until then the address is `<ip-with-dashes>.sslip.io`, which has a real certificate. When a domain is added, change `APP_URL`,

@@ -16,7 +16,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/migrate.ts",
     "admin:add": "tsx src/platform-admin.ts add",
-    "admin:remove": "tsx src/platform-admin.ts remove"
+    "admin:remove": "tsx src/platform-admin.ts remove",
+    "admin:reset-2fa": "tsx src/platform-admin.ts reset-2fa"
   },
   "dependencies": {
     "@lbc/shared": "workspace:*",
