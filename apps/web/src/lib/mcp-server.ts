@@ -3,7 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { CONSENT_SOURCES } from '@lbc/shared';
 import { hasScope, type ApiScope } from '@lbc/shared/api-keys';
-import { cancelCampaignFor, createCampaignFor, previewAudienceFor, sendCampaignViaKey, campaignInput } from '@/lib/core/campaigns';
+import { cancelCampaignFor, createCampaignFor, releaseWinnerViaKey, previewAudienceFor, sendCampaignViaKey, campaignInput } from '@/lib/core/campaigns';
 import { addContactFor, addToGroupFor, campaignStatusFor, createGroupFor, listApprovedTemplatesFor, listCampaignsFor, listGroupsFor, searchContactsFor } from '@/lib/core/contacts';
 import { campaignReportFor } from '@/lib/core/campaign-report';
 import type { ActorCtx } from '@/lib/tenant-db';
@@ -23,7 +23,8 @@ export function buildServer(ctx: ActorCtx): McpServer {
     instructions:
       'Controls one LeadBotCloud WhatsApp workspace. Rules you must follow: (1) Only add a contact when the user has told you the person agreed to get WhatsApp messages and where; never invent consent. ' +
       '(2) Creating a campaign does not send it. Before starting a send, call preview_audience, tell the user who will receive it and what it costs, and get a clear yes. ' +
-      '(3) Customers who opted out are skipped automatically; do not try to work around that. (4) Report errors to the user in plain words.',
+      '(3) Customers who opted out are skipped automatically; do not try to work around that. (4) Report errors to the user in plain words. ' +
+      '(5) A "test first" campaign (abHoldRest) messages only a small group at first and keeps everyone else back. Read campaign_report, show the user both versions\' results and say plainly if there is no clear winner, then let THE USER choose which version to send with send_winner. Never choose for them.',
   });
   const allow = (s: ApiScope) => hasScope(scopes, s);
   const guarded = <A,>(s: ApiScope, fn: (a: A) => Promise<Out>) => async (a: A): Promise<Out> => (allow(s) ? fn(a) : bad(`This key does not have the "${s}" permission.`));
@@ -91,6 +92,11 @@ export function buildServer(ctx: ActorCtx): McpServer {
         spendCapRupees: z.number().min(0).optional(), offerCode: z.string().optional(), offerEndsAt: z.string().optional(),
         sendPerMinute: z.number().int().min(0).max(6000).optional().describe('messages per minute; leave out for as fast as possible'),
         linkUrl: z.string().max(2000).optional().describe('https page the template\'s tracked website button opens, when it has one'),
+        abTemplateId: z.string().uuid().optional().describe('A/B test: a second approved template of the same kind. Some people get this one (version B).'),
+        abVarMap: z.array(z.string().min(1).max(200)).max(20).optional().describe('The blanks for the second template, like varMap'),
+        abPercentB: z.number().int().min(10).max(90).optional().describe('Everyone is messaged now; this share gets version B. Do not combine with abHoldRest.'),
+        abHoldRest: z.boolean().optional().describe('Test first: only abTestPct percent of people get the two versions now (half each); everyone else is KEPT BACK until you call send_winner.'),
+        abTestPct: z.number().int().min(10).max(50).optional().describe('With abHoldRest: the share of people in the test, 10 to 50.'),
       },
     }, guarded('campaigns:write', async (a: z.input<typeof campaignInput>) => res(await createCampaignFor(ctx, a))));
     server.registerTool('cancel_campaign', { description: 'Cancels a campaign that has not started.', inputSchema: { campaignId: z.string().uuid() }, annotations: { destructiveHint: true } },
@@ -103,6 +109,13 @@ export function buildServer(ctx: ActorCtx): McpServer {
       inputSchema: { campaignId: z.string().uuid(), userConfirmed: z.literal(true).describe('Must be true: the user has just approved this exact send.') },
       annotations: { destructiveHint: true, openWorldHint: true },
     }, guarded('campaigns:send', async (a: { campaignId: string }) => res(await sendCampaignViaKey(ctx, a.campaignId))));
+  }
+  if (allow('campaigns:send')) {
+    server.registerTool('send_winner', {
+      description: 'For a campaign created with abHoldRest: sends the chosen version ("a" or "b") to everyone who was kept back. SPENDS MONEY on real customers. First read campaign_report: its abTest section says whether a winner is clear and who is waiting. Only call after the user has seen that and said which version to send. Works once, only for campaigns this same key created and started, and only after the test messages have all gone out. Anyone who opted out in the meantime is left out automatically.',
+      inputSchema: { campaignId: z.string().uuid(), version: z.enum(['a', 'b']), userConfirmed: z.literal(true).describe('Must be true: the user has just approved sending this exact version.') },
+      annotations: { destructiveHint: true, openWorldHint: true },
+    }, guarded('campaigns:send', async (a: { campaignId: string; version: 'a' | 'b' }) => res(await releaseWinnerViaKey(ctx, a.campaignId, a.version))));
   }
   return server;
 }

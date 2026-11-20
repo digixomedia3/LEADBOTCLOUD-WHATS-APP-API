@@ -106,10 +106,11 @@ describe('API: authentication, permissions and isolation', () => {
     await sql`update tenant_members set role = 'owner' where tenant_id = ${T1} and user_id = ${U1}`;
   });
   it('too many wrong keys from one address are refused for a while, even if the next one is right', async () => {
-    const ip = '203.0.113.77';
+    // A fresh address every run: the counts now live in Redis for a minute, so a fixed address would start the next run already blocked.
+    const octet = () => Math.floor(Math.random() * 250) + 1; const ip = `203.0.${octet()}.${octet()}`, other = `203.1.${octet()}.${octet()}`;
     for (let i = 0; i < 20; i++) expect((await call('v1/me', gen().key, {}, ip)).status).toBe(401);
     const blocked = await call('v1/me', keys.read, {}, ip); expect(blocked.status).toBe(429); expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
-    expect((await call('v1/me', keys.read, {}, '203.0.113.78')).status).toBe(200);
+    expect((await call('v1/me', keys.read, {}, other)).status).toBe(200);
   });
   it('a giant request body is refused before it is read', async () => {
     const r = await call('v1/contacts', keys.write, { method: 'POST', body: JSON.stringify({ phone: '9876500002', consent: true, source: 'In shop', name: 'x'.repeat(250_000) }) });

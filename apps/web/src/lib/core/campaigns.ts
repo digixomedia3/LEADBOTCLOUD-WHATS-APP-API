@@ -222,7 +222,11 @@ export async function sendCampaignViaKey(ctx: ActorCtx, id: string): Promise<Res
 export async function releaseWinnerFor(ctx: ActorCtx, id: string, version: 'a' | 'b'): Promise<Result<{ held: number }>> {
   if (version !== 'a' && version !== 'b') return fail('Choose version A or version B.');
   if (!z.string().uuid().safeParse(id).success) return fail('That campaign id is not valid.');
-  return db(ctx, async (tx) => {
+  return db(ctx, (tx) => releaseInTx(tx, ctx, id, version));
+}
+
+/** The release rules, inside a transaction the caller already holds, so an API key can run its own checks and this under one lock. */
+async function releaseInTx(tx: Tx, ctx: ActorCtx, id: string, version: 'a' | 'b'): Promise<Result<{ held: number }>> {
     const [c] = (await tx.execute(sql`select status, ab_hold_rest, ab_release_version, ab_released_at from campaigns where id = ${id}::uuid for update`)) as unknown as { status: string; ab_hold_rest: boolean; ab_release_version: string | null; ab_released_at: Date | null }[];
     if (!c) return fail('That campaign was not found.');
     if (!c.ab_hold_rest) return fail('This campaign was not set up to keep people back for a winner.');
@@ -236,5 +240,24 @@ export async function releaseWinnerFor(ctx: ActorCtx, id: string, version: 'a' |
     await tx.execute(sql`update campaigns set ab_release_version = ${version}, ab_release_requested_at = now(), ab_release_requested_by = ${ctx.user.id}, ab_release_error = null where id = ${id}::uuid`);
     await auditAs(tx, ctx, 'campaign.ab_release_requested', 'campaign', id, { version, held: n.held });
     return { ok: true as const, data: { held: n.held } };
+}
+
+/**
+ * An API key choosing the winner. Same rules as a person, plus the ones that keep an agent from spending beyond its limits:
+ *  - only a campaign this same key created AND started (so the whole audience's cost was already counted against the key's per-send and 24-hour limits when it started;
+ *    releasing only sends to people inside that figure, so it can never add spend);
+ *  - once: the release takes a row lock on the campaign, so two calls at the same moment take turns and only the first goes through. No per-key lock is needed, because choosing a winner adds no spend.
+ */
+export async function releaseWinnerViaKey(ctx: ActorCtx, id: string, version: 'a' | 'b'): Promise<Result<{ held: number }>> {
+  const via = ctx.via;
+  if (!via) return fail('This is only for API keys.');
+  if (version !== 'a' && version !== 'b') return fail('Choose version "a" or "b".');
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return fail('That campaign id is not valid.');
+  return db(ctx, async (tx) => {
+    const [c] = (await tx.execute(sql`select api_key_id, api_sent_at from campaigns where id = ${id}::uuid`)) as unknown as { api_key_id: string | null; api_sent_at: Date | null }[];
+    if (!c) return fail('That campaign was not found.');
+    if (c.api_key_id !== via.keyId) return fail('This key can only send the winner of a campaign it created itself. Do it from the panel instead.');
+    if (!c.api_sent_at) return fail('This key has not started this campaign, so its cost has not been counted against the key’s limits. Start it with this key first, or send the winner from the panel.');
+    return releaseInTx(tx, ctx, id, version);
   });
 }

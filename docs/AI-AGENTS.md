@@ -55,11 +55,27 @@ Only the tools a key is allowed to use are even listed.
 | `create_campaign` | `POST /api/v1/campaigns` | campaigns:write |
 | `cancel_campaign` | `POST /api/v1/campaigns/{id}/cancel` | campaigns:write |
 | `start_campaign` | `POST /api/v1/campaigns/{id}/send` | campaigns:send |
+| `send_winner` | `POST /api/v1/campaigns/{id}/winner` | campaigns:send |
 
 Errors are `{"error": "plain words"}` with a normal HTTP status (401 key, 403 permission, 422 rejected input, 429 slow down).
 
+## A/B tests and sending the winner
+`create_campaign` (and `POST /api/v1/campaigns`) also accepts a second template to test against the first:
+- `abTemplateId`, `abVarMap`: the second template and its blanks. It must be approved, of the same kind (same category, same offer and website button type) and a different template.
+- **Even split, everyone messaged now:** add `abPercentB` (10 to 90), the share who get version B.
+- **Test first, send the winner later:** add `abHoldRest: true` and `abTestPct` (10 to 50). Only that share of people is messaged at first, half on each version. Everyone else is kept back and gets nothing until the winner is chosen. Needs at least 4 people.
+
+The flow for an assistant: create the campaign, `preview_audience`, show the user the cost, start it with `start_campaign` (the cost counts the WHOLE audience, held-back people included, against the key's per-send and 24-hour limits), wait until the test messages have gone out, read `campaign_report` (its `abTest.hold` section says how many are waiting, whether the test is done, and a suggested version only when the evidence is clear), show the user both versions' results, and let THE USER choose. Then `send_winner` with `version` "a" or "b".
+
+`send_winner` rules, all enforced on the server and not just by the assistant's manners:
+- needs `campaigns:send`; a key without it is never even shown the tool;
+- only for a campaign this same key created AND started, so the cost is already inside the key's limits. Sending the winner adds no spend of its own, and the key's 24-hour total does not change;
+- works once; a second or simultaneous call changes nothing more;
+- refused while test messages are still going out, when no test message went out, or for a campaign that was not set up to hold people back;
+- at the moment of sending, the worker checks everyone again: people who opted out since, numbers that turned out unreachable, an ended offer, a missing connection, a failing payment method and the campaign's spend cap are all handled, and a refusal sends nothing and says why in the report (`abTest.hold.error`).
+
 ## 5. Known limits
-- Rate limits are in memory per web process. Several web servers need a shared store (Redis) before launch.
+- Rate limits are shared through Redis when `REDIS_URL` is set (counted per address and per key); without it each web process counts alone.
 - No way yet to import many contacts in one call (use the panel's CSV import) or to edit/delete a contact.
 - No saved-segment tools for agents yet; segments are built in the panel.
 - `start_campaign` takes a `userConfirmed` flag. It is a prompt to the assistant to ask you first, not a security control: the real protections are the permission, the creator rule and the money limits.

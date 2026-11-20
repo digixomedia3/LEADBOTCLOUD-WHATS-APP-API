@@ -81,15 +81,16 @@ describe('tracked links', () => {
     expect(await clicks()).toBe(before);
   });
   it('guessing is slowed down: one address that keeps trying wrong codes is told to wait', async () => {
-    const ip = '203.0.113.77'; let blocked = 0;
+    // A fresh address every run: the counts live in Redis for a minute, so fixed addresses would start the next run already blocked.
+    const oct = () => Math.floor(Math.random() * 250) + 1; const ip = `203.2.${oct()}.${oct()}`, otherIp = `203.3.${oct()}.${oct()}`; let blocked = 0;
     for (let i = 0; i < 40; i++) if ((await hit(code(), { ip })).status === 429) blocked++;
     expect(blocked).toBeGreaterThan(0);
     expect((await hit(code(), { ip })).status).toBe(429);
     expect((await hit(people[0]!.code, { ip })).status).toBe(429);   // while blocked, even a right code waits
-    expect((await hit(people[0]!.code, { ip: '203.0.113.78' })).status).toBe(302);   // other people are not affected
+    expect((await hit(people[0]!.code, { ip: otherIp })).status).toBe(302);   // other people are not affected
   });
   it('a script cannot flood the click table: past the limit people are still sent on but not counted', async () => {
-    const ip = '198.51.100.9'; const before = await clicks(people[0]!.code);
+    const ip = `198.51.${Math.floor(Math.random() * 250) + 1}.${Math.floor(Math.random() * 250) + 1}`; const before = await clicks(people[0]!.code);
     for (let i = 0; i < 130; i++) expect((await hit(people[0]!.code, { ip })).status).toBe(302);
     expect((await clicks(people[0]!.code)) - before).toBeLessThanOrEqual(120);
   });
