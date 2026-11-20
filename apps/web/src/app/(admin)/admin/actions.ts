@@ -1,8 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { sql } from 'drizzle-orm';
 import { adminCall, one, requireAdmin } from '@/lib/admin';
+import { VIEW_COOKIE } from '@/lib/session';
 
 export type Result<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -141,4 +143,28 @@ export async function addNote(id: string, note: string): Promise<Result<{ id: st
   if (String(note ?? '').trim().length > 1000) return bad('A note can be up to 1000 characters. Shorten it and try again.');
   const r = await adminCall(a, async (tx) => ({ id: one<string>(await tx.execute(sql`select public.admin_add_note(${id}::uuid, ${String(note ?? '')}) as r`), 'r') }));
   revalidatePath(`/admin/workspaces/${id}`); return r;
+}
+
+// ---- Read-only "view as customer" ----
+export interface ViewRow { id: string; staff: string; reason: string; startedAt: string; endedAt: string | null; expiresAt: string }
+export async function loadViews(tenantId: string): Promise<Result<ViewRow[]>> {
+  const a = await requireAdmin(); if (!UUID.test(tenantId)) return { ok: true, data: [] };
+  return adminCall(a, async (tx) => one<ViewRow[]>(await tx.execute(sql`select public.admin_view_history(${tenantId}::uuid, 20) as h`), 'h'));
+}
+
+/** Starts a 30-minute read-only view of one workspace. The reason is required and is shown to the customer in their Activity log. */
+export async function startView(tenantId: string, reason: string): Promise<Result<{ tenantName: string }>> {
+  const a = await requireAdmin(); if (!UUID.test(tenantId)) return bad('That workspace id is not valid.');
+  const r = await adminCall(a, async (tx) => one<{ id: string; tenantName: string }>(await tx.execute(sql`select public.admin_view_start(${tenantId}::uuid, ${String(reason ?? '').slice(0, 400)}) as v`), 'v'));
+  if (!r.ok) return r;
+  (await cookies()).set(VIEW_COOKIE, r.data.id, { path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 30 * 60 });
+  return { ok: true, data: { tenantName: r.data.tenantName } };
+}
+
+/** Ends the current view. Works even if the cookie is gone: the database ends any live view of this staff member. */
+export async function endView(): Promise<Result<{ ended: boolean }>> {
+  const a = await requireAdmin(); const jar = await cookies(); const id = jar.get(VIEW_COOKIE)?.value;
+  jar.delete(VIEW_COOKIE);
+  if (!id || !UUID.test(id)) return { ok: true, data: { ended: false } };
+  return adminCall(a, async (tx) => one<{ ended: boolean }>(await tx.execute(sql`select public.admin_view_end(${id}::uuid) as e`), 'e'));
 }

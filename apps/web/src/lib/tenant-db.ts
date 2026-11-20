@@ -19,6 +19,8 @@ export interface ActorCtx {
   workspace: { tenantId: string; name: string; role: Role; plan: string };
   role: Role;
   via?: { keyId: string; prefix: string; scopes: string[]; sendCapPaise: number };
+  /** Platform staff looking at this workspace. Every transaction is read-only, enforced by the database. */
+  readOnly?: boolean;
 }
 
 const RANK: Record<Role, number> = { viewer: 0, agent: 1, admin: 2, owner: 3 };
@@ -30,8 +32,8 @@ export function assertRole(ctx: { role: Role }, min: Role) {
 }
 
 /** Runs a tenant query inside a transaction with the tenant + user context set (row security layer 2). */
-export function db<T>(ctx: Pick<ActorCtx, 'tenantId' | 'user'>, fn: (tx: Tx) => Promise<T>): Promise<T> {
-  return withTenant(appDb, { tenantId: ctx.tenantId, userId: ctx.user.id }, fn);
+export function db<T>(ctx: Pick<ActorCtx, 'tenantId' | 'user' | 'readOnly'>, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return withTenant(appDb, { tenantId: ctx.tenantId, userId: ctx.user.id, readOnly: ctx.readOnly }, fn);
 }
 
 /** Append-only audit trail (the app role cannot INSERT into audit_log, only call this function). */

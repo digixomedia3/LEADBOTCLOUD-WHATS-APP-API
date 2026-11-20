@@ -46,7 +46,8 @@ export async function openConversation(id: string): Promise<{ conv: ConvRow; mes
   return db(ctx, async (tx) => {
     const [r] = await tx.select({ c: conversations, name: contacts.name, phone: contacts.phoneE164, consent: contacts.consentStatus }).from(conversations).innerJoin(contacts, eq(contacts.id, conversations.contactId)).where(eq(conversations.id, id));
     if (!r) return null;
-    await tx.update(conversations).set({ unread: 0 }).where(eq(conversations.id, id));
+    // Staff looking at a customer's workspace must not change anything, not even "unread".
+    if (!ctx.readOnly) await tx.update(conversations).set({ unread: 0 }).where(eq(conversations.id, id));
     const ms = await tx.select().from(messages).where(eq(messages.conversationId, id)).orderBy(asc(messages.createdAt)).limit(500);
     const ids = ms.filter((m) => m.direction === 'in' && m.kind !== 'text').map((m) => m.id);
     const outIds = ms.filter((m) => m.direction === 'out' && ['image', 'video', 'document'].includes(m.kind)).map((m) => m.id);

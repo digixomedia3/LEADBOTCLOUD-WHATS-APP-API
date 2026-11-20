@@ -23,7 +23,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  */
 export async function withTenant<T>(
   db: Db,
-  ctx: { tenantId: string; userId?: string },
+  ctx: { tenantId: string; userId?: string; /** The database itself refuses every write in this transaction. Used when platform staff view a customer's workspace. */ readOnly?: boolean },
   fn: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   if (!UUID_RE.test(ctx.tenantId)) throw new Error('withTenant: tenantId must be a uuid');
@@ -33,7 +33,7 @@ export async function withTenant<T>(
     );
     await tx.execute(sqlSet('app.user_id', ctx.userId ?? ''));
     return fn(tx);
-  });
+  }, ctx.readOnly ? { accessMode: 'read only' } : undefined);
 }
 
 /** Cross-tenant read of the caller's own memberships (workspace switcher). RLS limits rows to userId. */

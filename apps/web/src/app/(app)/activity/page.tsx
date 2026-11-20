@@ -8,14 +8,14 @@ export const dynamic = 'force-dynamic';
 
 type Row = { id: number; action: string; entity: string | null; actor_type: string; who: string | null; created_at: string; after: Record<string, unknown> | null };
 const LABELS: Record<string, string> = {
-  'workspace.updated': 'Updated the business profile', 'member.invited': 'Invited a teammate', 'member.removed': 'Removed a teammate', 'member.role_changed': 'Changed a role',
+  'workspace.updated': 'Updated the business profile', 'admin.view_started': 'Platform support looked at this workspace (read-only)', 'admin.viewed_workspace': 'Platform support opened this workspace\'s details', 'campaign.ab_release_requested': 'Chose the winning version to send to everyone else', 'campaign.ab_released': 'Sent the winning version to everyone who was kept back', 'admin.view_ended': 'Platform support finished looking at this workspace', 'member.invited': 'Invited a teammate', 'member.removed': 'Removed a teammate', 'member.role_changed': 'Changed a role',
   'template.submitted': 'Submitted a template', 'template.deleted': 'Deleted a template', 'campaign.created': 'Created a campaign', 'campaign.queued': 'Sent or scheduled a campaign', 'campaign.sent_test': 'Sent a test message',
   'contacts.exported': 'Exported contacts', 'contacts.deleted': 'Deleted contacts', 'group.deleted': 'Deleted a group', 'renewal.marked_paid': 'Marked a renewal paid',
   'meta.connect_finished': 'Connected WhatsApp', 'meta.disconnected': 'Disconnected WhatsApp', 'lead_source.created': 'Added a lead source', 'lead_source.deleted': 'Deleted a lead source', 'lead_source.key_rotated': 'Replaced a lead source key',
   'lead_form.created': 'Created a lead form', 'lead_form.deleted': 'Deleted a lead form', 'lead_import.started': 'Imported a list of leads',
 };
 const label = (a: string) => LABELS[a] ?? a.replace(/[._]/g, ' ').replace(/^./, (c) => c.toUpperCase());
-const KEEP = new Set(['name', 'title', 'role', 'rows', 'plan', 'count']);
+const KEEP = new Set(['name', 'title', 'role', 'rows', 'plan', 'count', 'reason']);
 
 export default async function ActivityPage() {
   const ctx = await requireCtx();

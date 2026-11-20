@@ -33,6 +33,9 @@ describe('super admin panel', () => {
     await sql`insert into tenants (id, name, plan_id, status) values (${t2}, ${'Other ' + tag}, 'free', 'onboarding')`;
     await sql`insert into tenant_members (tenant_id, user_id, role) values (${t1}, ${plain}, 'owner')`;
     camp = (await sql`insert into campaigns (tenant_id, name, status) values (${t1}, 'Live one', 'running') returning id`)[0]!.id;
+    // A truly running campaign has someone still waiting. Without this the worker's roll-up (every 15 s, if one is running) closes an empty 'running' campaign, which made this suite flaky.
+    const waiting = (await sql`insert into contacts (tenant_id, phone_e164, name, consent_status) values (${t1}, '+919811100055', 'Waiting', 'allowed') returning id`)[0]!.id;
+    await sql`insert into campaign_recipients (tenant_id, campaign_id, contact_id, phone_e164, name, state) values (${t1}, ${camp}, ${waiting}, '+919811100055', 'Waiting', 'queued')`;
     await sql`insert into campaigns (tenant_id, name, status) values (${t1}, 'Done one', 'completed')`;
     journey = (await sql`insert into journeys (tenant_id, name, status, trigger, steps) values (${t1}, 'Welcome', 'active', '{"type":"manual"}', '[]') returning id`)[0]!.id;
   });
