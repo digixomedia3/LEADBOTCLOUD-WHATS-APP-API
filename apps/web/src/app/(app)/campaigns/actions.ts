@@ -5,7 +5,7 @@ import { desc, eq, sql } from 'drizzle-orm';
 import { audienceWhere, campaignRecipients, campaigns, loadGroups, templates } from '@lbc/db';
 import { Forbidden, assertRole, db, requireCtx, type Ctx, audit } from '@/lib/session';
 import { estimateCost, RATE_PAISE_X100 } from '@/lib/cost';
-import { cancelCampaignFor, createCampaignFor, isLive, previewAudienceFor, queueCampaignFor, type AudiencePreview, type CampaignInput } from '@/lib/core/campaigns';
+import { cancelCampaignFor, createCampaignFor, releaseWinnerFor, isLive, previewAudienceFor, queueCampaignFor, type AudiencePreview, type CampaignInput } from '@/lib/core/campaigns';
 
 export type Result<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
@@ -108,6 +108,13 @@ export async function cancelCampaign(id: string): Promise<Result> {
   const g = await guard(); if ('error' in g) return fail(g.error);
   const r = await cancelCampaignFor(g.ctx, id);
   if (r.ok) revalidatePath('/campaigns');
+  return r;
+}
+
+export async function releaseWinner(id: string, version: 'a' | 'b'): Promise<Result<{ held: number }>> {
+  const g = await guard(); if ('error' in g) return fail(g.error);
+  const r = await releaseWinnerFor(g.ctx, id, version);
+  if (r.ok) { revalidatePath('/campaigns'); revalidatePath(`/campaigns/${id}`); }
   return r;
 }
 

@@ -4,7 +4,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { abHeadline, compareVersions, MIN_PER_VERSION, type AbResult, type VersionCounts } from '@lbc/shared/ab-test';
+import { abHeadline, compareVersions, MIN_PER_VERSION, suggestedWinner, type AbResult, type VersionCounts } from '@lbc/shared/ab-test';
 import { billedCost, buildFunnel, countRecipients, groupReasons, outcomeBreakdown, type CostSummary, type FunnelStep } from '@lbc/shared/campaign-report';
 import { db, type ActorCtx } from '@/lib/tenant-db';
 import { fail, type Result } from './campaigns';
@@ -28,6 +28,8 @@ export interface CampaignReportData {
   /** Only present when the campaign was an A/B test. Each person is counted once, in the version they got. */
   abTest: null | {
     percentB: number; minPerVersion: number; headline: string; result: AbResult;
+    /** Set when the rest of the audience is being kept back for the winner. */
+    hold: null | { testPct: number; held: number; suggested: 'a' | 'b' | null; releasedVersion: 'a' | 'b' | null; releaseWaiting: boolean; releasedAt: Date | null; error: string | null; /** Everyone in the test group has been sent to, so the comparison is final. */ testDone: boolean };
     a: { template: string | null; counts: VersionCounts }; b: { template: string | null; counts: VersionCounts };
   };
 }
@@ -36,10 +38,10 @@ export async function campaignReportFor(ctx: ActorCtx, id: string): Promise<Resu
   if (!uuid.safeParse(id).success) return fail('That campaign id is not valid.');
   return db(ctx, async (tx) => {
     const [c] = (await tx.execute(sql`
-      select c.id, c.name, c.status, c.scheduled_at, c.started_at, c.completed_at, c.pause_reason, c.est_cost_paise, c.group_ids, c.offer_code, c.offer_expires_at, c.link_url, t.name as tname, t.category, c.ab_template_id, c.ab_percent_b, tb.name as tbname
-      from campaigns c left join templates t on t.id = c.template_id left join templates tb on tb.id = c.ab_template_id where c.id = ${id}::uuid`)) as unknown as { id: string; name: string; status: string; scheduled_at: Date | null; started_at: Date | null; completed_at: Date | null; pause_reason: string | null; est_cost_paise: number; group_ids: string[]; offer_code: string | null; offer_expires_at: Date | null; link_url: string | null; ab_template_id: string | null; ab_percent_b: number | null; tbname: string | null; tname: string | null; category: string | null }[];
+      select c.id, c.name, c.status, c.scheduled_at, c.started_at, c.completed_at, c.pause_reason, c.est_cost_paise, c.group_ids, c.offer_code, c.offer_expires_at, c.link_url, t.name as tname, t.category, c.ab_template_id, c.ab_percent_b, c.ab_hold_rest, c.ab_test_pct, c.ab_release_version, c.ab_released_at, c.ab_release_error, tb.name as tbname
+      from campaigns c left join templates t on t.id = c.template_id left join templates tb on tb.id = c.ab_template_id where c.id = ${id}::uuid`)) as unknown as { id: string; name: string; status: string; scheduled_at: Date | null; started_at: Date | null; completed_at: Date | null; pause_reason: string | null; est_cost_paise: number; group_ids: string[]; offer_code: string | null; offer_expires_at: Date | null; link_url: string | null; ab_template_id: string | null; ab_percent_b: number | null; ab_hold_rest: boolean; ab_test_pct: number | null; ab_release_version: string | null; ab_released_at: Date | null; ab_release_error: string | null; tbname: string | null; tname: string | null; category: string | null }[];
     if (!c) return fail('That campaign was not found.');
-    const recs = (await tx.execute(sql`select state, reason, version from campaign_recipients where campaign_id = ${id}::uuid`)) as unknown as { state: string; reason: string | null; version: string }[];
+    const recs = (await tx.execute(sql`select state, reason, version, phase from campaign_recipients where campaign_id = ${id}::uuid`)) as unknown as { state: string; reason: string | null; version: string; phase: string }[];
     const counts = countRecipients(recs.map((r) => r.state));
     const billable = (await tx.execute(sql`
       select lower(coalesce(m.pricing_category, m.template_category, '')) as category, count(*)::int as messages
@@ -63,11 +65,18 @@ export async function campaignReportFor(ctx: ActorCtx, id: string): Promise<Resu
     if (c.ab_template_id && c.ab_percent_b) {
       // countRecipients already leaves skipped people out of every measure below, so a person who was never messaged cannot appear in either group.
       const by = (v: string): VersionCounts => {
-        const k = countRecipients(recs.filter((r) => r.version === v).map((r) => r.state));
+        const k = countRecipients(recs.filter((r) => r.version === v && r.phase === 'test').map((r) => r.state));
         return { received: k.sent + k.failed + k.capped + k.queued, delivered: k.delivered, read: k.read, replied: k.replied };
       };
       const ca = by('a'), cb = by('b'); const result = compareVersions(ca, cb);
-      abTest = { percentB: c.ab_percent_b, minPerVersion: MIN_PER_VERSION, headline: abHeadline(result, `Version A (${c.tname ?? 'template'})`, `Version B (${c.tbname ?? 'template'})`), result,
+      const heldN = recs.filter((r) => r.state === 'held').length;
+      const testStates = recs.filter((r) => r.phase === 'test' && r.state !== 'skipped').map((r) => r.state);
+      const hold = c.ab_hold_rest ? {
+        testPct: c.ab_test_pct ?? 0, held: heldN, suggested: suggestedWinner(result),
+        releasedVersion: c.ab_released_at ? (c.ab_release_version as 'a' | 'b' | null) : null, releaseWaiting: !!c.ab_release_version && !c.ab_released_at,
+        releasedAt: c.ab_released_at, error: c.ab_release_error, testDone: testStates.length > 0 && !testStates.some((x) => x === 'queued' || x === 'retry_wait'),
+      } : null;
+      abTest = { percentB: c.ab_percent_b, minPerVersion: MIN_PER_VERSION, hold, headline: abHeadline(result, `Version A (${c.tname ?? 'template'})`, `Version B (${c.tbname ?? 'template'})`), result,
         a: { template: c.tname, counts: ca }, b: { template: c.tbname, counts: cb } };
     }
     const billed = billedCost(billable.map((b) => ({ category: b.category || null, messages: b.messages })));

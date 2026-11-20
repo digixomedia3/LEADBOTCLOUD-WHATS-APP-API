@@ -57,6 +57,10 @@ export const campaignInput = z.object({
   abVarMap: z.array(z.string().trim().min(1, 'Fill in every variable.').max(200)).max(20).optional(),
   /** Share of people who get the second template, 10 to 90. */
   abPercentB: z.number().int().min(10, 'Give the second template at least 10% of people.').max(90, 'Give the second template at most 90% of people.').optional(),
+  /** Test on a small group first, keep everyone else back, and send them the winner when you choose. Needs an A/B test. */
+  abHoldRest: z.boolean().optional(),
+  /** With abHoldRest: the share of the audience that takes part in the test (split half and half), 10 to 50. */
+  abTestPct: z.number().int().min(10, 'Test on at least 10% of people.').max(50, 'Test on at most half of your people, so the rest can get the winner.').optional(),
 });
 export type CampaignInput = z.input<typeof campaignInput>;
 
@@ -105,7 +109,10 @@ export async function createCampaignFor(ctx: ActorCtx, raw: CampaignInput): Prom
     if (d.varMap.length !== needed) return fail(needed ? `This template has ${needed} variable${needed > 1 ? 's' : ''}. Fill in each one.` : 'This template has no variables.');
     // A/B test: version B must be a different, approved template of the same kind, with nothing extra to fill in that A does not also need, so the two groups are comparable.
     let ab: { id: string; varMap: string[]; percent: number } | null = null;
-    if (d.abTemplateId || d.abVarMap || d.abPercentB) {
+    if ((d.abHoldRest || d.abTestPct) && !d.abTemplateId) return fail('Sending the winner later needs a second template to test.');
+    if (d.abHoldRest && d.abTestPct === undefined) return fail('Choose how many people to test on first.');
+    if (d.abTestPct !== undefined && !d.abHoldRest) return fail('The test share only applies when you keep the rest back for the winner.');
+    if (d.abTemplateId || d.abVarMap || d.abPercentB || d.abHoldRest) {
       if (!d.abTemplateId) return fail('Choose the second template for the test.');
       if (d.abTemplateId === d.templateId) return fail('The two versions must be different templates.');
       if (d.repeat !== 'none') return fail('A test cannot repeat. Run it once, then repeat the winner.');
@@ -119,17 +126,19 @@ export async function createCampaignFor(ctx: ActorCtx, raw: CampaignInput): Prom
       if (trackedB !== hasTracked) return fail('Both versions need the same kind of website button: both tracked, or neither.');
       const neededB = new Set(variablesIn(tb.body)).size; const mapB = d.abVarMap ?? [];
       if (mapB.length !== neededB) return fail(neededB ? `The second template has ${neededB} variable${neededB > 1 ? 's' : ''}. Fill in each one.` : 'The second template has no variables.');
-      if (d.abPercentB === undefined) return fail('Choose what share of people get the second template.');
-      ab = { id: tb.id, varMap: mapB, percent: d.abPercentB };
+      if (d.abPercentB === undefined && !d.abHoldRest) return fail('Choose what share of people get the second template.');
+      ab = { id: tb.id, varMap: mapB, percent: d.abHoldRest ? 50 : d.abPercentB! };
     }
     const aud = await previewAudienceFor(ctx, d.groupIds, t.category);
     if (aud.sendable === 0) return fail('No contact in these groups has agreed to messages, so there is nobody to send to.');
     if (ab && aud.sendable < 2) return fail('A test needs at least 2 people, one for each version.');
+    // Holding the rest back only makes sense when there IS a rest: 2 people to test and at least 2 more to send the winner to.
+    if (d.abHoldRest && aud.sendable < 4) return fail('To send the winner later you need at least 4 people: 2 for the test and 2 more to send the winner to. Test everyone now instead.');
     const capPaise = d.spendCapRupees ? Math.round(d.spendCapRupees * 100) : null;
     if (capPaise !== null && aud.cost.totalPaise > capPaise) return fail(`The estimated cost ${aud.cost.totalLabel} is above your spend cap. Raise the cap or choose fewer people.`);
     const [row] = await tx.insert(campaigns).values({
       tenantId: ctx.tenantId, name: d.name, templateId: t.id, groupIds: d.groupIds, status: d.when === 'now' ? 'draft' : 'scheduled', scheduledAt: when, repeat: d.repeat,
-      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: ctx.user.id, varMap: d.varMap, offerCode: hasCopy ? d.offerCode! : null, linkUrl, sendPerMinute: d.sendPerMinute || null, abTemplateId: ab?.id ?? null, abVarMap: ab ? ab.varMap : null, abPercentB: ab?.percent ?? null, offerExpiresAt: offerEnds, apiKeyId: ctx.via?.keyId ?? null,
+      estCostPaise: aud.cost.totalPaise, spendCapPaise: capPaise, counts: { audience: aud.sendable, optedOut: aud.optedOut, noRecord: aud.noRecord }, createdBy: ctx.user.id, varMap: d.varMap, offerCode: hasCopy ? d.offerCode! : null, linkUrl, sendPerMinute: d.sendPerMinute || null, abTemplateId: ab?.id ?? null, abVarMap: ab ? ab.varMap : null, abPercentB: ab?.percent ?? null, abHoldRest: !!d.abHoldRest, abTestPct: d.abHoldRest ? d.abTestPct! : null, offerExpiresAt: offerEnds, apiKeyId: ctx.via?.keyId ?? null,
     }).returning({ id: campaigns.id, status: campaigns.status });
     await auditAs(tx, ctx, 'campaign.created', 'campaign', row!.id, { audience: aud.sendable, ...(ab ? { abTest: { templateB: ab.id, percentB: ab.percent } } : {}) });
     return { ok: true as const, data: { id: row!.id, status: row!.status, estCostPaise: aud.cost.totalPaise, audience: aud.sendable } };
@@ -202,5 +211,30 @@ export async function sendCampaignViaKey(ctx: ActorCtx, id: string): Promise<Res
     if (!r.ok) return r;
     await tx.execute(sql`update campaigns set api_sent_at = now() where id = ${id}::uuid`);
     return { ok: true as const, data: { queued: r.data.sent, costPaise: c.est_cost_paise, dailyUsedPaise: used + c.est_cost_paise, dailyLimitPaise: dayLimit } };
+  });
+}
+
+
+/**
+ * The owner chooses which version goes to everyone who was kept back. This only records the choice and asks the worker to act; the worker checks every safety rule
+ * again at the moment of sending. Allowed once, and only after the test group has been sent to, so a winner cannot be picked on no evidence at all.
+ */
+export async function releaseWinnerFor(ctx: ActorCtx, id: string, version: 'a' | 'b'): Promise<Result<{ held: number }>> {
+  if (version !== 'a' && version !== 'b') return fail('Choose version A or version B.');
+  if (!z.string().uuid().safeParse(id).success) return fail('That campaign id is not valid.');
+  return db(ctx, async (tx) => {
+    const [c] = (await tx.execute(sql`select status, ab_hold_rest, ab_release_version, ab_released_at from campaigns where id = ${id}::uuid for update`)) as unknown as { status: string; ab_hold_rest: boolean; ab_release_version: string | null; ab_released_at: Date | null }[];
+    if (!c) return fail('That campaign was not found.');
+    if (!c.ab_hold_rest) return fail('This campaign was not set up to keep people back for a winner.');
+    if (c.ab_released_at) return fail('The winner has already been sent to everyone else.');
+    if (c.ab_release_version) return fail('The winner is already on its way to everyone else.');
+    if (!['running', 'completed'].includes(c.status)) return fail('The test has not been sent yet.');
+    const [n] = (await tx.execute(sql`select count(*) filter (where state = 'held')::int as held, count(*) filter (where phase = 'test' and state in ('queued','retry_wait'))::int as test_waiting, count(*) filter (where phase = 'test' and state not in ('skipped','queued','retry_wait'))::int as test_sent from campaign_recipients where campaign_id = ${id}::uuid`)) as unknown as { held: number; test_waiting: number; test_sent: number }[];
+    if (!n || n.held === 0) return fail('Nobody is being kept back, so there is nobody to send the winner to.');
+    if (n.test_waiting > 0) return fail('The test messages are still being sent. Wait until they have all gone out, then choose.');
+    if (n.test_sent === 0) return fail('No test message went out, so there is nothing to compare.');
+    await tx.execute(sql`update campaigns set ab_release_version = ${version}, ab_release_requested_at = now(), ab_release_requested_by = ${ctx.user.id}, ab_release_error = null where id = ${id}::uuid`);
+    await auditAs(tx, ctx, 'campaign.ab_release_requested', 'campaign', id, { version, held: n.held });
+    return { ok: true as const, data: { held: n.held } };
   });
 }

@@ -10,6 +10,8 @@ import { RATE_PAISE_X100, GST_PCT } from './cost';
 export interface RecipientCounts {
   /** Every person the audience rules picked, including people who were skipped. */
   considered: number;
+  /** Kept back for a winner that has not been chosen yet. Not messaged, not skipped, and not a failure. */
+  held: number;
   skipped: number;
   queued: number;
   sent: number;
@@ -22,9 +24,10 @@ export interface RecipientCounts {
 
 /** State -> how far a person got. A person who replied also read and was delivered and sent, so each state counts toward every earlier step. */
 export function countRecipients(states: readonly string[]): RecipientCounts {
-  const c: RecipientCounts = { considered: states.length, skipped: 0, queued: 0, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, capped: 0 };
+  const c: RecipientCounts = { considered: states.length, held: 0, skipped: 0, queued: 0, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, capped: 0 };
   for (const s of states) {
     if (s === 'skipped') c.skipped++;
+    else if (s === 'held') { c.held++; }
     else if (s === 'queued' || s === 'retry_wait') c.queued++;
     else if (s === 'failed') c.failed++;
     else if (s === 'capped') c.capped++;
@@ -41,7 +44,7 @@ export interface FunnelStep { key: 'considered' | 'sent' | 'delivered' | 'read' 
 const pct = (n: number, d: number): number | null => (d > 0 ? Math.round((n / d) * 1000) / 10 : null);
 
 export function buildFunnel(c: RecipientCounts): FunnelStep[] {
-  const messaged = c.considered - c.skipped;
+  const messaged = c.considered - c.skipped - c.held;
   const steps: [FunnelStep['key'], string, number, number][] = [
     ['considered', 'People in the audience', c.considered, c.considered],
     ['sent', 'Messages sent', c.sent, messaged],
@@ -62,6 +65,7 @@ export function outcomeBreakdown(c: RecipientCounts): { label: string; count: nu
     { label: 'Failed', count: c.failed },
     { label: 'Held back by limits', count: c.capped },
     { label: 'Still waiting to send', count: c.queued },
+    { label: 'Kept back until you pick a winner', count: c.held },
     { label: 'Skipped', count: c.skipped },
   ];
 }
@@ -105,7 +109,7 @@ export function groupReasons(rows: readonly { state: string; reason: string | nu
 
 /** CSV columns for the recipient export. One place, so the header and the rows cannot drift. */
 export const RECIPIENT_CSV_HEADER = ['Name', 'Phone', 'Result', 'Why', 'Sent at (IST)'] as const;
-const RESULT_LABEL: Record<string, string> = { queued: 'Waiting to send', retry_wait: 'Waiting to retry', sent: 'Sent', delivered: 'Delivered', read: 'Read', replied: 'Replied', failed: 'Failed', skipped: 'Skipped', capped: 'Held back by a limit' };
+const RESULT_LABEL: Record<string, string> = { queued: 'Waiting to send', retry_wait: 'Waiting to retry', sent: 'Sent', delivered: 'Delivered', read: 'Read', replied: 'Replied', failed: 'Failed', skipped: 'Skipped', capped: 'Held back by a limit', held: 'Kept back until you pick a winner' };
 export function recipientCsvRow(r: { name: string | null; phone: string; state: string; reason: string | null; sentAt: Date | string | null }): (string | null)[] {
   const t = r.sentAt ? new Date(r.sentAt) : null;
   const ist = t && !Number.isNaN(t.getTime()) ? new Date(t.getTime() + 330 * 60_000).toISOString().replace('T', ' ').slice(0, 19) : '';

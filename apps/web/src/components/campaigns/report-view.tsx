@@ -6,6 +6,7 @@ import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, Download, FlaskCon
 import { inr } from '@lbc/shared';
 import { Button } from '@/components/ui/button';
 import { AbTestCard } from '@/components/campaigns/ab-test-card';
+import { AbReleasePanel } from '@/components/campaigns/ab-release-panel';
 import { cn } from '@/lib/utils';
 import { loadRecipients, retargetFrom, type RetargetOp } from '@/app/(app)/campaigns/[id]/actions';
 import type { CampaignReportData, RecipientRow, ResultFilter } from '@/lib/core/campaign-report';
@@ -72,6 +73,7 @@ export function ReportView({ report: r, initial, canExport }: { report: Campaign
       </section>
 
       {r.abTest ? <AbTestCard ab={r.abTest} /> : null}
+      {r.abTest?.hold ? <AbReleasePanel campaignId={r.id} ab={r.abTest} canAct={canExport} /> : null}
 
       {canExport ? (
         <section className="card p-5" aria-label="Retarget">

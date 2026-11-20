@@ -67,3 +67,30 @@ export function abHeadline(r: AbResult, nameA: string, nameB: string): string {
   if (reply) return `${reply} gets more replies. Reads show no clear difference.`;
   return 'No clear difference between the two versions. Any gap you see could be chance.';
 }
+
+/** Share of the audience that takes part in the test when the rest is held back for the winner. */
+export const MIN_TEST_PCT = 10, MAX_TEST_PCT = 50;
+
+/**
+ * "Test first, send the winner to everyone else": picks the people who get the test now. The same stable shuffle idea as assignVersionB but with its own salt,
+ * so the test group is not tied to who would have been version B. The test group is then split half and half with assignVersionB.
+ * At least 2 people always take part (one per version) and never more than half the audience, so there is always someone left to send the winner to.
+ */
+export function assignTestGroup(contactIds: readonly string[], campaignId: string, testPct: number): Set<string> {
+  const pct = Math.min(MAX_TEST_PCT, Math.max(MIN_TEST_PCT, Math.round(testPct)));
+  const want = Math.min(Math.floor(contactIds.length / 2), Math.max(2, Math.round((contactIds.length * pct) / 100)));
+  const keyed = contactIds.map((id) => ({ id, k: createHash('sha256').update(`test:${campaignId}:${id}`).digest('hex') }));
+  keyed.sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : a.id < b.id ? -1 : 1));
+  return new Set(keyed.slice(0, want).map((x) => x.id));
+}
+
+/**
+ * Which version to suggest sending to the rest. Only when the evidence supports it (the report's own verdict), on reply rate first, then read rate.
+ * Returns null when there is no clear winner, in which case the owner picks for themselves and the screen says it is their call.
+ */
+export function suggestedWinner(r: AbResult): 'a' | 'b' | null {
+  const side = (v: Verdict) => (v === 'a_better' ? 'a' : v === 'b_better' ? 'b' : null);
+  const reply = side(r.reply.verdict), read = side(r.read.verdict);
+  if (reply && read && reply !== read) return null;   // the two measures disagree: not clear
+  return reply ?? read;
+}

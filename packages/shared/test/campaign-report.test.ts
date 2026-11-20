@@ -7,10 +7,10 @@ const mixed = [...many('replied', 5), ...many('read', 15), ...many('delivered', 
 describe('counting recipients', () => {
   it('a person counts toward every step they passed through', () => {
     const c = countRecipients(mixed);
-    expect(c).toEqual({ considered: 100, skipped: 30, queued: 4, sent: 60, delivered: 50, read: 20, replied: 5, failed: 4, capped: 2 });
+    expect(c).toEqual({ considered: 100, held: 0, skipped: 30, queued: 4, sent: 60, delivered: 50, read: 20, replied: 5, failed: 4, capped: 2 });
   });
-  it('an empty campaign is all zeros', () => { expect(countRecipients([])).toEqual({ considered: 0, skipped: 0, queued: 0, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, capped: 0 }); });
-  it('an unknown state counts as considered but as nothing else', () => { const c = countRecipients(['mystery']); expect(c.considered).toBe(1); expect(c.sent + c.failed + c.skipped + c.queued + c.capped).toBe(0); });
+  it('an empty campaign is all zeros', () => { expect(countRecipients([])).toEqual({ considered: 0, held: 0, skipped: 0, queued: 0, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, capped: 0 }); });
+  it('an unknown state counts as considered but as nothing else', () => { const c = countRecipients(['mystery']); expect(c.considered).toBe(1); expect(c.sent + c.failed + c.skipped + c.queued + c.capped + c.held).toBe(0); });
 });
 
 describe('funnel', () => {

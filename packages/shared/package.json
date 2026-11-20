@@ -20,7 +20,8 @@
     "./ab-test": "./src/ab-test.ts",
     "./inbound-media": "./src/inbound-media.ts",
     "./chat-attachments": "./src/chat-attachments.ts",
-    "./fair-share": "./src/fair-share.ts"
+    "./fair-share": "./src/fair-share.ts",
+    "./release-reasons": "./src/release-reasons.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

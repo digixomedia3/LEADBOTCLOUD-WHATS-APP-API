@@ -7,8 +7,8 @@ import { isTrackedButtonValue } from '@lbc/shared/tracked-links';
 import { Field, Input, Select } from '@/components/ui/form';
 import type { TemplateRow } from '@/app/(app)/templates/actions';
 
-export interface AbDraft { on: boolean; templateId: string; vars: string[]; percentB: number }
-export const AB_OFF: AbDraft = { on: false, templateId: '', vars: [], percentB: 50 };
+export interface AbDraft { on: boolean; templateId: string; vars: string[]; percentB: number; /** Test on a small group first and keep everyone else back for the winner. */ hold: boolean; testPct: number }
+export const AB_OFF: AbDraft = { on: false, templateId: '', vars: [], percentB: 50, hold: false, testPct: 20 };
 
 const kind = (t: TemplateRow, appUrl: string) => ({
   copy: t.buttons.some((b) => b.type === 'copy_code'), countdown: !!t.offer?.hasExpiration, tracked: t.buttons.some((b) => b.type === 'url' && isTrackedButtonValue(b.value, appUrl)),
@@ -21,7 +21,7 @@ export function comparableTemplates(a: TemplateRow | undefined, all: TemplateRow
   return all.filter((t) => t.id !== a.id && t.status === 'approved' && t.category === a.category && (() => { const k = kind(t, appUrl); return k.copy === ka.copy && k.countdown === ka.countdown && k.tracked === ka.tracked; })());
 }
 
-export const abReady = (ab: AbDraft, b: TemplateRow | undefined) => !ab.on || (!!b && ab.vars.length === new Set(variablesIn(b.body)).size && ab.vars.every((v) => v.trim().length > 0) && ab.percentB >= 10 && ab.percentB <= 90);
+export const abReady = (ab: AbDraft, b: TemplateRow | undefined) => !ab.on || (!!b && ab.vars.length === new Set(variablesIn(b.body)).size && ab.vars.every((v) => v.trim().length > 0) && (ab.hold ? ab.testPct >= 10 && ab.testPct <= 50 : ab.percentB >= 10 && ab.percentB <= 90));
 
 /** "Test two versions": the same people are split at random, and the report says which version did better. */
 export function AbTestFields({ a, all, appUrl, value, onChange, repeats }: { a: TemplateRow | undefined; all: TemplateRow[]; appUrl: string; value: AbDraft; onChange: (v: AbDraft) => void; repeats: boolean }) {
@@ -61,7 +61,12 @@ export function AbTestFields({ a, all, appUrl, value, onChange, repeats }: { a: 
                   </div>);
               })}
             </div>) : null}
-          <Field label={`Share of people who get version B: ${value.percentB}%`} hint="Half and half gives the clearest answer. The rest get version A."><input type="range" min={10} max={90} step={5} value={value.percentB} aria-label="Share of people who get version B" className="w-full" onChange={(e) => onChange({ ...value, percentB: Number(e.target.value) })} /></Field>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 size-4" checked={value.hold} onChange={(e) => onChange({ ...value, hold: e.target.checked, percentB: e.target.checked ? 50 : value.percentB })} /><span><span className="font-semibold">Test first, then send the winner to everyone else</span><span className="block text-xs text-muted">Only a small group gets the message now, half on each version. You look at the result and choose which version goes to all the others.</span></span></label>
+          {value.hold ? (
+            <Field label={`People to test on first: ${value.testPct}%`} hint="Everyone else is kept back and gets nothing until you choose a winner. A bigger test group gives a clearer answer."><input type="range" min={10} max={50} step={5} value={value.testPct} aria-label="Share of people to test on first" className="w-full" onChange={(e) => onChange({ ...value, testPct: Number(e.target.value) })} /></Field>
+          ) : (
+            <Field label={`Share of people who get version B: ${value.percentB}%`} hint="Half and half gives the clearest answer. The rest get version A."><input type="range" min={10} max={90} step={5} value={value.percentB} aria-label="Share of people who get version B" className="w-full" onChange={(e) => onChange({ ...value, percentB: Number(e.target.value) })} /></Field>
+          )}
         </div>) : null}
     </div>
   );

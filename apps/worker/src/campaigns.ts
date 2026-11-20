@@ -11,9 +11,18 @@ const rows = (r: unknown) => r as Row[];
 /** Resolves one template variable for one contact. "@name" is the first name (falls back to "there"), "@phone" the number; anything else is fixed text. */
 export { resolveVar } from '@lbc/shared';
 import { resolveVar as resolveVarShared } from '@lbc/shared';
-import { assignVersionB } from '@lbc/shared/ab-test';
+import { assignTestGroup, assignVersionB } from '@lbc/shared/ab-test';
 
 export const NEXT_MS: Record<string, number> = { daily: 86_400_000, weekly: 7 * 86_400_000, monthly: 30 * 86_400_000 };
+
+/** Why a person must not be messaged right now, or null. Used at launch and again when a held-back group is released, so the two can never disagree. */
+export function skipReason(c: Row, category: string, now: Date = new Date()): string | null {
+  if (c.consent_status === 'stopped') return 'Opted out';
+  if (category === 'marketing' && c.consent_status !== 'allowed') return 'No permission on record';
+  if (c.reachability === 'unreachable') return 'Cannot receive WhatsApp messages';
+  if (c.freq_cap_hold_until && new Date(String(c.freq_cap_hold_until)) > now) return 'Meta limited promotional messages to this customer today';
+  return null;
+}
 
 export interface LaunchResult { campaignId: string; queued: number; skipped: number; status: string; reason?: string }
 
@@ -71,13 +80,7 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
       from contacts c where c.tenant_id = ${tenantId}::uuid and ${audienceWhere(tenantId, groups)} order by c.id`));
 
     const category = String(t.category);
-    const reasonFor = (c: Row): string | null => {
-      if (c.consent_status === 'stopped') return 'Opted out';
-      if (category === 'marketing' && c.consent_status !== 'allowed') return 'No permission on record';
-      if (c.reachability === 'unreachable') return 'Cannot receive WhatsApp messages';
-      if (c.freq_cap_hold_until && new Date(String(c.freq_cap_hold_until)) > new Date()) return 'Meta limited promotional messages to this customer today';
-      return null;
-    };
+    const reasonFor = (c: Row): string | null => skipReason(c, category);
     const sendable = all.filter((c) => !reasonFor(c));
     const skipped = all.filter((c) => reasonFor(c));
 
@@ -89,8 +92,12 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     const varMap = (claimed.var_map as string[]) ?? [];
     const varMapB = (claimed.ab_var_map as string[] | null) ?? [];
     // A/B: who gets version B is decided once, here, from the people who will really be messaged, so the split is exactly as asked and is recorded on each person.
-    const versionB = tb ? assignVersionB(sendable.map((c) => String(c.id)), campaignId, Number(claimed.ab_percent_b)) : new Set<string>();
-    const counts = { audience: sendable.length, sent: 0, skipped: skipped.length, optedOut: all.filter((c) => c.consent_status === 'stopped').length, queued: sendable.length };
+    // Test first, send the winner later: only a small test group is messaged now and split half and half. Everyone else is kept as 'held' with no message yet.
+    const holdRest = !!tb && claimed.ab_hold_rest === true;
+    const testGroup = holdRest ? assignTestGroup(sendable.map((c) => String(c.id)), campaignId, Number(claimed.ab_test_pct)) : null;
+    const testIds = testGroup ? sendable.filter((c) => testGroup.has(String(c.id))).map((c) => String(c.id)) : sendable.map((c) => String(c.id));
+    const versionB = tb ? assignVersionB(testIds, campaignId, holdRest ? 50 : Number(claimed.ab_percent_b)) : new Set<string>();
+    const counts = { audience: sendable.length, sent: 0, skipped: skipped.length, optedOut: all.filter((c) => c.consent_status === 'stopped').length, queued: testGroup ? testGroup.size : sendable.length, ...(testGroup ? { held: sendable.length - testGroup.size } : {}) };
 
     for (const c of skipped) {
       await tx.execute(sql`insert into campaign_recipients (tenant_id, campaign_id, contact_id, phone_e164, name, state, reason) values (${tenantId}, ${campaignId}, ${c.id}, ${c.phone_e164}, ${c.name}, 'skipped', ${reasonFor(c)}) on conflict (campaign_id, contact_id) where contact_id is not null do nothing`);
@@ -98,6 +105,10 @@ export async function launchCampaign(db: Db, tenantId: string, campaignId: strin
     const launchedAt = new Date();
     let position = 0;
     for (const c of sendable) {
+      if (testGroup && !testGroup.has(String(c.id))) {
+        await tx.execute(sql`insert into campaign_recipients (tenant_id, campaign_id, contact_id, phone_e164, name, state, version, phase) values (${tenantId}, ${campaignId}, ${c.id}, ${c.phone_e164}, ${c.name}, 'held', 'a', 'rest') on conflict (campaign_id, contact_id) where contact_id is not null do nothing`);
+        continue;
+      }
       const notBefore = startTimeFor(position++, claimed.send_per_minute as number | null, launchedAt);
       const isB = !!tb && versionB.has(String(c.id));
       const tpl = isB ? tb! : t;

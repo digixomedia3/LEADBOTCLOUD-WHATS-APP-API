@@ -22,6 +22,7 @@ import { tickJourneys } from './journeys';
 import { deferredJobId, dueJobId, retryJobId } from './queue-ids';
 import { deleteQueuedTemplates, submitPendingTemplates, syncTemplates, tenantsDueForSync } from './templates';
 import { dueCampaigns, launchCampaign, queuedMessageIds, rollupCampaigns } from './campaigns';
+import { dueReleases, releaseWinner } from './ab-release';
 
 /**
  * Process entry. Two jobs: (1) the HTTP receiver for Meta webhooks, (2) the queue consumers. They share one image but can be
@@ -77,6 +78,12 @@ async function tick() {
     const r = await launchCampaign(db, c.tenant_id, c.id, cfg.APP_URL, cfg.NODE_ENV === 'production');
     if (r.status === 'running') for (const id of await queuedMessageIds(db, c.tenant_id, c.id)) await sendQueue.add('send', { tenantId: c.tenant_id, messageId: id }, { jobId: id }).catch(() => undefined);
     console.log(`[launcher] campaign ${c.id}: ${r.status}${r.reason ? ' (' + r.reason + ')' : ''} queued=${r.queued} skipped=${r.skipped}`);
+  }
+  // A/B tests: the owner chose a winner, so send it to the people who were held back.
+  for (const c of await dueReleases(db)) {
+    const r = await releaseWinner(db, c.tenant_id, c.id, cfg.APP_URL, cfg.NODE_ENV === 'production');
+    if (r.status === 'released') for (const id of await queuedMessageIds(db, c.tenant_id, c.id)) await sendQueue.add('send', { tenantId: c.tenant_id, messageId: id }, { jobId: id }).catch(() => undefined);
+    console.log(`[ab-release] campaign ${c.id}: ${r.status}${r.reason ? ' (' + r.reason + ')' : ''} queued=${r.queued} skipped=${r.skipped}`);
   }
   await rollupCampaigns(db);
 }
