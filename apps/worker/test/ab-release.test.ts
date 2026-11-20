@@ -54,7 +54,7 @@ async function hold(o: { people?: number; test?: number; stopped?: number; offer
 }
 const by = (camp: string) => A(`select r.contact_id, r.version, r.phase, r.state, r.reason, m.template_name, m.payload from campaign_recipients r left join messages m on m.campaign_recipient_id = r.id where r.campaign_id = '${camp}'`) as unknown as Promise<{ contact_id: string; version: string; phase: string; state: string; reason: string | null; template_name: string | null; payload: { params: string[] } | null }[]>;
 const request = (camp: string, v: 'a' | 'b') => A(`update campaigns set ab_release_version = '${v}', ab_release_requested_at = now() where id = '${camp}'`);
-const campaign = async (camp: string) => (await A(`select status, ab_released_at, ab_release_version, ab_release_error, est_cost_paise from campaigns where id = '${camp}'`))[0] as { status: string; ab_released_at: Date | null; ab_release_version: string | null; ab_release_error: string | null; est_cost_paise: number };
+const campaign = async (camp: string) => (await A(`select status, ab_released_at, ab_release_version, ab_release_error, est_cost_paise from campaigns where id = '${camp}'`))[0] as unknown as { status: string; ab_released_at: Date | null; ab_release_version: string | null; ab_release_error: string | null; est_cost_paise: number };
 const audit = (t: string) => A(`select action, after from audit_log where tenant_id = '${t}' and action = 'campaign.ab_released'`) as unknown as Promise<{ action: string; after: { version: string; queued: number; skipped: number } }[]>;
 
 describe('test first, hold the rest: launch', () => {
