@@ -4,6 +4,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { db, type ActorCtx } from '@/lib/tenant-db';
+import { sendClosureCancelledMail, sendClosureRequestedMail } from '@/lib/notify';
 
 export type Result<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
 export interface ClosureInfo { requestedAt: string | null; dueAt: string | null; closedAt: string | null; daysLeft: number | null; workspaceName: string }
@@ -26,12 +27,16 @@ export async function loadClosure(ctx: ActorCtx): Promise<ClosureInfo> {
 
 export async function requestClosure(ctx: ActorCtx, confirmName: string): Promise<Result<{ dueAt: string }>> {
   if (ctx.role !== 'owner') return { ok: false, error: 'Only the workspace owner can do this.' };
-  try { const due = ((await db(ctx, (tx) => tx.execute(sql`select public.request_workspace_closure(${String(confirmName ?? '').slice(0, 200)}) as due`))) as unknown as { due: Date }[])[0]!.due; return { ok: true, data: { dueAt: new Date(due).toISOString() } }; }
+  try { const due = ((await db(ctx, (tx) => tx.execute(sql`select public.request_workspace_closure(${String(confirmName ?? '').slice(0, 200)}) as due`))) as unknown as { due: Date }[])[0]!.due; const dueAt = new Date(due);
+    // Tell the owner in writing, so a request made from a stolen session cannot go unnoticed. Failure to send must not undo the request.
+    if (ctx.user.email) await sendClosureRequestedMail({ to: ctx.user.email, workspace: ctx.workspace.name, dueAt }).catch(() => undefined);
+    return { ok: true, data: { dueAt: dueAt.toISOString() } }; }
   catch (e) { return { ok: false, error: plain(e) }; }
 }
 
 export async function cancelClosure(ctx: ActorCtx): Promise<Result<{ cancelled: boolean }>> {
   if (ctx.role !== 'owner') return { ok: false, error: 'Only the workspace owner can do this.' };
-  try { const n = ((await db(ctx, (tx) => tx.execute(sql`select public.cancel_workspace_closure() as n`))) as unknown as { n: boolean }[])[0]!.n; return { ok: true, data: { cancelled: !!n } }; }
+  try { const n = ((await db(ctx, (tx) => tx.execute(sql`select public.cancel_workspace_closure() as n`))) as unknown as { n: boolean }[])[0]!.n; if (n && ctx.user.email) await sendClosureCancelledMail({ to: ctx.user.email, workspace: ctx.workspace.name }).catch(() => undefined);
+    return { ok: true, data: { cancelled: !!n } }; }
   catch (e) { return { ok: false, error: plain(e) }; }
 }

@@ -10,16 +10,21 @@ import nodemailer, { type Transporter } from 'nodemailer';
  */
 export interface Mail { to: string; subject: string; text: string; html?: string }
 
-let cached: Transporter | null = null;
+// One connection pool per distinct set of settings. Keyed on the settings (not created once and kept forever) so that a changed host, port or
+// rotated password is picked up by the next mail instead of silently using the old connection until the process restarts.
+let cached: { key: string; t: Transporter } | null = null;
 function smtp(): Transporter {
-  if (cached) return cached;
   const port = Number(process.env.SMTP_PORT || 465);
-  cached = nodemailer.createTransport({
+  const key = [process.env.SMTP_HOST, port, process.env.SMTP_USER, process.env.SMTP_PASS].join('\u0000');
+  if (cached?.key === key) return cached.t;
+  cached?.t.close();
+  const t = nodemailer.createTransport({
     host: process.env.SMTP_HOST, port, secure: port === 465,
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
     connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 15_000,
   });
-  return cached;
+  cached = { key, t };
+  return t;
 }
 
 export function mailConfigured(): 'smtp' | 'console' {

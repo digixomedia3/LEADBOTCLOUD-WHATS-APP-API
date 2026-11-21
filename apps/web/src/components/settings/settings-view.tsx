@@ -84,6 +84,7 @@ function TeamTab({ team, reload, isOwner, isAdmin, me }: { team: Team; reload: (
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
   const [link, setLink] = useState('');
+  const [emailed, setEmailed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState('');
   const [pending, start] = useTransition();
@@ -92,7 +93,7 @@ function TeamTab({ team, reload, isOwner, isAdmin, me }: { team: Team; reload: (
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     setError('');
-    start(async () => { const r = await inviteMember({ email: String(f.get('email')), role: String(f.get('role')) as 'agent' }); if (!r.ok) { setError(r.error); return; } setLink(r.data.link); await reload(); });
+    start(async () => { const r = await inviteMember({ email: String(f.get('email')), role: String(f.get('role')) as 'agent' }); if (!r.ok) { setError(r.error); return; } setLink(r.data.link); setEmailed(r.data.emailed); await reload(); });
   }
   return (
     <div className="flex max-w-3xl flex-col gap-4">
@@ -109,7 +110,7 @@ function TeamTab({ team, reload, isOwner, isAdmin, me }: { team: Team; reload: (
       <Modal open={open} onClose={() => setOpen(false)} title="Invite someone">
         {link ? (
           <div className="flex flex-col gap-3"><p className="flex items-center gap-2 font-semibold text-brand"><Check className="size-5" />Invitation created</p>
-            <p className="text-sm text-muted">Email sending is not set up yet. Copy this link and send it to them on WhatsApp. It works once, only for the invited email, and expires in 7 days.</p>
+            <p className="text-sm text-muted">{emailed ? 'We emailed them the invitation. If it does not arrive, you can also copy this link and send it on WhatsApp.' : 'We could not email it, so copy this link and send it to them on WhatsApp.'} It works once, only for the invited email, and expires in 7 days.</p>
             <div className="break-all rounded-xl bg-card2 p-3 font-mono text-xs">{link}</div>
             <Button onClick={async () => { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000); }}><Copy className="size-4" />{copied ? 'Copied' : 'Copy link'}</Button></div>
         ) : (

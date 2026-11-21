@@ -51,8 +51,16 @@ Staff are managed only from the server, by whoever holds the database owner cred
 - **Locked out (lost phone and backup codes):** `pnpm --filter @lbc/db admin:reset-2fa someone@company.com`. It clears their two-step setup, signs them out everywhere, and writes `admin.two_factor_reset` to the audit log. They sign in with the password and set two-step up again. Run it only after you are sure the person is who they say they are: it is the one way around the second step.
 - Wrong codes: five in a row lock that account for 15 minutes. That clears by itself; no action needed.
 
+## Turning email on
+What sends mail today: password reset and password-changed notices, team invitations, and the workspace closing and cancelled notices.
+1. Pick a sending service (any SMTP provider: Amazon SES, Brevo, Zoho, a Hostinger mailbox) and a from address on a domain you own. Add the provider's SPF and DKIM records to that domain's DNS, or mail will land in spam.
+2. On the server, in the web service's environment file, set `MAIL_TRANSPORT=smtp`, `SMTP_HOST`, `SMTP_PORT` (465 uses SSL from the start. 587 should also work, because the mail library upgrades the connection with STARTTLS when the server offers it, but that path has not been tested here), `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` (for example `LeadBotCloud <no-reply@yourdomain>`). Names only here; never write the values in a doc or a chat.
+3. Restart the web service. A changed host, port, user or password is picked up by the next mail, with no restart needed after that.
+4. Test: invite your own second address from Settings > Team. The dialog says "We emailed them" only when the mail server accepted it; otherwise it says "We could not email it" and shows the link. Check the spam folder before blaming the app.
+Failures never block the action: the invite still exists and the link still works, and the failure is written to the web log with the address partly hidden and never the link.
+
 ## Not set up yet
-- Real mail sending (`MAIL_TRANSPORT=console`: password-reset links appear in the web log).
+- Real mail sending is built but switched off (`MAIL_TRANSPORT=console`). Until it is on, nobody receives a mail: password-reset links appear in the web log and the invite dialog tells the owner to share the link on WhatsApp. See "Turning email on".
 - A custom domain: until then the address is `<ip-with-dashes>.sslip.io`, which has a real certificate. When a domain is added, change `APP_URL`,
   `BETTER_AUTH_URL`, `TRUSTED_ORIGINS`, `WORKER_PUBLIC_URL` and the Caddyfile together, and do it before any template using a tracked link is approved
   (the address is fixed into the template by Meta).

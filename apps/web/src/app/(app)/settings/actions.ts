@@ -1,5 +1,6 @@
 'use server';
 
+import { sendInviteMail } from '@/lib/notify';
 import { createHash, randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
@@ -36,8 +37,8 @@ export async function loadTeam(): Promise<{ members: MemberRow[]; invites: Invit
 }
 
 const inviteSchema = z.object({ email: z.string().trim().toLowerCase().email('Enter a valid email address.'), role: z.enum(['admin', 'agent', 'viewer']) });
-/** Creates an invitation and returns a one-time link. Email delivery is not wired yet, so the owner shares the link. */
-export async function inviteMember(input: z.input<typeof inviteSchema>): Promise<Result<{ link: string }>> {
+/** Creates an invitation and emails it. The link is always returned too, so the owner can share it by WhatsApp when email is off or fails. */
+export async function inviteMember(input: z.input<typeof inviteSchema>): Promise<Result<{ link: string; emailed: boolean }>> {
   const g = await guard(); if ('error' in g) return fail(g.error);
   const p = inviteSchema.safeParse(input);
   if (!p.success) return fail(p.error.issues[0]?.message ?? 'Check the email.');
@@ -47,11 +48,13 @@ export async function inviteMember(input: z.input<typeof inviteSchema>): Promise
     if (team.members.some((m) => m.email.toLowerCase() === p.data.email)) return fail('This person is already in your workspace.');
     if (team.invites.some((i) => i.email?.toLowerCase() === p.data.email)) return fail('This person already has a pending invitation.');
     const token = randomBytes(24).toString('base64url');
-    await tx.insert(invitations).values({ tenantId: g.ctx.tenantId, email: p.data.email, role: p.data.role, tokenHash: hash(token), invitedBy: g.ctx.user.id, expiresAt: new Date(Date.now() + 7 * 86_400_000) });
+    const expiresAt = new Date(Date.now() + 7 * 86_400_000);
+    await tx.insert(invitations).values({ tenantId: g.ctx.tenantId, email: p.data.email, role: p.data.role, tokenHash: hash(token), invitedBy: g.ctx.user.id, expiresAt });
     await audit(tx, 'member.invited', 'invitation', undefined, { role: p.data.role });
     revalidatePath('/settings');
     const base = process.env.APP_URL ?? 'http://localhost:3000';
-    return { ok: true as const, data: { link: `${base}/invite/${token}` } };
+    const { sent } = await sendInviteMail({ to: p.data.email, workspace: g.ctx.workspace.name, inviter: g.ctx.user.name || g.ctx.user.email, role: p.data.role, token, expiresAt });
+    return { ok: true as const, data: { link: `${base}/invite/${token}`, emailed: sent } };
   });
 }
 export async function revokeInvite(id: string): Promise<Result> {
