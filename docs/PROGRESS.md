@@ -2,9 +2,9 @@
 
 Shared memory between sessions. Newest state first. Updated from git history and the live server, not from memory.
 
-## Current state (commit 87b77a8, branch feat/auth-contacts, local commits only, no remote)
+## Current state (commit 1f709f4, branch feat/auth-contacts, local commits only, no remote)
 Live at https://34-134-248-202.sslip.io (shipped with `lbc-deploy`; see `docs/RUNBOOK.md`). 58 migrations (latest `0056_complimentary_plans`).
-Suites at last run: shared 321, db 144, meta 87, worker 406, web 295. Typecheck and lint clean except one old type error in `packages/db/test/rls.test.ts:185`.
+Suites at last run (3 clean passes): shared 321, db 144, meta 87, worker 415, web 295. Typecheck has 0 errors across the workspace. Typecheck and lint clean except one old type error in `packages/db/test/rls.test.ts:185`.
 
 **Nothing has run against real Meta, Razorpay or email.** Everything is built and tested against fakes. The DigiXO number is registered on another WhatsApp account and cannot be used until that is resolved.
 
