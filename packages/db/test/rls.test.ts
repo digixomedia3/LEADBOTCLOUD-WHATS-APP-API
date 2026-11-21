@@ -182,7 +182,7 @@ describe('contacts, groups and consent (as app role)', () => {
     expect(still?.name).toMatch(/B contact/);
   });
   it('tenant A cannot add its contact to tenant B group, or write contacts for B', async () => {
-    await expect(withTenant(app.db, { tenantId: A }, (tx) => tx.insert(contactGroupMembers).values({ tenantId: B, groupId: ids.gB, contactId: ids.cA }))).rejects.toThrow();
+    await expect(withTenant(app.db, { tenantId: A }, (tx) => tx.insert(contactGroupMembers).values({ tenantId: B, groupId: ids.gB!, contactId: ids.cA! }))).rejects.toThrow();
     await expect(withTenant(app.db, { tenantId: A }, (tx) => tx.insert(contacts).values({ tenantId: B, phoneE164: '+919000000002' }))).rejects.toThrow();
   });
   it('consent events are readable by their tenant, hidden from others, and cannot be edited or deleted', async () => {

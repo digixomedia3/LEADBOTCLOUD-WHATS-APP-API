@@ -24,6 +24,7 @@ import { deleteQueuedTemplates, submitPendingTemplates, syncTemplates, tenantsDu
 import { dueCampaigns, launchCampaign, queuedMessageIds, rollupCampaigns } from './campaigns';
 import { dueReleases, releaseWinner } from './ab-release';
 import { expireGrants } from './grants';
+import { every } from './timers';
 
 /**
  * Process entry. Two jobs: (1) the HTTP receiver for Meta webhooks, (2) the queue consumers. They share one image but can be
@@ -71,7 +72,7 @@ async function sweepOutbox() {
   stuck.push(...due);
   return stuck.length;
 }
-const sweeper = setInterval(() => sweepOutbox().catch((e) => console.error('sweep', e.message)), 5_000);
+const sweeper = every('sweep', 5_000, () => sweepOutbox());
 
 /** Launcher: every 15 s, expand campaigns that are due and queue their messages; then refresh campaign counts from the data. */
 async function tick() {
@@ -99,15 +100,15 @@ async function templatesTick() {
   }
 }
 /** Safety net: connector events that were stored but not finished (crash, Facebook outage) are retried, and sheets are read every 2 minutes. */
-const connectorTimer = setInterval(async () => { for (const id of await pendingConnectorEvents(db)) await processConnectorEvent(connDeps, id); }, 20_000);
-const sheetsTimer = setInterval(() => syncSheets(connDeps).then((r) => { if (r.rows || r.errors) console.log('[sheets]', JSON.stringify(r)); }).catch((e) => console.error('sheets', e.message)), cfg.SHEETS_SYNC_MS);
-const templatesTimer = setInterval(() => templatesTick().catch((e) => console.error('templates', e.message)), 20_000);
-const journeyTimer = setInterval(() => tickJourneys({ db, appUrl: cfg.APP_URL }).then((r) => { if (r.due) console.log('[journeys]', JSON.stringify(r)); }).catch((e) => console.error('journeys', e.message)), 10_000);
-const mediaTimer = setInterval(() => tickInboundMedia({ db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY }).then((r) => { if (r.due) console.log('[inbound-media]', JSON.stringify(r)); }).catch((e) => console.error('inbound-media', e.message)), 10_000);
-const retentionTimer = setInterval(() => runRetention(db, { days: Number(process.env.FILE_RETENTION_DAYS ?? 90) }).then((r) => { if (r.inbound || r.sent || r.orphanHeaders) console.log('[retention]', JSON.stringify(r)); }).catch((e) => console.error('retention', e.message)), 60 * 60_000);
-const grantTimer = setInterval(() => expireGrants(db).then((r) => { if (r.expired) console.log('[grants]', JSON.stringify(r)); }).catch((e) => console.error('grants', e.message)), 60_000);
-const closureTimer = setInterval(() => closeDueWorkspaces(db).then((r) => { if (r.due) console.log('[closure]', JSON.stringify(r)); }).catch((e) => console.error('closure', e.message)), 15 * 60_000);
-const launcher = setInterval(() => tick().catch((e) => console.error('launcher', e.message)), 15_000);
+const connectorTimer = every('connector-events', 20_000, async () => { for (const id of await pendingConnectorEvents(db)) await processConnectorEvent(connDeps, id); });
+const sheetsTimer = every('sheets', cfg.SHEETS_SYNC_MS, () => syncSheets(connDeps).then((r) => { if (r.rows || r.errors) console.log('[sheets]', JSON.stringify(r)); }));
+const templatesTimer = every('templates', 20_000, () => templatesTick());
+const journeyTimer = every('journeys', 10_000, () => tickJourneys({ db, appUrl: cfg.APP_URL }).then((r) => { if (r.due) console.log('[journeys]', JSON.stringify(r)); }));
+const mediaTimer = every('inbound-media', 10_000, () => tickInboundMedia({ db, graph, tokenKey: cfg.TOKEN_ENCRYPTION_KEY }).then((r) => { if (r.due) console.log('[inbound-media]', JSON.stringify(r)); }));
+const retentionTimer = every('retention', 60 * 60_000, () => runRetention(db, { days: Number(process.env.FILE_RETENTION_DAYS ?? 90) }).then((r) => { if (r.inbound || r.sent || r.orphanHeaders) console.log('[retention]', JSON.stringify(r)); }));
+const grantTimer = every('grants', 60_000, () => expireGrants(db).then((r) => { if (r.expired) console.log('[grants]', JSON.stringify(r)); }));
+const closureTimer = every('closure', 15 * 60_000, () => closeDueWorkspaces(db).then((r) => { if (r.due) console.log('[closure]', JSON.stringify(r)); }));
+const launcher = every('launcher', 15_000, () => tick());
 
 const app = Fastify({ bodyLimit: 8 * 1024 * 1024, trustProxy: cfg.TRUST_PROXY === 'true', logger: { level: 'info', serializers: { req: (r) => ({ method: r.method, url: String(r.url).replace(/([?&]key=)[^&]*/i, '$1***'), host: r.host, remoteAddress: r.ip }) }, redact: ['req.headers.authorization', 'req.headers["x-hub-signature-256"]', 'req.headers["x-razorpay-signature"]', 'req.headers["x-lead-key"]', 'req.headers["x-lbc-sig"]'] } });
 app.removeAllContentTypeParsers();
@@ -190,5 +191,5 @@ app.post('/internal/leads/import', async (req, reply) => {
 });
 
 await app.listen({ port: cfg.PORT, host: '0.0.0.0' });
-const stop = async () => { clearInterval(sweeper); clearInterval(mediaTimer); clearInterval(retentionTimer); clearInterval(closureTimer); clearInterval(launcher); clearInterval(templatesTimer); clearInterval(connectorTimer); clearInterval(sheetsTimer); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close(), billingWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
+const stop = async () => { clearInterval(sweeper); clearInterval(mediaTimer); clearInterval(retentionTimer); clearInterval(closureTimer); clearInterval(launcher); clearInterval(journeyTimer); clearInterval(grantTimer); clearInterval(templatesTimer); clearInterval(connectorTimer); clearInterval(sheetsTimer); await app.close(); await Promise.all([sendWorker.close(), eventWorker.close(), billingWorker.close()]); await redis.quit(); await client.end(); process.exit(0); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop);
