@@ -118,7 +118,7 @@ export function ImportWizard({ open, onClose, groups, onDone }: { open: boolean;
       {step === 2 ? (
         <div className="mt-3 flex flex-col gap-4">
           <p className="text-sm text-muted">We matched the columns of <strong className="text-ink">{fileName}</strong> ({rows.length.toLocaleString('en-IN')} rows). Check them.</p>
-          <div className="overflow-x-auto rounded-xl border border-line">
+          <div className="relative overflow-x-auto rounded-xl border border-line">
             <table className="w-full min-w-[34rem] text-sm">
               <thead><tr>{headers.map((h, i) => (
                 <th key={i} className="min-w-36 border-b border-line bg-card2 p-2 text-left align-top">

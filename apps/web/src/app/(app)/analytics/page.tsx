@@ -95,7 +95,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           <section className="card overflow-hidden">
             <div className="p-5 pb-3"><h3 className="font-display text-lg font-bold">Your campaigns</h3><p className="text-sm text-muted">Newest first</p></div>
             {a.campaigns.length === 0 ? <p className="px-5 pb-5 text-sm text-muted">No campaigns in this period.</p> : (
-              <div className="overflow-x-auto">
+              <div className="relative overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm">
                   <thead className="bg-card2 text-left text-xs text-muted"><tr>{['Name', 'Date', 'Sent', 'Delivered', 'Read', 'Replied', 'Not delivered', 'Est. cost'].map((h, i) => <th key={h} className={cn('px-4 py-2 font-semibold', i > 1 && 'text-right')}>{h}</th>)}</tr></thead>
                   <tbody className="divide-y divide-line">

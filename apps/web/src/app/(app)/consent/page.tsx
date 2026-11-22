@@ -36,7 +36,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
       </div>
       <form className="flex max-w-md gap-2"><input type="hidden" name="f" value={f} /><input name="q" defaultValue={q} placeholder="Search name or number" aria-label="Search" className="min-h-11 w-full rounded-xl border border-line bg-card px-3 text-sm" /></form>
       {rows.length === 0 ? <div className="card p-8 text-center text-sm text-muted">Nobody here{q ? ' matches that search' : ' yet'}.</div> : (
-        <div className="card overflow-x-auto">
+        <div className="card relative overflow-x-auto">
           <table className="w-full min-w-[34rem] text-left text-sm">
             <thead className="border-b border-line text-xs uppercase tracking-wide text-muted"><tr><th className="p-3">Contact</th><th className="p-3">{f === 'out' ? 'Opted out' : 'Consent given'}</th><th className="p-3">{f === 'out' ? 'How' : 'Source'}</th></tr></thead>
             <tbody className="divide-y divide-line">

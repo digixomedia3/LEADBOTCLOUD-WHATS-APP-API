@@ -105,17 +105,17 @@ export function ContactsView({ initial, summary, groups: initialGroups, canManag
         </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
         {/* Groups rail */}
         <aside className="card h-fit p-3" aria-label="Groups">
           <div className="mb-1 flex items-center justify-between px-2"><p className="text-xs font-semibold uppercase tracking-wide text-muted">Groups</p>{canManage ? <button onClick={() => setGroupsOpen(true)} aria-label="Manage groups" className="flex size-9 items-center justify-center rounded-lg hover:bg-ink/5"><Pencil className="size-4" /></button> : null}</div>
           <ul className="flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
-            <li><button onClick={() => setGroup('')} className={cn('flex min-h-11 w-full shrink-0 items-center justify-between gap-3 rounded-xl px-3 text-sm font-medium', !group ? 'bg-brand/10 text-brand' : 'hover:bg-ink/5')}><span className="flex items-center gap-2"><Users className="size-4" />Everyone</span><span className="tabular text-xs text-muted">{sum.total}</span></button></li>
+            <li><button onClick={() => setGroup('')} className={cn('flex min-h-11 w-full shrink-0 items-center whitespace-nowrap justify-between gap-3 rounded-xl px-3 text-sm font-medium', !group ? 'bg-brand/10 text-brand' : 'hover:bg-ink/5')}><span className="flex items-center gap-2"><Users className="size-4" />Everyone</span><span className="tabular text-xs text-muted">{sum.total}</span></button></li>
             {groups.map((g) => (
-              <li key={g.id}><button onClick={() => setGroup(g.id)} className={cn('flex min-h-11 w-full shrink-0 items-center justify-between gap-3 rounded-xl px-3 text-sm font-medium', group === g.id ? 'bg-brand/10 text-brand' : 'hover:bg-ink/5')}><span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{g.name}</span>{g.kind === 'smart' ? <span className="shrink-0 rounded-full bg-indigo/10 px-1.5 text-[10px] font-bold uppercase text-indigo">Auto</span> : null}</span><span className="tabular text-xs text-muted">{g.count}</span></button></li>
+              <li key={g.id}><button onClick={() => setGroup(g.id)} className={cn('flex min-h-11 w-full shrink-0 items-center whitespace-nowrap justify-between gap-3 rounded-xl px-3 text-sm font-medium', group === g.id ? 'bg-brand/10 text-brand' : 'hover:bg-ink/5')}><span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{g.name}</span>{g.kind === 'smart' ? <span className="shrink-0 rounded-full bg-indigo/10 px-1.5 text-[10px] font-bold uppercase text-indigo">Auto</span> : null}</span><span className="tabular text-xs text-muted">{g.count}</span></button></li>
             ))}
-            {canManage ? <li><button onClick={() => setGroupsOpen(true)} className="flex min-h-11 w-full shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-brand hover:bg-brand/10"><FolderPlus className="size-4" />New group</button></li> : null}
-            {canManage ? <li><button onClick={() => { setSegEdit(null); setSegOpen(true); }} className="flex min-h-11 w-full shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-brand hover:bg-brand/10"><Filter className="size-4" />New segment</button></li> : null}
+            {canManage ? <li><button onClick={() => setGroupsOpen(true)} className="flex min-h-11 w-full shrink-0 items-center whitespace-nowrap gap-2 rounded-xl px-3 text-sm font-semibold text-brand hover:bg-brand/10"><FolderPlus className="size-4" />New group</button></li> : null}
+            {canManage ? <li><button onClick={() => { setSegEdit(null); setSegOpen(true); }} className="flex min-h-11 w-full shrink-0 items-center whitespace-nowrap gap-2 rounded-xl px-3 text-sm font-semibold text-brand hover:bg-brand/10"><Filter className="size-4" />New segment</button></li> : null}
           </ul>
           {sum.tags.length ? (
             <div className="mt-3 border-t border-line pt-3"><p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted">Tags</p>
@@ -156,7 +156,7 @@ export function ContactsView({ initial, summary, groups: initialGroups, canManag
             </div>
           ) : null}
 
-          <div className="card overflow-x-auto p-0">
+          <div className="card relative overflow-x-auto p-0">
             <table className="w-full min-w-[44rem] text-sm">
               <thead><tr className="border-b border-line bg-card2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th className="w-12 px-4 py-3">{canManage ? <input type="checkbox" aria-label="Select all on this page" checked={allOn} onChange={() => setSel(allOn ? new Set() : new Set(data.rows.map((r) => r.id)))} className="size-4 accent-[var(--brand)]" /> : null}</th>

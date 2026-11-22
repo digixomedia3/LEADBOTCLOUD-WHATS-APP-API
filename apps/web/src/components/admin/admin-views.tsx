@@ -29,7 +29,7 @@ export function WorkspacesList({ initial, total: t0, pageSize }: { initial: Tena
         <Button type="submit" disabled={pending}>{pending ? <Loader2 className="size-4 animate-spin" /> : null}Search</Button>
       </form>
       {err ? <FormError>{err}</FormError> : null}
-      <div className="card overflow-x-auto"><table className="w-full min-w-[760px] text-sm">
+      <div className="card relative overflow-x-auto"><table className="w-full min-w-[760px] text-sm">
         <thead className="text-left text-xs uppercase tracking-wide text-muted"><tr><th className="p-3">Workspace</th><th className="p-3">Status</th><th className="p-3">Plan</th><th className="p-3 text-right">Contacts</th><th className="p-3 text-right">Sent, 30 days</th><th className="p-3">WhatsApp</th><th className="p-3">Last active</th></tr></thead>
         <tbody className="divide-y divide-line">{rows.map((r) => (
           <tr key={r.id} className="hover:bg-ink/[0.03]">
@@ -106,7 +106,7 @@ export function AuditList({ initial, tenant }: { initial: AuditRow[]; tenant: st
     <div className="flex flex-col gap-3">
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); fetchMore(true); }}><Input aria-label="Action starts with" value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="Action starts with, e.g. admin. or campaign." maxLength={40} /><Button type="submit" disabled={pending}>Filter</Button></form>
       {err ? <FormError>{err}</FormError> : null}
-      <div className="card overflow-x-auto"><table className="w-full min-w-[640px] text-sm"><thead className="text-left text-xs uppercase tracking-wide text-muted"><tr><th className="p-3">When (IST)</th><th className="p-3">Workspace</th><th className="p-3">Who</th><th className="p-3">What</th></tr></thead>
+      <div className="card relative overflow-x-auto"><table className="w-full min-w-[640px] text-sm"><thead className="text-left text-xs uppercase tracking-wide text-muted"><tr><th className="p-3">When (IST)</th><th className="p-3">Workspace</th><th className="p-3">Who</th><th className="p-3">What</th></tr></thead>
         <tbody className="divide-y divide-line">{rows.map((r) => <tr key={r.id}><td className="whitespace-nowrap p-3 text-xs text-muted">{when(r.at)}</td><td className="p-3">{r.tenant ?? <span className="text-muted">Platform</span>}</td><td className="p-3">{r.actor ?? <span className="text-muted">{r.actorType}</span>}{r.actorType === 'super_admin' ? <span className="ml-1 rounded bg-rose/15 px-1 text-xs font-bold text-rose">staff</span> : null}</td><td className="p-3"><code className="text-xs">{r.action}</code>{r.after && Object.keys(r.after as object).length ? <span className="block max-w-md truncate text-xs text-muted">{JSON.stringify(r.after)}</span> : null}</td></tr>)}</tbody></table>
         {rows.length === 0 ? <p className="p-6 text-center text-sm text-muted">Nothing here.</p> : null}</div>
       {!done ? <Button variant="outline" disabled={pending} onClick={() => fetchMore(false)}>{pending ? <Loader2 className="size-4 animate-spin" /> : null}Show older</Button> : null}
