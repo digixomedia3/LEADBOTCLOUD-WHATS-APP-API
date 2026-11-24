@@ -334,7 +334,9 @@ pnpm typecheck     # 0 errors across the workspace
 pnpm test          # all suites
 ```
 
-Most suites need the dev Postgres and Redis running, because tests use **real Postgres with real RLS**, not mocks. The last full run, repeated three times clean:
+Most suites need the dev Postgres and Redis running, because tests use **real Postgres with real RLS**, not mocks.
+
+The tests read the database settings from the shell environment, not from `.env`. Load them first (`set -a; . ./.env; set +a`) and run `pnpm turbo run test --env-mode=loose` (plain `pnpm test` hides the variables from the tests). All suites share one dev database, so a parallel full run can fail a test or two that pass when the package is run alone. The last full run, repeated three times clean:
 
 | Package | Tests |
 |---|---|
