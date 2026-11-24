@@ -6,13 +6,13 @@ export interface BubbleButton { label: string; kind: 'url' | 'phone' | 'reply' }
 const ICON = { url: ExternalLink, phone: Phone, reply: Reply } as const;
 
 /** A WhatsApp-style message, for showing what a customer receives. Original sample copy, not a real customer. */
-export function Bubble({ from, image, children, buttons = [], time = '10:30 AM', className, imageAlt = '' }: {
-  from: string; image?: string; imageAlt?: string; children: React.ReactNode; buttons?: BubbleButton[]; time?: string; className?: string;
+export function Bubble({ from, image, children, buttons = [], time = '10:30 AM', className, imageAlt = '', imageClassName = 'aspect-[4/3]' }: {
+  from: string; image?: string; imageAlt?: string; imageClassName?: string; children: React.ReactNode; buttons?: BubbleButton[]; time?: string; className?: string;
 }) {
   return (
     <div className={cn('w-full max-w-[19rem] text-[13.5px] leading-snug text-[#111b21]', className)}>
       <div className="overflow-hidden rounded-xl rounded-tl-none bg-white shadow-sm">
-        {image ? <Image src={image} alt={imageAlt} width={640} height={640} className="aspect-[4/3] w-full object-cover" /> : null}
+        {image ? <Image src={image} alt={imageAlt} width={640} height={640} className={cn('w-full object-cover', imageClassName)} /> : null}
         <div className="p-2.5">
           <p className="mb-0.5 text-xs font-bold text-[#027eb5]">{from}</p>
           <div>{children}</div>
