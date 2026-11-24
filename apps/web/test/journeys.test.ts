@@ -159,4 +159,43 @@ describe('journeys (web actions)', () => {
     await sql`insert into journeys (tenant_id, name, status, steps) values (${other}, 'Theirs only', 'active', '[]'::jsonb)`;
     const { listJourneys } = await import('../src/app/(app)/journeys/actions'); expect((await listJourneys()).some((j) => j.name === 'Theirs only')).toBe(false);
   });
+
+  describe('copying a journey', () => {
+    const mod = () => import('../src/app/(app)/journeys/actions');
+    it('copies steps and trigger into a draft with nobody in it, even from a running journey', async () => {
+      const m = await mod(); const a = await save({ name: 'Original run' }); expect(a.ok).toBe(true); const id = (a as { data: { id: string } }).data.id;
+      await sql`update journeys set status = 'active' where id = ${id}`;
+      await sql`insert into journey_runs (tenant_id, journey_id, contact_id, status, step_index, next_run_at) select ${tenant}, ${id}, id, 'active', 0, now() from contacts where tenant_id = ${tenant} limit 1`;
+      const c = await m.duplicateJourney(id); expect(c.ok).toBe(true); if (!c.ok) return;
+      expect(c.data.name).toBe('Original run (copy)');
+      const [o] = await sql`select status, steps, trigger, stop_on_reply from journeys where id = ${id}`; const [k] = await sql`select status, steps, trigger, stop_on_reply from journeys where id = ${c.data.id}`;
+      expect(k!.status).toBe('draft'); expect(o!.status).toBe('active');
+      expect(k!.steps).toEqual(o!.steps); expect(k!.trigger).toEqual(o!.trigger); expect(k!.stop_on_reply).toBe(o!.stop_on_reply);
+      expect((await sql`select count(*)::int n from journey_runs where journey_id = ${c.data.id}`)[0]!.n).toBe(0);
+      expect((await sql`select count(*)::int n from journey_runs where journey_id = ${id}`)[0]!.n).toBe(1);
+      expect((await sql`select count(*)::int n from audit_log where tenant_id = ${tenant} and action = 'journey.duplicated' and entity_id = ${c.data.id}`)[0]!.n).toBe(1);
+    });
+    it('numbers repeat copies and never copies a copy into "(copy) (copy)"', async () => {
+      const m = await mod(); const a = await save({ name: 'Seq base' }); const id = (a as { data: { id: string } }).data.id;
+      const c1 = await m.duplicateJourney(id), c2 = await m.duplicateJourney(id);
+      expect(c1.ok && c1.data.name).toBe('Seq base (copy)'); expect(c2.ok && c2.data.name).toBe('Seq base (copy 2)');
+      const c3 = await m.duplicateJourney((c1 as { data: { id: string } }).data.id); expect(c3.ok && c3.data.name).toBe('Seq base (copy 3)');
+    });
+    it('treats names case-insensitively and stays inside the 80-letter name limit', async () => {
+      const m = await mod(); await sql`insert into journeys (tenant_id, name, status, steps) values (${tenant}, 'case base (COPY)', 'draft', '[]'::jsonb)`;
+      const a = await save({ name: 'Case base' }); const c = await m.duplicateJourney((a as { data: { id: string } }).data.id); expect(c.ok && c.data.name).toBe('Case base (copy 2)');
+      const long = 'L'.repeat(80); await sql`insert into journeys (tenant_id, name, status, steps) values (${tenant}, ${long}, 'draft', '[]'::jsonb)`;
+      const [lj] = await sql`select id from journeys where tenant_id = ${tenant} and name = ${long}`; const lc = await m.duplicateJourney(lj!.id);
+      expect(lc.ok).toBe(true); if (lc.ok) expect(lc.data.name.length).toBeLessThanOrEqual(80);
+    });
+    it('refuses bad ids, missing journeys, another workspace\'s journey, and anyone below admin', async () => {
+      const m = await mod(); expect((await m.duplicateJourney('nope')).ok).toBe(false); expect((await m.duplicateJourney(randomUUID())).ok).toBe(false);
+      const [t] = await sql`insert into journeys (tenant_id, name, status, steps) values (${other}, 'Not yours', 'draft', '[]'::jsonb) returning id`;
+      const r = await m.duplicateJourney(t!.id); expect(r.ok).toBe(false);
+      expect((await sql`select count(*)::int n from journeys where name like 'Not yours%' and tenant_id = ${tenant}`)[0]!.n).toBe(0);
+      const a = await save({ name: 'Role base' }); const id = (a as { data: { id: string } }).data.id; const before = (await sql`select count(*)::int n from journeys where tenant_id = ${tenant}`)[0]!.n;
+      for (const r2 of ['agent', 'viewer'] as const) { role = r2; const x = await m.duplicateJourney(id); expect(x.ok).toBe(false); }
+      role = 'owner'; expect((await sql`select count(*)::int n from journeys where tenant_id = ${tenant}`)[0]!.n).toBe(before);
+    });
+  });
 });

@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
-import { ArrowDown, ArrowUp, Clock, Filter, Loader2, MessageSquare, Pause, Play, Plus, Route, Tag, Trash2, UserCheck, Users, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Clock, Copy, Filter, Loader2, MessageSquare, Pause, Play, Plus, Route, Tag, Trash2, UserCheck, Users, X } from 'lucide-react';
 import { CHECKS, CHECK_LABEL, MAX_STEPS, checkNeedsTag, describeMinutes, describeStep, describeTrigger, journeyProblem, totalWaitMinutes, type Check, type JourneyStep, type JourneyTrigger } from '@lbc/shared/journeys';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input, Select } from '@/components/ui/form';
 import { Modal } from '@/components/ui/modal';
 import { cn } from '@/lib/utils';
-import { deleteJourney, enrollGroup, listRuns, saveJourney, setJourneyStatus, stopAllRuns, type JourneyRow, type RunRow, type TemplateChoice, type Teammate } from '@/app/(app)/journeys/actions';
+import { deleteJourney, duplicateJourney, enrollGroup, listRuns, saveJourney, setJourneyStatus, stopAllRuns, type JourneyRow, type RunRow, type TemplateChoice, type Teammate } from '@/app/(app)/journeys/actions';
 
 interface Group { id: string; name: string; count: number }
 interface Source { id: string; name: string }
@@ -59,6 +59,7 @@ export function JourneysView({ initial, templates, groups, sources, people, canE
                     ? <Button size="sm" variant="outline" disabled={pending} onClick={() => act(() => setJourneyStatus(j.id, 'paused'), 'Paused. Nobody moves until you start it again.')}><Pause className="size-3.5" />Pause</Button>
                     : <Button size="sm" disabled={pending} onClick={() => act(() => setJourneyStatus(j.id, 'active'), 'Started.')}><Play className="size-3.5" />Start</Button>}
                   {j.status === 'active' ? <Button size="sm" variant="outline" onClick={() => setDetail(j)}><Users className="size-3.5" />Add a group</Button> : <Button size="sm" variant="outline" onClick={() => setEditing(j)}>Edit</Button>}
+                  <Button size="sm" variant="outline" disabled={pending} onClick={() => act(() => duplicateJourney(j.id), 'Copied as a draft. Nobody is in it.')}><Copy className="size-3.5" />Copy</Button>
                   {j.status !== 'active' ? <Button size="sm" variant="outline" disabled={pending} onClick={() => { if (confirm(`Delete “${j.name}”? People already in it stop.`)) act(() => deleteJourney(j.id), 'Deleted.'); }}><Trash2 className="size-3.5" />Delete</Button> : null}
                 </div>) : null}
             </li>))}

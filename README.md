@@ -48,7 +48,7 @@ Operator: DigiXoMedia (India). Meta model: **Tech Provider + Embedded Signup**. 
 | **Connections** | OAuth connectors for Meta Lead Ads, Shopify and Google Sheets, with encrypted tokens, PKCE and a status page. |
 | **Templates** | A builder with a live WhatsApp-style preview, a linter for Meta's rules, 17 starter templates, picture/video/PDF headers, limited-time offers and copy-code buttons. |
 | **Campaigns** | Saved audience segments, a cost preview before every send, per-day spend caps, quiet hours, send speed, test sends, tracked links with click reports, retargeting, and A/B tests including "test on a small group, hold the rest, send the winner". A report page shows the funnel and exports CSV. |
-| **Journeys** | Drip sequences started by a new lead, a tag or manually: wait, send a template, add a tag, check a condition (replied, clicked, tag), assign to a teammate. They stop on reply, opt-out or unreachable numbers. |
+| **Journeys** | Drip sequences started by a new lead, a tag or manually (any journey can be **copied** as a draft with nobody in it): wait, send a template, add a tag, check a condition (replied, clicked, tag), assign to a teammate. They stop on reply, opt-out or unreachable numbers. |
 | **Chats** | A shared team inbox with real inbound handling, photos, voice, documents, locations and contacts both ways, quick replies, keyword auto-replies and STOP handling. |
 | **Pipeline** | A board of leads by stage with value. |
 | **Renewals** | Expiry reminders with a payment link, auto-marked paid. |
@@ -342,7 +342,7 @@ Most suites need the dev Postgres and Redis running, because tests use **real Po
 | `@lbc/db` | 144 |
 | `@lbc/meta` | 87 |
 | `@lbc/worker` | 415 |
-| `@lbc/web` | 315 |
+| `@lbc/web` | 319 |
 
 Practices that matter here:
 

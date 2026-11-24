@@ -140,6 +140,24 @@ export async function setJourneyStatus(id: string, to: 'active' | 'paused'): Pro
   });
 }
 
+/** Makes a draft copy of a journey (any status). The copy starts paused as a draft with nobody in it, so it can never send before someone reads it. */
+export async function duplicateJourney(id: string): Promise<Result<{ id: string; name: string }>> {
+  const g = await admin(); if ('error' in g) return fail(g.error);
+  if (!UUID.test(id)) return fail('That journey id is not valid.');
+  return db(g.ctx, async (tx) => {
+    const [j] = await tx.select().from(journeys).where(eq(journeys.id, id));
+    if (!j) return fail('That journey was not found.');
+    const taken = new Set(((await tx.execute(sql`select lower(name) as n from journeys`)) as unknown as { n: string }[]).map((r) => r.n));
+    const base = j.name.replace(/ \(copy( \d+)?\)$/i, '').slice(0, 60);
+    let name = `${base} (copy)`, n = 2;
+    while (taken.has(name.toLowerCase())) name = `${base} (copy ${n++})`;
+    const [row] = await tx.insert(journeys).values({ tenantId: g.ctx.tenantId, name, trigger: j.trigger, steps: j.steps, stopOnReply: j.stopOnReply, createdBy: g.ctx.user.id }).returning({ id: journeys.id });
+    await audit(tx, 'journey.duplicated', 'journey', row!.id, { from: id, name });
+    revalidatePath('/journeys');
+    return { ok: true as const, data: { id: row!.id, name } };
+  });
+}
+
 export async function deleteJourney(id: string): Promise<Result> {
   const g = await admin(); if ('error' in g) return fail(g.error);
   if (!UUID.test(id)) return fail('That journey id is not valid.');

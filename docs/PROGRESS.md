@@ -2,16 +2,17 @@
 
 Shared memory between sessions. Newest state first. Updated from git history and the live server, not from memory.
 
-## Current state (commit 1f709f4, branch feat/auth-contacts, local commits only, no remote)
+## Current state (GitHub: digixomedia3/LEADBOTCLOUD-WHATS-APP-API, `main`)
+The repo is shared by Abdullah and Deep (each with their own Hermes). Always `git fetch` and read this file and `README.md` before working; push and update both after each piece of work.
 Live at https://34-134-248-202.sslip.io (shipped with `lbc-deploy`; see `docs/RUNBOOK.md`). 58 migrations (latest `0056_complimentary_plans`).
-Suites at last run (3 clean passes): shared 321, db 144, meta 87, worker 415, web 315. Typecheck has 0 errors across the workspace. Typecheck and lint clean except one old type error in `packages/db/test/rls.test.ts:185`.
+Suites at last run (3 clean passes): shared 321, db 144, meta 87, worker 415, web 319. Typecheck has 0 errors across the workspace. Typecheck and lint clean except one old type error in `packages/db/test/rls.test.ts:185`.
 
 **Nothing has run against real Meta, Razorpay or email.** Everything is built and tested against fakes. The DigiXO number is registered on another WhatsApp account and cannot be used until that is resolved.
 
 ## What exists (see GROWTH-PLAN.md for the phase list)
 - Lead engine, capture channels, OAuth connectors (Meta Lead Ads, Shopify, Google Sheets), template studio incl. media headers and offers, segments.
 - Campaigns: cost preview, spend caps, quiet hours, send speed, test send, tracked links and retarget, A/B tests, and **A/B "test first on a small group, keep the rest back, send the chosen winner"** (`apps/worker/src/ab-release.ts`; re-checks consent, offer, spend cap and connection at release; exactly once).
-- Journeys (wait, template, tag, only-if checks, assign) and a pipeline board. Lead scoring is parked in `git stash` ("not core").
+- Journeys (wait, template, tag, only-if checks, assign) and a pipeline board. **Copy a journey** (`duplicateJourney` in `apps/web/src/app/(app)/journeys/actions.ts`): admin/owner only, works on any status, the copy is always a draft with nobody in it, named `X (copy)`, `X (copy 2)`... (case-insensitive, never stacks "(copy) (copy)", stays within the 80-letter limit), audit `journey.duplicated`. Lead scoring is parked in `git stash` ("not core").
 - Inbox: real inbound handling, inbound and outbound media, 90-day file retention, contact erasure, workspace closure (30-day window, export).
 - Billing: Razorpay checkout, GST invoices, webhooks (tested against a fake). **Complimentary plans**: staff give a plan for 1 to 365 days with a reason; one database rule `effective_plan()` (better of paid and gift) is used by billing, expiry (`apps/worker/src/grants.ts`) and staff actions.
 - Agent API: keys and the MCP server can create A/B and "test first" campaigns and choose the winner (`send_winner`, `POST /api/v1/campaigns/{id}/winner`). The key must have created AND started the campaign, so the whole audience's cost is already inside its limits; see `docs/AI-AGENTS.md`.
