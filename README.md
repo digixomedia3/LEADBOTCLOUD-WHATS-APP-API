@@ -216,7 +216,7 @@ pnpm --filter @lbc/db admin:reset-2fa you@x.com   # recovery: clears 2FA, signs 
 
 Design rules (from `AGENTS.md`): mobile first at 360px, no Meta jargon in the UI ("Template" and "Campaigns", never "message format" or "broadcast"), light mode by default with a manual dark toggle, one main action per screen, every error says what happened and what to do next, strings centralised for later Hindi.
 
-The public homepage (`src/app/page.tsx`, parts in `src/components/marketing/`) is a sales page built around interaction: a playable WhatsApp conversation in the hero, a "press send" list simulation driven by the visitor's own numbers (cost from `lib/cost`, sales only from their guesses), tabbed screens for how it works, and a business-type picker. All names and figures on it are labelled samples. Its styles live under `.lp` in `globals.css`.
+The public homepage (`src/app/page.tsx`, parts in `src/components/home/`) is built around Deep's own hero design: an animated capture → qualify → convert stage (`hero.tsx`, driven by `hero-engine.ts`), then how it works, ready-made flows from the template library, a cost calculator (`lib/cost`), the pre-send safety checks, app-vs-platform comparison, pricing (`billing` + `PLAN_LIMITS`), FAQ and a closing call to action. All names and figures on it are labelled samples. Its styles live under `.hx` in `globals.css`, which pins the Tailwind v3 colour palette the hero was drawn with.
 
 The Contacts, Chats and Settings screens have been swept at 360px and 390px; a layout test guards the two patterns that previously caused sideways scroll.
 

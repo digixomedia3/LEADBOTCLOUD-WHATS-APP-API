@@ -2,37 +2,30 @@
 
 Shared memory between sessions (and between Deep and Abdullah). Newest state first. Updated from git history and a real test run, not from memory. Procedures: `docs/agent/RESUME.md`, `docs/agent/HANDOVER.md`.
 
-## Latest handover: 2026-11-25 IST · by Deep (Hermes) · merged to `main` at 7274aad (2026-11-25), NOT yet deployed
+## Latest handover: 2026-11-25 IST · by Deep (Hermes) · branch `feat/homepage-rebuild` (from `main` fd407d4), NOT merged, NOT deployed
 ### What was done this session
-- Redesigned the public homepage (`apps/web/src/app/page.tsx`) after a critique scored the old one 5/10 against the brief: highly visual, visually explanatory, interactive, high-converting. No backend, schema or env changes.
-- Hero: a playable WhatsApp conversation (visitor taps "Book a demo"/"Call me back", sees the reply, the typing dots and the answer) with sample cost and skipped chips. `components/marketing/hero-phone.tsx`.
-- "Press send. See what wakes up.": four sliders drive a 200-dot picture of the visitor's list; pressing send lights the reachable dots and gold dots buy. Exact cost from `lib/cost` (Meta India rate); sales only from the visitor's own guesses. `wake-stage.tsx` (replaces `sleeping-calc.tsx`, deleted).
-- How it works: four keyboard-accessible tabs with readable mock screens (upload with skipped rows, cost review, inbox, renewals). `how-tabs.tsx`.
-- "Pick your business": six business types, one phone, what to send. `business-picker.tsx`. Safety shown as a four-step pipeline with sample numbers. Comparison and pricing redrawn; 10-question FAQ kept.
-- Mobile: hamburger menu, sticky "Start free" bar (`site-chrome.tsx`), phone demo right under the headline. New display font (Bricolage Grotesque), WhatsApp-green palette, chat-doodle texture; styles under `.lp` in `globals.css`.
-- Merged `docs/progress-handover` into this branch (PROGRESS format + README test note).
+- Rebuilt the public homepage from scratch around a hero Deep made himself (Gemini/Neon draft, `leadbotcloud_dynamic_hero_section-2.html`). The previous homepage on `main` and the v3 branch were not reused; `components/marketing/` and the `.lp` CSS were deleted. No backend, schema or env changes.
+- Hero (`components/home/hero.tsx` + `hero-engine.ts`): the draft's markup and its motion script ported to Next.js/Tailwind v4. At 1440px every measured element box matches the draft exactly (x, y, width, height, font, size, tracking). The Tailwind v3 palette is pinned under `.hx` because v4's OKLCH colours render differently. Additions: Log in link (lg+), "Sample chat & figures" label, reduced motion shows the finished state, the loop pauses off screen. Below 640px only: one-line header with a menu, stacked CTAs, one-line phase pills, three-up source cards, tabs that fit 360px, and vertical connectors where the desktop wires are hidden. The draft's trial modal was dropped: CTAs go to `/signup` (`/dashboard` when signed in).
+- New sections in the hero's language (white glass stage, Jakarta display type, amber = capture, indigo = qualify, emerald = convert/money/safe, rose = skipped): trust strip (official platform, own number, no markup, test-mode disclosure); How it works (3 auto-advancing, keyboard tabs: lead inbox, journey flow, team inbox + sales board + renewal); Flows (6 real templates from `TEMPLATE_LIBRARY` played in a phone, per-message charge from `lib/cost`); cost calculator (`estimateCost`, message type, spend cap that holds the send); number-safety pipeline (sample list of 3,000 through 4 checks); app vs LeadBotCloud; pricing from `PLAN_PRICE_PAISE` + `PLAN_LIMITS` with a contact slider that picks the plan; FAQ; closing CTA; footer. Phone: sticky Start bar, pricing as a swipe rail.
+- `layout.tsx`: Inter and Plus Jakarta Sans now load `latin-ext` too, so ₹ renders in the font.
 ### Current state of the app (what works end to end right now)
-Unchanged apart from the homepage. Still built and tested against fakes only; nothing has run against real Meta, Razorpay or email. Live site (Abdullah's VM) still shows the OLD homepage. Code is on `main`; it needs `lbc-deploy` from the machine that has SSH access to the server (Deep's host cannot reach port 22).
+Unchanged apart from the homepage. Built and tested against fakes only. `main` still has the previous homepage (merged 7274aad, not deployed); the live VM still shows the older one.
 ### How to run it locally (exact commands, any new env vars, migrations, seed data)
-Same commands as the History entry below. No new env variables. Build check: `NODE_ENV=production pnpm exec next build` (a `.env` copied from `.env.example` sets `NODE_ENV=development`, which makes `next build` fail on the /404 page with "<Html> should not be imported").
+Same as before. No new env variables. Build check: `NODE_ENV=production pnpm exec next build`.
 ### How to test what changed
-1. `pnpm --filter @lbc/web dev`, open http://localhost:3000/ at 1440px and at 360px.
-2. Hero: tap "Book a demo" in the phone; the reply, typing dots and answer appear; untouched, it loops by itself. With reduced motion it shows the finished conversation.
-3. Section 2: move sliders (cost and skipped counts change), press "Send to my list" (dots light up, sales count up), "Put them back to sleep" resets.
-4. "How it works": click or use the arrow keys on the tabs; it auto-advances until you touch it.
-5. 360px: header has a menu button and Start free on one line, no sideways scroll, sticky bar appears after the first screen and hides at the closing section. Dark mode via the moon icon.
+1. Open `/` at 1440 and 360. Hero loops by itself; scenario tabs, source cards, Pause/Replay and Trigger Live Demo control it.
+2. How it works: arrow keys move the tabs; auto-advance stops once touched. Flows: tap a flow, the phone replays it. Cost: slider, type and cap change the receipt; a low cap shows "Held". Pricing: the slider moves the "Fits" badge.
+3. Dark mode (`localStorage['lbc-theme']='dark'` or the pill), reduced motion (finished hero, no autoplay), no sideways scroll at 360.
 ### Not finished / known bugs / failing tests
-- Visual judgement only: no automated test covers the homepage (lint, typecheck and the 315 web tests pass; production build passes, homepage 159 kB first-load JS).
-- No Open Graph share image yet. Stock photos still come from Pexels (see `public/people/CREDITS.md`); the sample business names are made up and labelled.
-- Not yet checked on a real phone or in Safari. Mobile was checked in headless Chrome at 360px.
-- Copy to confirm with Deep/Abdullah: the 256-list claim and the Meta rate are carried over from the old page and still need checking against Meta's own rate sheet.
+- Checks run: lint, typecheck, 315/315 web tests, production build; headless Chrome at 1440 and 360, dark, reduced motion. Not checked on a real phone or Safari.
+- Copy decisions for Deep before merging (the hero copy is his, kept as supplied): the stats "< 1.2s", "3.4x Lead Conversion", "98% Open Rate" and "Replies in 0.8s" are not measured; "AI Qualify / Cloud AI Engine" describes AI the product does not have (journeys and keyword auto-replies, no AI); "Instant Booking ... calendar invite" has no calendar integration; "sync ... to your CRM" means the built-in sales board and webhooks.
+- Homepage strings are inline, not in `packages/shared/i18n/en.json` (existing debt).
 ### Next steps (ordered, with the spec section to read for each)
-1. Abdullah (or whoever has `lbc-deploy`) pulls `main` and deploys, then checks `/version` shows the new commit and that `/` and `/login` load. Roll back with `deploy.sh --rollback` if not. No migrations in this change.
-2. Add an Open Graph image and replace stock photos with real customer proof when available.
-3. Then the items from the previous handover (real Meta/Razorpay/SMTP, branch policy for `dev`).
+1. Deep reviews the preview and decides the copy items above.
+2. On approval: merge `feat/homepage-rebuild` into `main`, then whoever holds `lbc-deploy` deploys and checks `/version`, `/` and `/login`.
 ### Decisions made + open questions (also update docs/open-questions.md)
-- Decision: calculator reframed as a "send" interaction; results only from the visitor's own inputs, no invented benchmarks.
-- Decision: removed the stock-photo "who it is for" grid and the marquee; business types now live in the picker.
+- Decision: desktop hero is pixel-matched to Deep's draft; phone-width layout fixed where the draft wrapped or clipped.
+- Decision: every rupee figure outside the hero comes from `lib/cost`, `billing` or `PLAN_LIMITS` and is labelled as a sample; demo names are samples.
 ### Credentials/env changes the other developer needs (names only, never values)
 None.
 
@@ -50,6 +43,40 @@ None.
 (Rows marked "verify" or "not confirmed" were not checked line by line against the spec this session.)
 
 ## History
+### Handover: 2026-11-25 IST · by Deep (Hermes) · merged to `main` at 7274aad (2026-11-25), NOT yet deployed
+#### What was done this session
+- Redesigned the public homepage (`apps/web/src/app/page.tsx`) after a critique scored the old one 5/10 against the brief: highly visual, visually explanatory, interactive, high-converting. No backend, schema or env changes.
+- Hero: a playable WhatsApp conversation (visitor taps "Book a demo"/"Call me back", sees the reply, the typing dots and the answer) with sample cost and skipped chips. `components/marketing/hero-phone.tsx`.
+- "Press send. See what wakes up.": four sliders drive a 200-dot picture of the visitor's list; pressing send lights the reachable dots and gold dots buy. Exact cost from `lib/cost` (Meta India rate); sales only from the visitor's own guesses. `wake-stage.tsx` (replaces `sleeping-calc.tsx`, deleted).
+- How it works: four keyboard-accessible tabs with readable mock screens (upload with skipped rows, cost review, inbox, renewals). `how-tabs.tsx`.
+- "Pick your business": six business types, one phone, what to send. `business-picker.tsx`. Safety shown as a four-step pipeline with sample numbers. Comparison and pricing redrawn; 10-question FAQ kept.
+- Mobile: hamburger menu, sticky "Start free" bar (`site-chrome.tsx`), phone demo right under the headline. New display font (Bricolage Grotesque), WhatsApp-green palette, chat-doodle texture; styles under `.lp` in `globals.css`.
+- Merged `docs/progress-handover` into this branch (PROGRESS format + README test note).
+#### Current state of the app (what works end to end right now)
+Unchanged apart from the homepage. Still built and tested against fakes only; nothing has run against real Meta, Razorpay or email. Live site (Abdullah's VM) still shows the OLD homepage. Code is on `main`; it needs `lbc-deploy` from the machine that has SSH access to the server (Deep's host cannot reach port 22).
+#### How to run it locally (exact commands, any new env vars, migrations, seed data)
+Same commands as the History entry below. No new env variables. Build check: `NODE_ENV=production pnpm exec next build` (a `.env` copied from `.env.example` sets `NODE_ENV=development`, which makes `next build` fail on the /404 page with "<Html> should not be imported").
+#### How to test what changed
+1. `pnpm --filter @lbc/web dev`, open http://localhost:3000/ at 1440px and at 360px.
+2. Hero: tap "Book a demo" in the phone; the reply, typing dots and answer appear; untouched, it loops by itself. With reduced motion it shows the finished conversation.
+3. Section 2: move sliders (cost and skipped counts change), press "Send to my list" (dots light up, sales count up), "Put them back to sleep" resets.
+4. "How it works": click or use the arrow keys on the tabs; it auto-advances until you touch it.
+5. 360px: header has a menu button and Start free on one line, no sideways scroll, sticky bar appears after the first screen and hides at the closing section. Dark mode via the moon icon.
+#### Not finished / known bugs / failing tests
+- Visual judgement only: no automated test covers the homepage (lint, typecheck and the 315 web tests pass; production build passes, homepage 159 kB first-load JS).
+- No Open Graph share image yet. Stock photos still come from Pexels (see `public/people/CREDITS.md`); the sample business names are made up and labelled.
+- Not yet checked on a real phone or in Safari. Mobile was checked in headless Chrome at 360px.
+- Copy to confirm with Deep/Abdullah: the 256-list claim and the Meta rate are carried over from the old page and still need checking against Meta's own rate sheet.
+#### Next steps (ordered, with the spec section to read for each)
+1. Abdullah (or whoever has `lbc-deploy`) pulls `main` and deploys, then checks `/version` shows the new commit and that `/` and `/login` load. Roll back with `deploy.sh --rollback` if not. No migrations in this change.
+2. Add an Open Graph image and replace stock photos with real customer proof when available.
+3. Then the items from the previous handover (real Meta/Razorpay/SMTP, branch policy for `dev`).
+#### Decisions made + open questions (also update docs/open-questions.md)
+- Decision: calculator reframed as a "send" interaction; results only from the visitor's own inputs, no invented benchmarks.
+- Decision: removed the stock-photo "who it is for" grid and the marquee; business types now live in the picker.
+#### Credentials/env changes the other developer needs (names only, never values)
+None.
+
 ### Handover: 2026-11-25 IST · by Deep (Hermes) · branch docs/progress-handover · based on main e187d87
 #### What was done this session
 - Read-only audit of GitHub; set up a second machine (Deep's Hermes host) from scratch and ran every suite. No app code changed.
