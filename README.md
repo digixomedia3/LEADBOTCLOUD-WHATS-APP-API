@@ -216,6 +216,8 @@ pnpm --filter @lbc/db admin:reset-2fa you@x.com   # recovery: clears 2FA, signs 
 
 Design rules (from `AGENTS.md`): mobile first at 360px, no Meta jargon in the UI ("Template" and "Campaigns", never "message format" or "broadcast"), light mode by default with a manual dark toggle, one main action per screen, every error says what happened and what to do next, strings centralised for later Hindi.
 
+The public homepage (`src/app/page.tsx`, parts in `src/components/marketing/`) is a sales page built around interaction: a playable WhatsApp conversation in the hero, a "press send" list simulation driven by the visitor's own numbers (cost from `lib/cost`, sales only from their guesses), tabbed screens for how it works, and a business-type picker. All names and figures on it are labelled samples. Its styles live under `.lp` in `globals.css`.
+
 The Contacts, Chats and Settings screens have been swept at 360px and 390px; a layout test guards the two patterns that previously caused sideways scroll.
 
 ---
@@ -334,7 +336,9 @@ pnpm typecheck     # 0 errors across the workspace
 pnpm test          # all suites
 ```
 
-Most suites need the dev Postgres and Redis running, because tests use **real Postgres with real RLS**, not mocks. The last full run, repeated three times clean:
+Most suites need the dev Postgres and Redis running, because tests use **real Postgres with real RLS**, not mocks.
+
+The tests read the database settings from the shell environment, not from `.env`. Load them first (`set -a; . ./.env; set +a`) and run `pnpm turbo run test --env-mode=loose` (plain `pnpm test` hides the variables from the tests). All suites share one dev database, so a parallel full run can fail a test or two that pass when the package is run alone. The last full run, repeated three times clean:
 
 | Package | Tests |
 |---|---|
