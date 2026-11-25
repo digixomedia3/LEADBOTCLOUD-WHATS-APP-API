@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CONTAINER, Check, Icon, SAMPLE_TAG, STAGE, SectionHead } from './kit';
+import { Band, CONTAINER, Check, Icon, SAMPLE_TAG, STAGE, SectionHead } from './kit';
 import { useInView, useReducedMotion } from './client-kit';
 
 export type SafetyNode = { icon: string; title: string; value: string; unit: string; skip?: string; note: string };
@@ -21,9 +21,9 @@ export function Safety({ nodes }: { nodes: SafetyNode[] }) {
   }, [inView, reduced, nodes.length]);
 
   return (
-    <section id="safety" className="scroll-mt-20 py-16 sm:py-24 border-y border-slate-900/[0.05] dark:border-white/[0.05] bg-white/40 dark:bg-white/[0.015]" aria-labelledby="safety-title">
+    <Band tone="canvas" id="safety" labelledBy="safety-title" className="py-16 sm:py-24">
       <div className={CONTAINER}>
-        <SectionHead id="safety-title" tone="emerald" eyebrow="Number safety" title="Every send passes" highlight="four checks first."
+        <SectionHead id="safety-title" tone="emerald" n="04" eyebrow="Number safety" title="Every send passes" highlight="four checks first."
           lead="A blocked number costs more than any campaign. So the checks run before every send, not after a complaint." />
 
         <div ref={ref} className={`sr-in ${STAGE} mt-10 sm:mt-12 p-4 sm:p-6 lg:p-8`}>
@@ -80,6 +80,6 @@ export function Safety({ nodes }: { nodes: SafetyNode[] }) {
         </div>
         <p className="sr-in mt-4 text-[12.5px] text-slate-500 dark:text-slate-400 max-w-3xl">Honest note: nobody can promise Meta will never act on a number. Sending messages people asked for is what keeps it healthy. These checks make that the default.</p>
       </div>
-    </section>
+    </Band>
   );
 }

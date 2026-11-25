@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { estimateCost, GST_PCT, RATE_PAISE_X100 } from '@/lib/cost';
-import { CARD, CONTAINER, Check, Icon, SAMPLE_TAG, STAGE, SectionHead } from './kit';
+import { Band, CARD, CONTAINER, Check, Icon, SAMPLE_TAG, STAGE, SectionHead } from './kit';
 
 /** Cost before you send: every figure is estimateCost() from lib/cost (Meta India rate card), shown as a sample estimate. */
 const TYPES = [
@@ -29,9 +29,9 @@ export function CostCheck() {
   const rate = RATE_PAISE_X100[type];
 
   return (
-    <section id="cost" className="scroll-mt-20 py-16 sm:py-24" aria-labelledby="cost-title">
+    <Band tone="night" id="cost" labelledBy="cost-title" className="py-16 sm:py-24">
       <div className={CONTAINER}>
-        <SectionHead id="cost-title" tone="emerald" eyebrow="Cost, before you send" title="Know the exact cost" highlight="before you press send."
+        <SectionHead id="cost-title" tone="emerald" n="03" eyebrow="Cost, before you send" title="Know the exact cost" highlight="before you press send."
           lead="Meta charges per message. LeadBotCloud adds up the total with GST before anything goes out, and holds the campaign if it is over your cap." />
 
         <div className={`sr-in ${STAGE} mt-10 sm:mt-12 p-4 sm:p-6 lg:p-8`}>
@@ -132,6 +132,6 @@ export function CostCheck() {
           </div>
         </div>
       </div>
-    </section>
+    </Band>
   );
 }

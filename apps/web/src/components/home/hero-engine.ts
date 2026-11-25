@@ -44,7 +44,7 @@ export const SCENARIOS: Scenario[] = [
     ],
   },
   {
-    id: 1, name: 'Cart Recovery', sourceIndex: 1, phoneTag: 'Cart AI',
+    id: 1, name: 'Cart Recovery', sourceIndex: 1, phoneTag: 'Cart Flow',
     customerMsg: 'Left items in checkout: Pro Skincare Bundle (₹4,116)',
     botReply: 'Still thinking it over? ✨ Complete your order now & unlock an instant 15% off.',
     quickReplies: ['Apply 15% & Pay ₹3,499', 'Save for Later'], selectedReplyIndex: 0, verifiedBadge: 'Order Recovered',
@@ -59,9 +59,9 @@ export const SCENARIOS: Scenario[] = [
     ],
   },
   {
-    id: 2, name: 'Instant Booking', sourceIndex: 2, phoneTag: 'Calendar AI',
+    id: 2, name: 'Instant Booking', sourceIndex: 2, phoneTag: 'Booking Flow',
     customerMsg: 'Interested in the VIP Growth Demo from your broadcast!',
-    botReply: 'Awesome! 🚀 Pick a live 15-min slot below and I will lock in your calendar invite:',
+    botReply: 'Awesome! 🚀 Pick a 15-min slot below and I’ll confirm it right here:',
     quickReplies: ['Tomorrow, 11:00 AM', 'Tomorrow, 4:30 PM'], selectedReplyIndex: 0, verifiedBadge: 'Calendar Confirmed',
     leadPool: [
       { name: 'Rohan Verma', tag: 'Booked', value: '₹24,000', numericValue: 24000, tagStyle: 'indigo' },
@@ -246,7 +246,7 @@ export function startHeroEngine(root: HTMLElement): () => void {
   /* ---- Renderers ---- */
   const PHASES = [
     { active: 'bg-amber-500/12 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/35', dot: 'bg-amber-500', status: 'Capturing Incoming Lead...' },
-    { active: 'bg-indigo-500/12 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/35', dot: 'bg-indigo-500', status: 'Cloud AI Qualifying...' },
+    { active: 'bg-indigo-500/12 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/35', dot: 'bg-indigo-500', status: 'Qualifying Lead...' },
     { active: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/35', dot: 'bg-emerald-500', status: 'CRM Synced & Converted' },
   ];
   function setActivePhase(n: number) {

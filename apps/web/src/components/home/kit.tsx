@@ -24,23 +24,73 @@ export const BTN_SECONDARY =
 export const SAMPLE_TAG =
   'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-slate-900/[0.05] dark:bg-white/[0.07] text-slate-500 dark:text-slate-400';
 
-export function Eyebrow({ tone, children }: { tone: Tone; children: ReactNode }) {
+/**
+ * Page rhythm. Every section sits in a full-width band so sections never blur into each other:
+ *  canvas = the hero's dotted canvas (transparent, the fixed glow shows through), paper = solid white band,
+ *  night = a dark band (adds the `dark` class, so every `dark:` style inside applies even in light mode).
+ * Bands are separated by a hairline; a centred gradient rule marks the top of the paper and night bands.
+ */
+export type BandTone = 'canvas' | 'paper' | 'night';
+const BAND: Record<BandTone, string> = {
+  canvas: 'relative',
+  paper: 'relative bg-white dark:bg-[#0A0F1A] border-y border-slate-900/[0.07] dark:border-white/[0.07]',
+  night: 'dark relative isolate overflow-hidden bg-[#070B14] text-slate-100 border-y border-white/[0.06]',
+};
+export function Band({ tone, id, labelledBy, className = '', children }: { tone: BandTone; id?: string; labelledBy?: string; className?: string; children: ReactNode }) {
   return (
-    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white dark:bg-slate-900/90 border border-slate-900/[0.08] dark:border-white/[0.1] shadow-xs">
-      <span className={`w-2 h-2 rounded-full ${TONE[tone].dot}`} />
+    <section id={id} aria-labelledby={labelledBy} className={`${BAND[tone]} scroll-mt-16 ${className}`}>
+      {tone !== 'canvas' ? <div className="absolute inset-x-0 -top-px h-px bg-linear-to-r/srgb from-transparent via-emerald-500/50 to-transparent pointer-events-none" aria-hidden="true" /> : null}
+      {tone === 'night' ? (
+        <div className="absolute inset-0 -z-10 pointer-events-none" aria-hidden="true">
+          <div className="absolute inset-0 bg-dot-grid opacity-70" />
+          <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[760px] h-[420px] rounded-full bg-emerald-500/[0.13] blur-[120px]" />
+          <div className="absolute -bottom-40 -left-20 w-[520px] h-[380px] rounded-full bg-indigo-600/[0.14] blur-[120px]" />
+        </div>
+      ) : null}
+      {children}
+    </section>
+  );
+}
+
+export function Eyebrow({ tone, children, n }: { tone: Tone; children: ReactNode; n?: string }) {
+  return (
+    <div className="inline-flex items-center gap-2 pl-1.5 pr-3.5 py-1 rounded-full bg-white dark:bg-slate-900/90 border border-slate-900/[0.08] dark:border-white/[0.1] shadow-xs">
+      {n ? <span className={`min-w-6 h-6 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold tabular-nums ${TONE[tone].soft}`}>{n}</span> : <span className={`ml-1.5 w-2 h-2 rounded-full ${TONE[tone].dot}`} />}
       <span className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-200">{children}</span>
     </div>
   );
 }
 
-export function SectionHead({ tone, eyebrow, title, highlight, lead, center = false, id }: { tone: Tone; eyebrow: string; title: string; highlight: string; lead?: ReactNode; center?: boolean; id?: string }) {
+/** Section heading. `split` (default) puts the title left and the lead right on desktop, bottom-aligned, so wide screens
+ *  are used instead of leaving the right half empty. `center` is for sections that open with a full-width demo. */
+export function SectionHead({ tone, eyebrow, n, title, highlight, lead, align = 'split', id, action }: { tone: Tone; eyebrow: string; n?: string; title: string; highlight: string; lead?: ReactNode; align?: 'split' | 'center'; id?: string; action?: ReactNode }) {
+  const h2 = (
+    <h2 id={id} className="mt-4 font-jk font-extrabold text-[1.95rem] sm:text-[2.4rem] lg:text-[2.65rem] leading-[1.08] tracking-[-0.035em] text-[#0F172A] dark:text-white text-balance">
+      {title} <span className={GRAD_TEXT}>{highlight}</span>
+    </h2>
+  );
+  if (align === 'center') {
+    return (
+      <div className="sr-in flex flex-col items-center text-center mx-auto max-w-3xl">
+        <Eyebrow tone={tone} n={n}>{eyebrow}</Eyebrow>
+        {h2}
+        {lead ? <p className="mt-4 text-[1.02rem] sm:text-[1.08rem] leading-[1.65] text-[#475569] dark:text-slate-400 max-w-[620px]">{lead}</p> : null}
+        {action ? <div className="mt-6">{action}</div> : null}
+      </div>
+    );
+  }
   return (
-    <div className={`sr-in flex flex-col ${center ? 'items-center text-center mx-auto' : 'items-start'} max-w-3xl`}>
-      <Eyebrow tone={tone}>{eyebrow}</Eyebrow>
-      <h2 id={id} className="mt-5 font-jk font-extrabold text-[2rem] sm:text-[2.6rem] lg:text-[2.9rem] leading-[1.08] tracking-[-0.035em] text-[#0F172A] dark:text-white text-balance">
-        {title} <span className={GRAD_TEXT}>{highlight}</span>
-      </h2>
-      {lead ? <p className="mt-4 text-[1.02rem] sm:text-[1.08rem] leading-[1.65] text-[#475569] dark:text-slate-400 max-w-[620px]">{lead}</p> : null}
+    <div className="sr-in grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-10 items-end">
+      <div className="lg:col-span-7">
+        <Eyebrow tone={tone} n={n}>{eyebrow}</Eyebrow>
+        {h2}
+      </div>
+      {lead || action ? (
+        <div className="lg:col-span-5 lg:pb-1.5">
+          {lead ? <p className="text-[1.02rem] sm:text-[1.06rem] leading-[1.65] text-[#475569] dark:text-slate-400">{lead}</p> : null}
+          {action ? <div className="mt-4">{action}</div> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

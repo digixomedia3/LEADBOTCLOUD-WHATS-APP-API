@@ -328,7 +328,7 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-.dark .hx { --dot-color: rgba(148, 163, 184, 0.14); }
+.dark .hx, .hx .dark { --dot-color: rgba(148, 163, 184, 0.14); }
 .hx .bg-dot-grid {
   background-image: radial-gradient(var(--dot-color) 1.15px, transparent 1.15px);
   background-size: 24px 24px;
@@ -384,7 +384,7 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 
 /* Phone-only connectors in the hero stage (the desktop Bézier wires need side-by-side columns). */
 .hx .m-wire { position: relative; height: 22px; width: 2px; margin: 0 auto; background-image: linear-gradient(to bottom, rgba(15, 23, 42, 0.16) 50%, transparent 50%); background-size: 2px 6px; }
-.dark .hx .m-wire { background-image: linear-gradient(to bottom, rgba(148, 163, 184, 0.28) 50%, transparent 50%); }
+.dark .hx .m-wire, .hx .dark .m-wire { background-image: linear-gradient(to bottom, rgba(148, 163, 184, 0.28) 50%, transparent 50%); }
 .hx .m-wire::after { content: ''; position: absolute; left: 50%; top: 0; width: 9px; height: 9px; margin-left: -4.5px; border-radius: 9999px; background: #fff; border: 2px solid var(--mw, #f59e0b); box-shadow: 0 0 10px var(--mw, #f59e0b); opacity: 0; }
 .hx .m-wire[data-on='1']::after { animation: hxMWire 0.9s var(--spring-ease) forwards; }
 @keyframes hxMWire { 0% { top: -4px; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { top: calc(100% - 5px); opacity: 0; } }
@@ -401,8 +401,13 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 .hx .pkt-x { position: absolute; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 9999px; background: #fff; border: 2px solid var(--pc, #10b981); box-shadow: 0 0 10px var(--pc, #10b981); animation: hxTravelX var(--pd, 1.6s) var(--spring-ease) infinite; }
 .hx .dash-x { background-image: linear-gradient(to right, rgba(15, 23, 42, 0.16) 50%, transparent 50%); background-size: 8px 2px; background-repeat: repeat-x; background-position: center; }
 .hx .dash-y { background-image: linear-gradient(to bottom, rgba(15, 23, 42, 0.16) 50%, transparent 50%); background-size: 2px 8px; background-repeat: repeat-y; background-position: center; }
-.dark .hx .dash-x { background-image: linear-gradient(to right, rgba(148, 163, 184, 0.26) 50%, transparent 50%); }
-.dark .hx .dash-y { background-image: linear-gradient(to bottom, rgba(148, 163, 184, 0.26) 50%, transparent 50%); }
+.dark .hx .dash-x, .hx .dark .dash-x { background-image: linear-gradient(to right, rgba(148, 163, 184, 0.26) 50%, transparent 50%); }
+.dark .hx .dash-y, .hx .dark .dash-y { background-image: linear-gradient(to bottom, rgba(148, 163, 184, 0.26) 50%, transparent 50%); }
+.hx .dark { color-scheme: dark; }
+@keyframes hxMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.hx .marquee { animation: hxMarquee 38s linear infinite; }
+.hx .marquee-wrap:hover .marquee { animation-play-state: paused; }
+.hx .marquee-wrap { mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
 .hx .no-scrollbar::-webkit-scrollbar { display: none; }
 .hx .no-scrollbar { scrollbar-width: none; }
 .hx details > summary::-webkit-details-marker { display: none; }
@@ -412,6 +417,7 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 .hx input[type='range']::-moz-range-thumb { background: #10b981; }
 
 @media (prefers-reduced-motion: reduce) {
+  .hx .marquee { animation: none !important; }
   .hx .float-slow-a, .hx .float-slow-b, .hx .typing-dot, .hx .ai-spin-slow, .hx .animate-ping, .hx .pkt-x, .hx .pkt-y, .hx .m-wire::after { animation: none !important; }
   .hx .pkt-x, .hx .pkt-y { display: none; }
   .hx .animate-spring-in, .hx .animate-delta, .hx .check-stroke, .hx .tab-timer { animation-duration: 0.01ms !important; }

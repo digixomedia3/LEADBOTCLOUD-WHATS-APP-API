@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { CARD, CONTAINER, Check, Icon, SAMPLE_TAG, STAGE, SectionHead, TONE, type Tone } from './kit';
+import { Band, CARD, CONTAINER, Check, Icon, SAMPLE_TAG, STAGE, SectionHead, TONE, type Tone } from './kit';
 import { useInView, useReducedMotion } from './client-kit';
 
 /** How it works: the hero's three phases, each opened up into the real screen behind it. Tabs auto-advance (a timer bar
@@ -43,9 +43,9 @@ export function HowItWorks() {
   const step = STEPS[active]!;
 
   return (
-    <section id="how" className="scroll-mt-20 pt-14 pb-16 sm:pt-20 sm:pb-24" aria-labelledby="how-title">
+    <Band tone="canvas" id="how" labelledBy="how-title" className="py-16 sm:py-24">
       <div className={CONTAINER}>
-        <SectionHead id="how-title" tone="indigo" eyebrow="How it works" title="From first “Hi” to paid customer," highlight="in three steps."
+        <SectionHead id="how-title" tone="indigo" n="01" eyebrow="How it works" title="From first “Hi” to paid customer," highlight="in three steps." align="center"
           lead="The same three steps you just watched in the demo. Each one is a real screen inside LeadBotCloud." />
 
         <div ref={ref} className="sr-in mt-10 sm:mt-12" data-paused={paused ? '1' : '0'} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
@@ -97,7 +97,7 @@ export function HowItWorks() {
           </div>
         </div>
       </div>
-    </section>
+    </Band>
   );
 }
 
@@ -115,11 +115,11 @@ const LEADS = [
 
 function CaptureMock() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)] gap-4 md:gap-0 items-center">
+    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,330px)_minmax(0,1fr)] gap-4 md:gap-0 items-center">
       <div className="relative">
         <div className="flex flex-wrap md:grid md:grid-cols-2 gap-1.5 md:gap-2 md:pr-8">
           {SOURCES.map(([ic, l], i) => (
-            <div key={l} className="animate-spring-in opacity-0 inline-flex items-center gap-2 px-2.5 py-1.5 md:py-2 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-900/[0.08] dark:border-white/[0.08] shadow-xs text-[11.5px] md:text-xs font-semibold text-slate-700 dark:text-slate-200"
+            <div key={l} className="animate-spring-in opacity-0 inline-flex items-center gap-2 whitespace-nowrap px-2.5 py-1.5 md:py-2 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-900/[0.08] dark:border-white/[0.08] shadow-xs text-[11.5px] md:text-xs font-semibold text-slate-700 dark:text-slate-200"
               style={{ animationDelay: `${i * 60}ms` }}>
               <span className={`w-5 h-5 rounded-md flex items-center justify-center ${TONE.amber.soft}`}><Icon name={ic} className="w-3 h-3" /></span>{l}
             </div>

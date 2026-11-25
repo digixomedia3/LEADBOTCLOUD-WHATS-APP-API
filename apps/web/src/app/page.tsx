@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { PLAN_LIMITS, PLAN_PRICE_PAISE, TEMPLATE_LIBRARY, priceWithGst, type PaidPlanId } from '@lbc/shared';
-import { estimateCost } from '@/lib/cost';
+import { estimateCost, RATE_PAISE_X100 } from '@/lib/cost';
 import { company } from '@/lib/company';
 import { getSession } from '@/lib/session';
 import { SiteHeader } from '@/components/home/site-header';
@@ -10,7 +10,7 @@ import { Flows, type FlowData } from '@/components/home/flows';
 import { CostCheck } from '@/components/home/cost-check';
 import { Safety, type SafetyNode } from '@/components/home/safety';
 import { Compare, Pricing, type PlanCard } from '@/components/home/compare-pricing';
-import { Faq, FinalCta, Footer, TrustStrip } from '@/components/home/sections';
+import { Closing, Faq, ProofBar } from '@/components/home/sections';
 import { RevealObserver, StickyCta } from '@/components/home/client-kit';
 import type { Tone } from '@/components/home/kit';
 
@@ -41,7 +41,7 @@ function flows(): FlowData[] {
     const d = item.draft;
     const category = d.category === 'utility' ? 'utility' : 'marketing';
     return [{
-      id: p.tpl, title: p.title, icon: p.icon, tone: p.tone, trigger: p.trigger, outcome: p.outcome, category, perMessage: perMessage(category),
+      id: p.tpl, title: p.title, template: item.title, icon: p.icon, tone: p.tone, trigger: p.trigger, outcome: p.outcome, category, perMessage: perMessage(category),
       header: d.headerText || undefined, body: fill(d.body, d.samples), footer: d.footer || undefined,
       buttons: (d.buttons ?? []).map((b) => ({ type: b.type, text: b.text })), reply: p.reply, replyKind: p.replyKind, result: p.result,
     }];
@@ -100,6 +100,12 @@ export default async function Landing() {
   const c = company();
   const wa = c.supportWhatsapp?.replace(/\D/g, '') || null;
   const waHref = wa ? `https://wa.me/${wa}` : null;
+  // Hero proof points: only things that are true today (the draft's speed/conversion/open-rate figures were not measured).
+  const heroStats = [
+    { v: '₹0', l: 'Markup on Meta fees', accent: true },
+    { v: '₹' + (RATE_PAISE_X100.marketing / 10000).toFixed(2), l: 'Meta fee per promo, + GST' },
+    { v: String(TEMPLATE_LIBRARY.length), l: 'Ready-made templates' },
+  ];
 
   return (
     <div className="hx isolate relative min-h-screen overflow-x-clip bg-[#FAFAFC] dark:bg-[#060A13] text-[#0F172A] dark:text-[#F8FAFC] transition-colors duration-300 selection:bg-emerald-500/20 selection:text-emerald-700 dark:selection:text-emerald-300">
@@ -113,17 +119,16 @@ export default async function Landing() {
       </div>
 
       <SiteHeader ctaHref={href} ctaLabel={loggedIn ? 'Dashboard' : 'Start Free'} loggedIn={loggedIn} />
-      <Hero ctaHref={href} ctaLabel={loggedIn ? 'Open your dashboard' : 'Start Free Trial'} />
-      <TrustStrip />
+      <Hero ctaHref={href} ctaLabel={loggedIn ? 'Open your dashboard' : 'Start Free Trial'} stats={heroStats} />
+      <ProofBar />
       <HowItWorks />
       <Flows flows={flows()} libraryCount={TEMPLATE_LIBRARY.length} />
       <CostCheck />
       <Safety nodes={safetyNodes()} />
-      <Compare proContacts={PLAN_LIMITS.pro.contacts} />
+      <Compare proContacts={PLAN_LIMITS.pro.contacts} ctaHref={href} ctaLabel={loggedIn ? 'Open dashboard' : 'Start free'} />
       <Pricing plans={plans()} ctaHref={href} ctaLabel={loggedIn ? 'Open dashboard' : 'Start free'} />
       <Faq faqs={FAQS} waHref={waHref} />
-      <FinalCta ctaHref={href} ctaLabel={loggedIn ? 'Open your dashboard' : 'Start Free Trial'} waHref={waHref} />
-      <Footer legalName={c.legalName} address={c.address} supportEmail={c.supportEmail} />
+      <Closing ctaHref={href} ctaLabel={loggedIn ? 'Open your dashboard' : 'Start Free Trial'} waHref={waHref} legalName={c.legalName} address={c.address} supportEmail={c.supportEmail} />
       <StickyCta href={href} label={loggedIn ? 'Open your dashboard' : 'Start Free Trial'} />
     </div>
   );

@@ -10,11 +10,6 @@ import { PILL_BASE, PILL_FIRST, PILL_IDLE, TAB_OFF, TAB_ON, startHeroEngine } fr
  * stacked CTAs, one-line phase pills, a three-up source grid, tabs that fit 360px, and vertical connectors.
  * The rupee figures and names in the stage are samples, labelled under the stage.
  */
-export const HERO_STATS = [
-  { v: '< 1.2s', l: 'Instant Reply', accent: false },
-  { v: '3.4x', l: 'Lead Conversion', accent: true },
-  { v: '98%', l: 'Open Rate', accent: false },
-] as const;
 
 const SOURCE_CARD =
   'source-card relative sm:flex-1 md:flex-none text-left p-2.5 sm:p-3 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-900/[0.08] dark:border-white/[0.08] shadow-card-light dark:shadow-card-dark transition-all duration-300 hover:border-amber-500/50 cursor-pointer group min-w-0';
@@ -32,7 +27,7 @@ function Chevron() {
   );
 }
 
-export function Hero({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabel: string }) {
+export function Hero({ ctaHref, ctaLabel, stats }: { ctaHref: string; ctaLabel: string; stats: { v: string; l: string; accent?: boolean }[] }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => (ref.current ? startHeroEngine(ref.current) : undefined), []);
 
@@ -53,16 +48,16 @@ export function Hero({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabel: string 
 
           <h1 id="hero-title" className="font-jk font-extrabold text-[2.45rem] sm:text-[3.1rem] lg:text-[3.25rem] xl:text-[3.55rem] leading-[1.06] tracking-[-0.035em] text-[#0F172A] dark:text-white mb-5">
             Turn Every Chat Into a{' '}
-            <span className="block sm:inline bg-linear-to-r/srgb from-[#059669] via-[#10B981] to-[#0D9488] dark:from-emerald-400 dark:via-emerald-300 dark:to-teal-300 bg-clip-text text-transparent">
+            <span className="block whitespace-nowrap bg-linear-to-r/srgb from-[#059669] via-[#10B981] to-[#0D9488] dark:from-emerald-400 dark:via-emerald-300 dark:to-teal-300 bg-clip-text text-transparent">
               Qualified Sale.{' '}
             </span>
           </h1>
 
-          <p className="text-[1.02rem] sm:text-[1.08rem] leading-[1.65] text-[#475569] dark:text-slate-400 max-w-[490px] mb-8">
+          <p className="text-[1.02rem] sm:text-[1.08rem] leading-[1.65] text-[#475569] dark:text-slate-400 max-w-[490px] mb-8 text-pretty">
             Capture incoming leads, qualify them automatically in seconds, and sync ready-to-buy customers straight to your CRM—24/7.
           </p>
 
-          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 sm:gap-3.5 w-full sm:w-auto mb-9">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 sm:gap-3.5 w-full sm:w-auto mb-4">
             <Link
               href={ctaHref}
               className="btn-sheen group w-full sm:w-auto sm:flex-none inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-linear-to-b/srgb from-[#10B981] to-[#059669] hover:from-[#12c78b] hover:to-[#04885e] text-white font-semibold text-[15px] whitespace-nowrap shadow-cta-emerald transition-all duration-200 active:scale-[0.98]"
@@ -85,8 +80,16 @@ export function Hero({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabel: string 
             </button>
           </div>
 
+          <p className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            {['Free plan', 'No card needed', 'Your own WhatsApp number'].map((t) => (
+              <span key={t} className="inline-flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>{t}
+              </span>
+            ))}
+          </p>
+
           <div className="w-full max-w-[460px] pt-6 border-t border-slate-900/[0.08] dark:border-white/[0.08] grid grid-cols-3 gap-2 sm:gap-4">
-            {HERO_STATS.map((s, i) => (
+            {stats.map((s, i) => (
               <div key={s.l} className={i === 0 ? 'pr-2 sm:pr-4 border-r border-slate-900/[0.08] dark:border-white/[0.08]' : i === 1 ? 'px-1 sm:px-3 border-r border-slate-900/[0.08] dark:border-white/[0.08]' : 'pl-1 sm:pl-3'}>
                 <div className={`font-jk font-extrabold text-xl sm:text-2xl tracking-tight ${s.accent ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>{s.v}</div>
                 <div className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">{s.l}</div>
@@ -109,7 +112,7 @@ export function Hero({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabel: string 
               <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-1 sm:gap-2 flex-nowrap sm:flex-wrap">
                 <div id="phasePill1" className={`${PILL_BASE} ${PILL_FIRST}`}><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />1. Capture</div>
                 <Chevron />
-                <div id="phasePill2" className={`${PILL_BASE} ${PILL_IDLE}`}><span className="w-1.5 h-1.5 rounded-full bg-slate-400" />2. AI Qualify</div>
+                <div id="phasePill2" className={`${PILL_BASE} ${PILL_IDLE}`}><span className="w-1.5 h-1.5 rounded-full bg-slate-400" />2. Qualify</div>
                 <Chevron />
                 <div id="phasePill3" className={`${PILL_BASE} ${PILL_IDLE}`}><span className="w-1.5 h-1.5 rounded-full bg-slate-400" />3. Convert</div>
               </div>
@@ -179,7 +182,7 @@ export function Hero({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabel: string 
                     <span id="aiCoreSpinner" className="w-4 h-4 rounded-full bg-indigo-500/15 dark:bg-indigo-400/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center ai-spin-slow">
                       <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" /></svg>
                     </span>
-                    <span className="text-[11px] font-bold tracking-tight text-slate-800 dark:text-slate-100">Cloud AI Engine</span>
+                    <span className="text-[11px] font-bold tracking-tight text-slate-800 dark:text-slate-100">Flow Engine</span>
                     <span id="aiStateBadge" className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-indigo-500/12 text-indigo-600 dark:text-indigo-300">Ready</span>
                   </div>
 
@@ -203,7 +206,7 @@ export function Hero({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabel: string 
                               <span className="text-xs font-bold text-slate-900 dark:text-white">LeadBotcloud</span>
                               <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm-1.06 13.54L7.4 12l1.41-1.41 2.12 2.12 4.24-4.24 1.41 1.41-5.64 5.66z" /></svg>
                             </div>
-                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Automated • Replies in 0.8s</div>
+                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Automated • Replies instantly</div>
                           </div>
                         </div>
                         <span id="phoneScenarioTag" className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">API Bot</span>
