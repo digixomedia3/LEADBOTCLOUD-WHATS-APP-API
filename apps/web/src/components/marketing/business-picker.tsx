@@ -40,7 +40,7 @@ export function BusinessPicker({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabe
       <div role="tablist" aria-label="Your kind of business" onKeyDown={onKey} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
         {BIZ.map((x, n) => (
           <button key={x.id} ref={(el) => { refs.current[n] = el; }} role="tab" id={`biz-${x.id}`} aria-selected={n === i} aria-controls="biz-panel" tabIndex={n === i ? 0 : -1} onClick={() => setI(n)}
-            className={cn('inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition', n === i ? 'border-transparent bg-[var(--lp-g8)] text-white shadow-lg' : 'border-line bg-card hover:border-brand/60')}>
+            className={cn('inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition', n === i ? 'border-transparent bg-[var(--lp-night)] text-white shadow-lg dark:bg-white dark:text-[#0b1020]' : 'border-line bg-card hover:border-brand/60')}>
             <x.Icon className="size-4" />{x.label}
           </button>
         ))}

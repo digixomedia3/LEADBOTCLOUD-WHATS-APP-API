@@ -103,10 +103,10 @@ function RenewalPanel() {
 }
 
 const TABS = [
-  { id: 'upload', Icon: Upload, t: 'Bring your list in', d: 'Upload a file. Every row we cannot use is listed with the reason, and agreement is saved with the date.', Panel: UploadPanel },
-  { id: 'cost', Icon: CircleDollarSign, t: 'See the cost, then send', d: 'Who gets it, who is skipped, and the total with GST. A spend cap stops the send if it would go over.', Panel: CostPanel },
-  { id: 'inbox', Icon: Users, t: 'Reply as a team', d: 'Replies land in one shared inbox with assignment and private notes.', Panel: InboxPanel },
-  { id: 'renew', Icon: Bell, t: 'Never miss a renewal', d: 'See who is due or overdue, remind them in one tap, mark the payment.', Panel: RenewalPanel },
+  { id: 'upload', c: 'list', Icon: Upload, t: 'Bring your list in', d: 'Upload a file. Every row we cannot use is listed with the reason, and agreement is saved with the date.', Panel: UploadPanel },
+  { id: 'cost', c: 'send', Icon: CircleDollarSign, t: 'See the cost, then send', d: 'Who gets it, who is skipped, and the total with GST. A spend cap stops the send if it would go over.', Panel: CostPanel },
+  { id: 'inbox', c: 'reply', Icon: Users, t: 'Reply as a team', d: 'Replies land in one shared inbox with assignment and private notes.', Panel: InboxPanel },
+  { id: 'renew', c: 'sale', Icon: Bell, t: 'Never miss a renewal', d: 'See who is due or overdue, remind them in one tap, mark the payment.', Panel: RenewalPanel },
 ] as const;
 
 /** Four steps, each shown as the real screen drawn large enough to read. Auto-plays until the visitor takes over. */
@@ -130,11 +130,11 @@ export function HowTabs() {
         {TABS.map((tb, n) => {
           const on = n === i;
           return (
-            <button key={tb.id} ref={(el) => { refs.current[n] = el; }} role="tab" id={`tab-${tb.id}`} aria-selected={on} aria-controls={`panel-${tb.id}`} tabIndex={on ? 0 : -1} onClick={() => go(n)}
-              className={cn('relative shrink-0 overflow-hidden rounded-2xl border p-3.5 text-left transition lg:p-5', on ? 'border-brand bg-card shadow-lg' : 'border-line bg-card/60 hover:bg-card')}>
-              <span className="flex items-center gap-3 font-display text-base font-bold lg:text-lg"><span className={cn('flex size-9 shrink-0 items-center justify-center rounded-xl', on ? 'bg-[var(--lp-wa)] text-[#04221a]' : 'bg-card2 text-muted')}><tb.Icon className="size-4.5" /></span>{tb.t}</span>
+            <button key={tb.id} ref={(el) => { refs.current[n] = el; }} role="tab" id={`tab-${tb.id}`} data-c={tb.c} aria-selected={on} aria-controls={`panel-${tb.id}`} tabIndex={on ? 0 : -1} onClick={() => go(n)}
+              className={cn('relative shrink-0 overflow-hidden rounded-2xl border p-3.5 text-left transition lg:p-5', on ? 'bg-card shadow-lg' : 'border-line bg-card/60 hover:bg-card')}>
+              <span className="flex items-center gap-3 font-display text-base font-bold lg:text-lg"><span className="tab-ic flex size-9 shrink-0 items-center justify-center rounded-xl"><tb.Icon className="size-4.5" /></span>{tb.t}</span>
               <span className={cn('mt-2 hidden text-sm text-muted', on && 'lg:block')}>{tb.d}</span>
-              {on && !manual ? <span key={`${i}-timer`} className="lp-timer absolute inset-x-0 bottom-0 h-1 bg-[var(--lp-wa)]" onAnimationEnd={() => go((i + 1) % TABS.length, false)} /> : null}
+              {on && !manual ? <span key={`${i}-timer`} className="lp-timer absolute inset-x-0 bottom-0 h-1" onAnimationEnd={() => go((i + 1) % TABS.length, false)} /> : null}
             </button>
           );
         })}

@@ -299,12 +299,110 @@ input[type='range']::-moz-range-track { height: 6px; border-radius: 9999px; back
 input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; margin-top: -8px; width: 22px; height: 22px; border-radius: 9999px; background: var(--brand); border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
 input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius: 9999px; background: var(--brand); border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
 
-/* ---- Landing v2 (.lp): the page lives in WhatsApp's own world: deep green, chat-wallpaper paper, doodle texture ---- */
-.lp { --lp-g9: #05201a; --lp-g8: #0a3b30; --lp-g7: #0f5a46; --lp-wa: #25d366; --lp-gold: #f6b93b; --lp-paper: #f6f2e9; --lp-paper-2: #ece6d9; }
-.dark .lp { --lp-paper: #0b1410; --lp-paper-2: #0f1b16; }
+/* ---- Landing (.lp): WhatsApp-green brand on a night-sky hero, paper sections, and five stage colours that run through the whole page ---- */
+.lp { --lp-g9: #05201a; --lp-g8: #0a3b30; --lp-g7: #0f5a46; --lp-wa: #25d366; --lp-gold: #f6b93b; --lp-paper: #f6f2e9; --lp-paper-2: #ece6d9;
+  /* Stage colours. One per step of a campaign, used the same way everywhere on the page, so colour is also the legend:
+     list = sky, checked/skipped = rose, sent = WhatsApp green, replies = violet, sales = gold. Five hues spread round the wheel. */
+  --st-list: #38bdf8; --st-check: #fb7185; --st-send: #25d366; --st-reply: #a78bfa; --st-sale: #fbbf24;
+  /* The same hues dark enough for text on light paper (AA). */
+  --st-list-ink: #0369a1; --st-check-ink: #be123c; --st-send-ink: #047857; --st-reply-ink: #6d28d9; --st-sale-ink: #b45309;
+  --lp-night: #061423;
+}
+.dark .lp { --lp-paper: #0b1410; --lp-paper-2: #0f1b16; --st-list-ink: #7dd3fc; --st-check-ink: #fda4af; --st-send-ink: #4ade80; --st-reply-ink: #c4b5fd; --st-sale-ink: #fcd34d; }
+
+/* ---- Landing v3: hero night sky. The three glows sit where the stages they colour sit: list (sky) top left, replies (violet) top right, sent (green) below. ---- */
+.lp-hero { position: relative; isolation: isolate; overflow: hidden; color: #fff;
+  background:
+    radial-gradient(55% 55% at 8% 0%, rgba(56, 189, 248, 0.26), transparent 62%),
+    radial-gradient(45% 50% at 100% 8%, rgba(167, 139, 250, 0.28), transparent 62%),
+    radial-gradient(60% 55% at 70% 108%, rgba(37, 211, 102, 0.26), transparent 62%),
+    radial-gradient(30% 30% at 30% 100%, rgba(251, 191, 36, 0.12), transparent 70%),
+    linear-gradient(165deg, #061423 0%, #081b2c 50%, #082320 100%); }
+.lp-hero .lp-hl { color: var(--st-send); }
+.lp-band { height: 6px; background: linear-gradient(90deg, var(--st-list) 0 20%, var(--st-check) 20% 40%, var(--st-send) 40% 60%, var(--st-reply) 60% 80%, var(--st-sale) 80% 100%); }
+
+/* Hero engine */
+.he [data-c='list'] { --hc: var(--st-list); } .he [data-c='check'] { --hc: var(--st-check); } .he [data-c='send'] { --hc: var(--st-send); }
+.he [data-c='reply'] { --hc: var(--st-reply); } .he [data-c='sale'] { --hc: var(--st-sale); }
+.he-step .he-ink { color: var(--hc); }
+.he-step .he-fill { background: var(--hc); }
+.he-ink-dot { background: var(--hc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--hc) 25%, transparent); }
+@keyframes he-fill { from { width: 0; } to { width: 100%; } }
+.he-fill-run { animation: he-fill var(--t, 2s) linear both; }
+.he-grid { gap: clamp(6px, 1.4vw, 12px); }
+.he-cell { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; }
+.he-dot { width: 72%; aspect-ratio: 1; border-radius: 9999px; background: var(--st-list); opacity: 0.9;
+  transition: background-color 0.5s ease, box-shadow 0.5s ease, transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.5s ease;
+  animation: he-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc((var(--c) + var(--r)) * 28ms); }
+@keyframes he-in { from { transform: scale(0); opacity: 0; } }
+/* Checked: the rose sweep passes each column, and the people who never agreed drop out of the list */
+.he-grid.p1 .he-dot[data-k='skip'] { background: transparent; box-shadow: inset 0 0 0 2px var(--st-check); transform: scale(0.62); opacity: 0.75; transition-delay: calc(var(--c) * 105ms); }
+/* Sent: the green wave */
+.he-grid.p3 .he-dot:not([data-k='skip']) { background: var(--st-send); opacity: 1; transition-delay: calc(var(--c) * 95ms); }
+/* Replies, then sales */
+.he-grid.p4 .he-dot[data-k='reply'] { background: var(--st-reply); transform: scale(1.25); box-shadow: 0 0 0 5px rgba(167, 139, 250, 0.28); transition-delay: 0s; }
+.he-beam { position: absolute; top: 0; bottom: 0; width: 16%; left: -16%; pointer-events: none; border-radius: 9999px; animation: he-sweep 1.35s cubic-bezier(0.45, 0, 0.3, 1) forwards; }
+.he-beam-check { background: linear-gradient(90deg, transparent, rgba(251, 113, 133, 0.3) 50%, transparent); }
+.he-beam-send { background: linear-gradient(90deg, transparent, rgba(37, 211, 102, 0.32) 50%, transparent); animation-duration: 1.2s; }
+@keyframes he-sweep { to { left: 100%; } }
+.he-bubble, .he-sale { position: absolute; z-index: 5; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; border-radius: 10px; font-size: 11px; line-height: 1; padding: 6px 8px; box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.7); }
+.he-bubble { background: var(--st-reply); color: #1b0b3a; transform: translate(-50%, calc(-100% - 12px)); border-bottom-left-radius: 2px; animation: he-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--o) * 320ms); }
+.he-bubble b { font-weight: 800; margin-right: 2px; }
+@media (max-width: 639px) { .he-bubble, .he-sale { font-size: 10px; padding: 5px 6px; } .he-chips { mask-image: linear-gradient(90deg, #000 85%, transparent); } }
+.he-sale { background: var(--st-sale); color: #3a2300; font-weight: 800; transform: translate(-50%, 12px); animation: he-drop 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--o) * 450ms); }
+@keyframes he-rise { from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)) scale(0.8); } }
+@keyframes he-drop { from { opacity: 0; transform: translate(-50%, -4px) scale(0.6); } }
+/* The sale dot turns gold as its tag lands */
+.he-grid.p5 .he-dot[data-sale] { background: var(--st-sale); transform: scale(1.35); box-shadow: 0 0 0 6px rgba(251, 191, 36, 0.3); transition-delay: 0.2s; }
+.he-pop { animation: pop 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes he-cursor { 0% { opacity: 0; transform: translate(70px, 60px); } 25% { opacity: 1; } 62% { transform: translate(0, 0); } 72% { transform: translate(0, 0) scale(0.82); } 82%, 100% { opacity: 1; transform: translate(0, 0) scale(1); } }
+.he-cursor { animation: he-cursor 2.4s cubic-bezier(0.3, 0, 0.2, 1) both; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)); }
+@keyframes he-press { 0%, 68% { transform: none; } 74% { transform: scale(0.95); filter: brightness(0.92); } 84%, 100% { transform: none; } }
+.he-press { animation: he-press 2.4s linear both; }
+@media (prefers-reduced-motion: reduce) {
+  .he-dot, .he-bubble, .he-sale, .he-pop { animation: none !important; transition: none !important; }
+}
+
+/* Stage colour for any block marked data-c (text ink on light paper, fill on dark) */
+.lp [data-c='list'] { --hc: var(--st-list); --hi: var(--st-list-ink); } .lp [data-c='check'] { --hc: var(--st-check); --hi: var(--st-check-ink); }
+.lp [data-c='send'] { --hc: var(--st-send); --hi: var(--st-send-ink); } .lp [data-c='reply'] { --hc: var(--st-reply); --hi: var(--st-reply-ink); }
+.lp [data-c='sale'] { --hc: var(--st-sale); --hi: var(--st-sale-ink); }
+
+/* Buyer questions: each tile washed in its stage colour */
+.qa-tile { background: linear-gradient(160deg, color-mix(in srgb, var(--hc) 16%, var(--card)) 0%, color-mix(in srgb, var(--hc) 5%, var(--card)) 70%); border: 1px solid color-mix(in srgb, var(--hc) 30%, transparent); }
+.qa-q, .qa-ink { color: var(--hi); }
+.qa-chip { background: color-mix(in srgb, var(--hc) 20%, transparent); color: var(--hi); }
+.qa-solid { background: var(--hc); color: #1a1200; }
+.qa-safe { background: var(--st-send); color: #04221a; }
+.qa-avatar { background: color-mix(in srgb, var(--hc) 28%, transparent); color: var(--hi); }
+.qa-tag { background: color-mix(in srgb, var(--hc) 18%, transparent); color: var(--hi); }
+.qa-fill { background: linear-gradient(90deg, color-mix(in srgb, var(--hc) 70%, #fff), var(--hc)); }
+.qa-bar { width: var(--w); transition: width 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s; }
+.qa[data-on='false'] .qa-bar { width: 0; }
+.qa-check, .qa-msg, .qa-step { transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); transition-delay: calc(0.3s + var(--o, 0) * 0.22s); }
+.qa[data-on='false'] :is(.qa-check, .qa-msg, .qa-step) { opacity: 0; transform: translateY(8px); }
+
+/* Renewal loop */
+.lp-loop { position: relative; isolation: isolate; overflow: hidden; color: #fff;
+  background: radial-gradient(50% 60% at 15% 50%, rgba(251, 191, 36, 0.18), transparent 65%), radial-gradient(45% 55% at 95% 0%, rgba(167, 139, 250, 0.22), transparent 65%), linear-gradient(160deg, #140f2b 0%, #0d1530 55%, #0a1b24 100%); }
+.rl-arc { transition: stroke-dashoffset 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.rl-token { transform-box: view-box; transform-origin: 150px 150px; transition: transform 0.9s cubic-bezier(0.5, 0, 0.2, 1); }
+.rl-node { background: #131c36; color: rgba(255, 255, 255, 0.5); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.12); }
+.rl-node.rl-on { background: var(--hc); color: #0b1020; box-shadow: 0 0 0 6px color-mix(in srgb, var(--hc) 22%, transparent); }
+.rl-pill { background: var(--hc); color: #0b1020; }
+@media (prefers-reduced-motion: reduce) { .rl-arc, .rl-token, .qa-bar, .qa-check, .qa-msg, .qa-step { transition: none !important; } }
+
+/* Stage-coloured how-it-works tabs */
+.lp-tabs [data-c][aria-selected='true'] { border-color: var(--hc); }
+.lp-tabs [data-c] .tab-ic { background: color-mix(in srgb, var(--hc) 16%, transparent); color: var(--hi); }
+.lp-tabs [data-c][aria-selected='true'] .tab-ic { background: var(--hc); color: #0b1020; }
+.lp-tabs [data-c] .lp-timer { background: var(--hc); }
+/* Closing call: the five stage colours meet */
+.lp-close { position: relative; isolation: isolate; overflow: hidden; color: #fff;
+  background: radial-gradient(40% 60% at 0% 100%, rgba(56, 189, 248, 0.3), transparent 65%), radial-gradient(40% 60% at 100% 0%, rgba(167, 139, 250, 0.32), transparent 65%), radial-gradient(35% 50% at 100% 100%, rgba(251, 191, 36, 0.2), transparent 65%), linear-gradient(150deg, #072a22 0%, #0a2033 60%, #120f2c 100%); }
+.lp-ghost-btn { border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; transition: background 0.2s; }
+.lp-ghost-btn:hover { background: rgba(255, 255, 255, 0.1); }
 .lp .font-display { font-family: var(--font-bricolage), var(--font-jakarta), system-ui, sans-serif; letter-spacing: -0.035em; }
-.lp-drench { position: relative; isolation: isolate; overflow: hidden; background: var(--lp-g8); color: #fff; }
-.lp-drench-deep { background: var(--lp-g9); }
 .lp-paper { background: var(--lp-paper); }
 .lp-paper-2 { background: var(--lp-paper-2); }
 .lp-gtext { color: #047857; }
@@ -316,38 +414,9 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 .lp-wa-btn:active { transform: scale(0.97); }
 .lp ::selection { background: var(--lp-wa); color: #04221a; }
 
-/* Hero phone: typing dots */
-@keyframes lp-typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-3px); opacity: 1; } }
-.lp-typing i { display: inline-block; width: 6px; height: 6px; margin: 0 1.5px; border-radius: 9999px; background: #8696a0; animation: lp-typing 1.1s infinite; }
-.lp-typing i:nth-child(2) { animation-delay: 0.15s; }
-.lp-typing i:nth-child(3) { animation-delay: 0.3s; }
-@keyframes lp-nudge { 0%, 100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.55); } 50% { box-shadow: 0 0 0 7px rgba(37, 211, 102, 0); } }
-.lp-nudge { animation: lp-nudge 1.6s infinite; }
-
-/* Wake stage: 200 dots, one per half-percent of the list. Asleep dots breathe; sending lights them in a wave. */
-.wk-dot { width: 100%; aspect-ratio: 1; border-radius: 9999px; background: rgba(255, 255, 255, 0.17); }
-.wk-dot[data-k='skip'] { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.3); }
-@keyframes wk-sleep { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
-.wk[data-sent='false'] .wk-dot:not([data-k='skip']) { animation: wk-sleep 3.2s ease-in-out infinite; animation-delay: var(--s, 0s); }
-@keyframes wk-wake { 0% { background: rgba(255, 255, 255, 0.17); transform: scale(0.7); } 55% { transform: scale(1.3); } 100% { background: var(--lp-wa); transform: scale(1); } }
-@keyframes wk-buy { 0% { background: rgba(255, 255, 255, 0.17); transform: scale(0.7); } 30% { background: var(--lp-wa); transform: scale(1.2); } 65% { background: var(--lp-wa); transform: scale(1); } 100% { background: var(--lp-gold); transform: scale(1.3); } }
-.wk[data-sent='true'] .wk-dot[data-k='reach'] { animation: wk-wake 0.55s var(--d, 0s) both; }
-.wk[data-sent='true'] .wk-dot[data-k='buy'] { animation: wk-buy 1.4s var(--d, 0s) both; }
-
 /* How-it-works tab timer */
 @keyframes lp-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .lp-timer { transform-origin: left; animation: lp-progress 7s linear both; }
 .lp-tabs:hover .lp-timer, .lp-tabs:focus-within .lp-timer { animation-play-state: paused; }
 
-/* Pre-send funnel: a packet travels the pipe */
-@keyframes lp-packet-x { from { left: 0; } to { left: calc(100% - 10px); } }
-@keyframes lp-packet-y { from { top: 0; } to { top: calc(100% - 10px); } }
-.lp-pipe { position: relative; }
-.lp-packet { position: absolute; width: 10px; height: 10px; border-radius: 9999px; background: var(--lp-wa); box-shadow: 0 0 12px rgba(37, 211, 102, 0.8); }
-@media (min-width: 1024px) { .lp-packet { top: calc(1.35rem - 5px); animation: lp-packet-x 4.5s ease-in-out infinite; } }
-@media (max-width: 1023px) { .lp-packet { left: calc(1.35rem - 5px); animation: lp-packet-y 4.5s ease-in-out infinite; } }
 
-@media (prefers-reduced-motion: reduce) {
-  .lp-typing i, .lp-nudge, .lp-packet { animation: none; }
-  .wk[data-sent='false'] .wk-dot { animation: none; }
-}
