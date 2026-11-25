@@ -52,7 +52,7 @@ const KINDS = (() => {
 
 const STEPS = [
   { id: 'list', label: 'Your list', Icon: Users },
-  { id: 'check', label: 'Checked', Icon: ShieldCheck },
+  { id: 'check', label: 'Skipped', Icon: ShieldCheck },
   { id: 'send', label: 'Sent', Icon: Send },
   { id: 'reply', label: 'Replies', Icon: MessageCircle },
   { id: 'sale', label: 'Sales', Icon: IndianRupee },
@@ -120,7 +120,7 @@ export function HeroEngine() {
     'Replies land in one inbox your whole team can answer.',
     'Customers renew and buy, right from the chat.',
   ][phase]!;
-  const stat = [fmt(biz.contacts), `${fmt(skipped)} skipped`, cost.totalLabel, 'Team inbox', 'Paid'];
+  const stat = [fmt(biz.contacts), fmt(skipped), cost.totalLabel, 'Team inbox', 'Paid'];
 
   const at = (i: number) => ({ left: `${((i % COLS) + 0.5) * (100 / COLS)}%`, top: `${(Math.floor(i / COLS) + 0.5) * (100 / ROWS)}%` });
 
