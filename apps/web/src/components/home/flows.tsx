@@ -65,13 +65,13 @@ export function Flows({ flows, libraryCount, ctaHref }: { flows: FlowData[]; lib
               </button>
             ))}
           </div>
-          <div className="hidden lg:flex lg:col-span-4 flex-col gap-1.5" role="tablist" aria-label="Flows" aria-orientation="vertical">
+          <div data-net="flows-list" className="hidden lg:flex lg:col-span-4 flex-col gap-1.5" role="tablist" aria-label="Flows" aria-orientation="vertical">
             {flows.map((x, k) => {
               const on = k === i;
               return (
                 <button key={x.id} type="button" role="tab" aria-selected={on} onClick={() => pick(k)}
                   className={`relative overflow-hidden text-left flex items-center gap-3 px-3.5 py-3 rounded-2xl border transition-all duration-300 cursor-pointer ${on ? `bg-white dark:bg-slate-800/95 border-transparent ring-1 ${TONE[x.tone].ring} shadow-card-light dark:shadow-card-dark` : 'border-transparent hover:bg-slate-50 dark:hover:bg-white/[0.03]'}`}>
-                  <span className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${TONE[x.tone].soft}`}><Icon name={x.icon} className="w-[18px] h-[18px]" /></span>
+                  <span className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition-colors ${on ? TONE[x.tone].soft : 'bg-slate-100 dark:bg-white/[0.05] text-slate-400 dark:text-slate-500'}`}><Icon name={x.icon} className="w-[18px] h-[18px]" /></span>
                   <span className="min-w-0 flex-1">
                     <span className={`block font-jk font-bold text-[15px] tracking-[-0.01em] ${on ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>{x.title}</span>
                     <span className="block text-[12.5px] text-slate-500 dark:text-slate-400 truncate">{x.trigger}</span>
@@ -139,7 +139,7 @@ export function Flows({ flows, libraryCount, ctaHref }: { flows: FlowData[]; lib
           </div>
 
           {/* Steps */}
-          <div className="lg:col-span-4">
+          <div data-net="flows-steps" className="lg:col-span-4">
             <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 mb-3">What happens</div>
             <ol className="relative">
               {steps.map((s, k) => (

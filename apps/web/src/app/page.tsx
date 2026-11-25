@@ -12,6 +12,7 @@ import { Safety, type SafetyNode } from '@/components/home/safety';
 import { Compare, Pricing, type PlanCard } from '@/components/home/compare-pricing';
 import { Closing, Faq, ProofBar } from '@/components/home/sections';
 import { RevealObserver, StickyCta } from '@/components/home/client-kit';
+import { PipelineNetwork } from '@/components/home/pipeline-network';
 import type { Tone } from '@/components/home/kit';
 
 export const dynamic = 'force-dynamic';
@@ -129,6 +130,7 @@ export default async function Landing() {
       <Pricing plans={plans()} ctaHref={href} ctaLabel={loggedIn ? 'Open dashboard' : 'Start free'} />
       <Faq faqs={FAQS} waHref={waHref} />
       <Closing ctaHref={href} ctaLabel={loggedIn ? 'Open your dashboard' : 'Start Free Trial'} waHref={waHref} legalName={c.legalName} address={c.address} supportEmail={c.supportEmail} />
+      <PipelineNetwork />
       <StickyCta href={href} label={loggedIn ? 'Open your dashboard' : 'Start Free Trial'} />
     </div>
   );

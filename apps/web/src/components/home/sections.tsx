@@ -2,43 +2,38 @@ import Link from 'next/link';
 import { Arrow, Band, BTN_PRIMARY, CONTAINER, Check, Icon, TONE, type Tone } from './kit';
 import { Logo } from './site-header';
 
-/* ---------------- Proof bar: the first separator after the hero ---------------- */
+/* ---------------- Proof strip: typographic and monochrome, so it reads as a calm separator under the hero ---------------- */
 const SOURCES: [string, string][] = [
-  ['bolt', 'Click-to-WhatsApp ads'], ['form', 'Meta Lead Ads'], ['globe', 'Website chat button'], ['qr', 'Forms with QR codes'], ['cart', 'Shopify'],
-  ['sheet', 'Google Sheets'], ['store', 'IndiaMART'], ['store', 'JustDial'], ['upload', 'CSV and Excel'], ['hook', 'Any tool via webhook'],
+  ['bolt', 'WhatsApp ads'], ['form', 'Meta Lead Ads'], ['cart', 'Shopify'], ['sheet', 'Google Sheets'], ['store', 'IndiaMART'],
+  ['store', 'JustDial'], ['globe', 'Website button'], ['qr', 'QR forms'], ['upload', 'CSV / Excel'], ['hook', 'Webhooks'],
 ];
-const TRUST: { icon: string; tone: Tone; t: string; d: string; live?: boolean }[] = [
-  { icon: 'shield', tone: 'emerald', t: 'Official WhatsApp Business Platform', d: 'Connected through Meta’s own signup' },
-  { icon: 'phone', tone: 'indigo', t: 'Your number, your account', d: 'Chats and history stay yours' },
-  { icon: 'rupee', tone: 'amber', t: 'Zero markup on Meta charges', d: 'Meta bills you; we charge a flat plan' },
-  { icon: 'flask', tone: 'amber', t: 'Open to try in test mode', d: 'Live sending switches on with Meta’s approval', live: true },
+const TRUST: { icon: string; t: string; d: string }[] = [
+  { icon: 'shield', t: 'Official WhatsApp Business Platform', d: 'Connected through Meta’s own signup' },
+  { icon: 'phone', t: 'Your number, your account', d: 'Chats and history stay yours' },
+  { icon: 'rupee', t: 'Zero markup on Meta fees', d: 'Meta bills you; we charge a flat plan' },
+  { icon: 'clock', t: 'Free to try today', d: 'Live sending opens with Meta’s approval' },
 ];
 
 export function ProofBar() {
   return (
-    <Band tone="paper" className="py-8 sm:py-10">
+    <Band tone="paper" className="py-10 sm:py-12">
       <div className={CONTAINER}>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
-          <p className="shrink-0 text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Leads arrive from</p>
-          <div className="marquee-wrap relative flex-1 overflow-hidden">
-            <div className="marquee flex w-max gap-2.5">
-              {[...SOURCES, ...SOURCES].map(([ic, l], i) => (
-                <span key={i} aria-hidden={i >= SOURCES.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-full bg-slate-50 dark:bg-white/[0.04] border border-slate-900/[0.07] dark:border-white/[0.07] text-[13px] font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center ${TONE.amber.soft}`}><Icon name={ic} className="w-3.5 h-3.5" /></span>{l}
-                </span>
-              ))}
-            </div>
-          </div>
+        <div data-net="proof" className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-center">
+          <p className="lg:col-span-3 text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Leads arrive from</p>
+          <ul className="lg:col-span-9 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-x-6 gap-y-4">
+            {SOURCES.map(([ic, l]) => (
+              <li key={l} className="flex items-center gap-2.5 text-[14px] font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                <Icon name={ic} className="w-[18px] h-[18px] text-slate-400 dark:text-slate-500" />{l}
+              </li>
+            ))}
+          </ul>
         </div>
-        <div className="mt-8 pt-7 border-t border-slate-900/[0.07] dark:border-white/[0.07] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-0 lg:divide-x divide-slate-900/[0.07] dark:divide-white/[0.07]">
-          {TRUST.map((x, i) => (
-            <div key={x.t} className={`flex items-start gap-3 ${i > 0 ? 'lg:pl-6' : ''} ${i < 3 ? 'lg:pr-6' : ''}`}>
-              <span className={`relative w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${TONE[x.tone].soft}`}>
-                <Icon name={x.icon} className="w-5 h-5" />
-                {x.live ? <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" /></span> : null}
-              </span>
+        <div className="mt-9 pt-8 border-t border-slate-900/[0.07] dark:border-white/[0.07] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {TRUST.map((x) => (
+            <div key={x.t} className="flex gap-3">
+              <Icon name={x.icon} className="w-5 h-5 mt-px shrink-0 text-slate-900 dark:text-white" />
               <div className="min-w-0">
-                <div className="text-[14.5px] font-bold leading-snug text-slate-900 dark:text-white">{x.t}</div>
+                <div className="text-[14.5px] font-semibold leading-snug text-slate-900 dark:text-white">{x.t}</div>
                 <div className="mt-0.5 text-[13px] leading-snug text-slate-500 dark:text-slate-400">{x.d}</div>
               </div>
             </div>
@@ -54,7 +49,7 @@ export function Faq({ faqs, waHref }: { faqs: [string, string][]; waHref: string
   return (
     <Band tone="paper" id="faq" labelledBy="faq-title" className="py-16 sm:py-24">
       <div className={`${CONTAINER} grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14`}>
-        <div className="lg:col-span-4 lg:sticky lg:top-24 self-start">
+        <div data-net="faq-aside" className="lg:col-span-4 lg:sticky lg:top-24 self-start">
           <div className="sr-in">
             <span className="inline-flex items-center gap-2 pl-1.5 pr-3.5 py-1 rounded-full bg-white dark:bg-slate-900/90 border border-slate-900/[0.08] dark:border-white/[0.1] shadow-xs">
               <span className={`min-w-6 h-6 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold tabular-nums ${TONE.indigo.soft}`}>07</span>
@@ -74,7 +69,7 @@ export function Faq({ faqs, waHref }: { faqs: [string, string][]; waHref: string
             ) : null}
           </div>
         </div>
-        <div className="lg:col-span-8 divide-y divide-slate-900/[0.07] dark:divide-white/[0.07] border-y border-slate-900/[0.07] dark:border-white/[0.07]">
+        <div data-net="faq-list" className="lg:col-span-8 divide-y divide-slate-900/[0.07] dark:divide-white/[0.07] border-y border-slate-900/[0.07] dark:border-white/[0.07]">
           {faqs.map(([q, a]) => (
             <details key={q} className="group">
               <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 py-4 text-[15.5px] sm:text-[16px] font-semibold text-slate-900 dark:text-white hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors">
@@ -117,7 +112,7 @@ export function Closing({ ctaHref, ctaLabel, waHref, legalName, address, support
         <p className="sr-in mt-5 text-[1.05rem] sm:text-[1.15rem] leading-[1.65] text-slate-400 max-w-xl mx-auto">
           Make a free workspace in a minute. Bring in your leads, pick a flow, and see the cost before you spend a rupee.
         </p>
-        <div className="sr-in mt-9 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-3.5 max-w-md sm:max-w-none mx-auto">
+        <div data-net="cta" className="sr-in mt-9 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-3.5 max-w-md sm:max-w-none sm:w-fit mx-auto">
           <Link href={ctaHref} className={`${BTN_PRIMARY} sm:px-8 sm:py-4 sm:text-base`}>{ctaLabel}<Arrow /></Link>
           {waHref ? (
             <a href={waHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 sm:py-4 rounded-xl border border-white/15 bg-white/[0.04] text-white font-semibold text-[15px] sm:text-base hover:bg-white/[0.08] hover:border-white/25 transition-colors">

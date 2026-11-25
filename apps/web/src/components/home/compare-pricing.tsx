@@ -24,7 +24,7 @@ export function Compare({ proContacts, ctaHref, ctaLabel }: { proContacts: numbe
 
         <div className="sr-in mt-10 sm:mt-14 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 items-stretch">
           {/* The app */}
-          <div className="rounded-[24px] p-5 sm:p-7 bg-slate-50 dark:bg-white/[0.02] border border-slate-900/[0.07] dark:border-white/[0.07]">
+          <div data-net="cmp-app" className="rounded-[24px] p-5 sm:p-7 bg-slate-50 dark:bg-white/[0.02] border border-slate-900/[0.07] dark:border-white/[0.07]">
             <div className="flex items-center gap-3">
               <span className="w-10 h-10 rounded-xl bg-slate-900/[0.06] dark:bg-white/[0.07] text-slate-500 dark:text-slate-400 flex items-center justify-center">
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5" /><path d="M10.5 18.5h3" /></svg>
@@ -49,7 +49,7 @@ export function Compare({ proContacts, ctaHref, ctaLabel }: { proContacts: numbe
           </div>
 
           {/* LeadBotCloud */}
-          <div className="relative rounded-[24px] p-5 sm:p-7 bg-white dark:bg-slate-800/80 border border-transparent ring-2 ring-emerald-500/50 shadow-[0_30px_60px_-24px_rgba(16,185,129,0.35)]">
+          <div data-net="cmp-lbc" className="relative rounded-[24px] p-5 sm:p-7 bg-white dark:bg-slate-800/80 border border-transparent ring-2 ring-emerald-500/50 shadow-[0_30px_60px_-24px_rgba(16,185,129,0.35)]">
             <span className="absolute -top-3 right-6 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500 text-white shadow-xs">Built for selling</span>
             <div className="flex items-center gap-3">
               <span className="w-10 h-10 rounded-xl bg-linear-to-br/srgb from-emerald-500 via-emerald-600 to-indigo-600 text-white flex items-center justify-center shadow-xs">
@@ -123,7 +123,7 @@ export function Pricing({ plans, ctaHref, ctaLabel }: { plans: PlanCard[]; ctaHr
           <div className="flex justify-between text-[11px] text-slate-400 tabular-nums"><span>200</span><span>1,00,000</span></div>
         </div>
 
-        <div ref={rail} className="sr-in mt-8 -mx-4 px-4 pt-3 pb-2 sm:mx-0 sm:px-0 flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory no-scrollbar">
+        <div ref={rail} data-net="plans" className="sr-in mt-8 -mx-4 px-4 pt-3 pb-2 sm:mx-0 sm:px-0 flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory no-scrollbar">
           {plans.map((p) => {
             const best = p.id === fit;
             return (

@@ -35,7 +35,7 @@ export function CostCheck({ ctaHref }: { ctaHref: string }) {
         <SectionHead id="cost-title" tone="emerald" n="03" eyebrow="Cost, before you send" title="Know the exact cost" highlight="before you press send."
           lead="Meta charges per message. LeadBotCloud adds up the total with GST before anything goes out, and holds the campaign if it is over your cap." />
 
-        <div className={`sr-in ${STAGE} mt-10 sm:mt-12 p-4 sm:p-6 lg:p-8`}>
+        <div data-net="cost" className={`sr-in ${STAGE} mt-10 sm:mt-12 p-4 sm:p-6 lg:p-8`}>
           <div className="absolute -top-16 left-1/3 w-80 h-44 bg-emerald-500/[0.07] blur-3xl pointer-events-none" />
           <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
             {/* Controls */}

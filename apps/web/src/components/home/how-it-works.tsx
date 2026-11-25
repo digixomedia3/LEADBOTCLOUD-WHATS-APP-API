@@ -49,7 +49,7 @@ export function HowItWorks() {
           lead="The same three steps you just watched in the demo. Each one is a real screen inside LeadBotCloud." />
 
         <div ref={ref} className="sr-in mt-10 sm:mt-12" data-paused={paused ? '1' : '0'} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-          <div role="tablist" aria-label="How it works" onKeyDown={onKey} className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div data-net="how-tabs" role="tablist" aria-label="How it works" onKeyDown={onKey} className="grid grid-cols-3 gap-2 sm:gap-3">
             {STEPS.map((s, i) => {
               const on = i === active;
               return (
@@ -73,7 +73,7 @@ export function HowItWorks() {
             })}
           </div>
 
-          <div id="how-panel" role="tabpanel" aria-labelledby={`how-tab-${step.key}`} className={`${STAGE} mt-3 sm:mt-4 p-4 sm:p-6 lg:p-8`}>
+          <div id="how-panel" data-net="how-panel" role="tabpanel" aria-labelledby={`how-tab-${step.key}`} className={`${STAGE} mt-3 sm:mt-4 p-4 sm:p-6 lg:p-8`}>
             <div className={`absolute -top-20 right-10 w-80 h-48 blur-3xl pointer-events-none ${step.tone === 'amber' ? 'bg-amber-500/[0.07]' : step.tone === 'indigo' ? 'bg-indigo-500/[0.08]' : 'bg-emerald-500/[0.08]'}`} />
             <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
               <div className="lg:col-span-4">

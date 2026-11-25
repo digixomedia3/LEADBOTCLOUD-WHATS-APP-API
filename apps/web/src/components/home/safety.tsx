@@ -26,7 +26,7 @@ export function Safety({ nodes }: { nodes: SafetyNode[] }) {
         <SectionHead id="safety-title" tone="emerald" n="04" eyebrow="Number safety" title="Every send passes" highlight="four checks first."
           lead="A blocked number costs more than any campaign. So the checks run before every send, not after a complaint." />
 
-        <div ref={ref} className={`sr-in ${STAGE} mt-10 sm:mt-12 p-4 sm:p-6 lg:p-8`}>
+        <div ref={ref} data-net="safety" className={`sr-in ${STAGE} mt-10 sm:mt-12 p-4 sm:p-6 lg:p-8`}>
           <div className="relative flex items-center justify-between gap-2 mb-5">
             <span className="text-sm font-bold text-slate-900 dark:text-white">Before a campaign goes out</span>
             <span className={SAMPLE_TAG}>Sample list of 3,000</span>
