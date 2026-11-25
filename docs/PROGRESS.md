@@ -2,7 +2,7 @@
 
 Shared memory between sessions (and between Deep and Abdullah). Newest state first. Updated from git history and a real test run, not from memory. Procedures: `docs/agent/RESUME.md`, `docs/agent/HANDOVER.md`.
 
-## Latest handover: 2026-11-25 IST · by Deep (Hermes) · branch feat/homepage-redesign · last commit see `git log`
+## Latest handover: 2026-11-25 IST · by Deep (Hermes) · merged to `main` at 7274aad (2026-11-25), NOT yet deployed
 ### What was done this session
 - Redesigned the public homepage (`apps/web/src/app/page.tsx`) after a critique scored the old one 5/10 against the brief: highly visual, visually explanatory, interactive, high-converting. No backend, schema or env changes.
 - Hero: a playable WhatsApp conversation (visitor taps "Book a demo"/"Call me back", sees the reply, the typing dots and the answer) with sample cost and skipped chips. `components/marketing/hero-phone.tsx`.
@@ -12,7 +12,7 @@ Shared memory between sessions (and between Deep and Abdullah). Newest state fir
 - Mobile: hamburger menu, sticky "Start free" bar (`site-chrome.tsx`), phone demo right under the headline. New display font (Bricolage Grotesque), WhatsApp-green palette, chat-doodle texture; styles under `.lp` in `globals.css`.
 - Merged `docs/progress-handover` into this branch (PROGRESS format + README test note).
 ### Current state of the app (what works end to end right now)
-Unchanged apart from the homepage. Still built and tested against fakes only; nothing has run against real Meta, Razorpay or email. Live site (Abdullah's VM) still shows the OLD homepage until this branch is merged and deployed.
+Unchanged apart from the homepage. Still built and tested against fakes only; nothing has run against real Meta, Razorpay or email. Live site (Abdullah's VM) still shows the OLD homepage. Code is on `main`; it needs `lbc-deploy` from the machine that has SSH access to the server (Deep's host cannot reach port 22).
 ### How to run it locally (exact commands, any new env vars, migrations, seed data)
 Same commands as the History entry below. No new env variables. Build check: `NODE_ENV=production pnpm exec next build` (a `.env` copied from `.env.example` sets `NODE_ENV=development`, which makes `next build` fail on the /404 page with "<Html> should not be imported").
 ### How to test what changed
@@ -27,7 +27,7 @@ Same commands as the History entry below. No new env variables. Build check: `NO
 - Not yet checked on a real phone or in Safari. Mobile was checked in headless Chrome at 360px.
 - Copy to confirm with Deep/Abdullah: the 256-list claim and the Meta rate are carried over from the old page and still need checking against Meta's own rate sheet.
 ### Next steps (ordered, with the spec section to read for each)
-1. Deep reviews the homepage; merge `feat/homepage-redesign` into `main` only after approval, then Abdullah deploys with `lbc-deploy`.
+1. Abdullah (or whoever has `lbc-deploy`) pulls `main` and deploys, then checks `/version` shows the new commit and that `/` and `/login` load. Roll back with `deploy.sh --rollback` if not. No migrations in this change.
 2. Add an Open Graph image and replace stock photos with real customer proof when available.
 3. Then the items from the previous handover (real Meta/Razorpay/SMTP, branch policy for `dev`).
 ### Decisions made + open questions (also update docs/open-questions.md)
