@@ -37,15 +37,15 @@ export function BusinessPicker({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabe
   };
   return (
     <div>
-      <div role="tablist" aria-label="Your kind of business" onKeyDown={onKey} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
+      <div role="tablist" aria-label="Your kind of business" onKeyDown={onKey} className="lp-scroll-x -mx-4 flex gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
         {BIZ.map((x, n) => (
           <button key={x.id} ref={(el) => { refs.current[n] = el; }} role="tab" id={`biz-${x.id}`} aria-selected={n === i} aria-controls="biz-panel" tabIndex={n === i ? 0 : -1} onClick={() => setI(n)}
-            className={cn('inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition', n === i ? 'border-transparent bg-[var(--lp-night)] text-white shadow-lg dark:bg-white dark:text-[#0b1020]' : 'border-line bg-card hover:border-brand/60')}>
+            className={cn('inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors', n === i ? 'border-transparent bg-[var(--lp-night)] text-white dark:bg-white dark:text-[#0b1020]' : 'border-line bg-card text-muted hover:text-ink')}>
             <x.Icon className="size-4" />{x.label}
           </button>
         ))}
       </div>
-      <div id="biz-panel" role="tabpanel" aria-labelledby={`biz-${b.id}`} className="mt-8 grid items-center gap-10 lg:grid-cols-[minmax(0,22rem)_1fr] lg:gap-16">
+      <div id="biz-panel" role="tabpanel" aria-labelledby={`biz-${b.id}`} className="mt-6 grid items-center gap-8 sm:mt-8 lg:grid-cols-[minmax(0,22rem)_1fr] lg:gap-16">
         <div key={b.id} className="animate-[pop_0.4s_cubic-bezier(0.2,0.8,0.2,1)_both]">
           <PhoneFrame title={b.from}>
             <Bubble from={b.from} image={b.img} imageAlt="Illustrative photo" imageClassName="aspect-[16/8]" buttons={b.buttons}>{b.body}</Bubble>
@@ -54,7 +54,7 @@ export function BusinessPicker({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabe
         </div>
         <div>
           <h3 className="text-2xl font-semibold leading-tight tracking-[-0.03em] text-balance sm:text-[2rem]">{b.head}</h3>
-          <ul className="mt-5 space-y-3 text-lg">{b.uses.map((u) => <li key={u} className="flex gap-3"><span className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--lp-wa)] text-[#04221a]"><Check className="size-4" /></span>{u}</li>)}</ul>
+          <ul className="mt-5 space-y-3 text-base sm:text-lg">{b.uses.map((u) => <li key={u} className="flex gap-3"><Check className="mt-1 size-5 shrink-0 lp-gtext" />{u}</li>)}</ul>
           <p className="mt-5 max-w-md text-sm text-muted">Buttons let people reply, call or open a link right from the chat. Sample message, made-up names. Yours go out under your business name, using templates Meta has approved.</p>
           <Link href={ctaHref} className="lp-btn lp-btn-primary mt-7 h-12 px-6 text-base">{ctaLabel}<ArrowRight className="size-5" /></Link>
         </div>

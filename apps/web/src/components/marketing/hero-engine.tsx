@@ -35,7 +35,7 @@ const BIZ: Biz[] = [
   { id: 'salon', label: 'Salon', Icon: Scissors, name: 'Glow Salon', contacts: 800, msg: 'Hi Ritika, festive week at Glow: 20% off for returning clients. Shall we keep a slot for you?',
     replies: [{ at: R[0]!, who: 'Ritika', text: 'Saturday 4 PM?' }, { at: R[1]!, who: 'Simran', text: 'Book me in' }, { at: R[2]!, who: 'Farah', text: 'Bridal too?' }, { at: R[3]!, who: 'Isha', text: 'Sunday free?' }],
     sales: [{ at: R[0]!, amount: 1200, text: 'booked' }, { at: R[2]!, amount: 2000, text: 'advance paid' }] },
-  { id: 'store', label: 'Online store', Icon: ShoppingBag, name: 'Kavya Store', contacts: 5000, msg: 'Hi Arjun, new arrivals are in. Past buyers get 10% off till Sunday.',
+  { id: 'store', label: 'Store', Icon: ShoppingBag, name: 'Kavya Store', contacts: 5000, msg: 'Hi Arjun, new arrivals are in. Past buyers get 10% off till Sunday.',
     replies: [{ at: R[0]!, who: 'Arjun', text: 'Size M left?' }, { at: R[1]!, who: 'Meera', text: 'Show kurtas' }, { at: R[2]!, who: 'Kabir', text: 'Send the link' }, { at: R[3]!, who: 'Tara', text: 'COD available?' }],
     sales: [{ at: R[0]!, amount: 1299, text: 'ordered' }, { at: R[2]!, amount: 2499, text: 'ordered' }] },
 ];
@@ -125,18 +125,18 @@ export function HeroEngine() {
   const at = (i: number) => ({ left: `${((i % COLS) + 0.5) * (100 / COLS)}%`, top: `${(Math.floor(i / COLS) + 0.5) * (100 / ROWS)}%` });
 
   return (
-    <div ref={root} className="he relative rounded-[20px] bg-[#0a1b2c]/90 p-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09),0_24px_64px_-32px_rgba(0,0,0,0.75)] sm:p-5" data-still={still}>
-      {/* Business picker + play control */}
+    <div ref={root} className="he he-panel relative rounded-2xl p-3 sm:p-5" data-still={still}>
+      {/* Business picker (a segmented control that fits a phone) + play control */}
       <div className="flex items-center gap-2">
-        <div role="group" aria-label="Sample business" onKeyDown={onChipKey} className="he-chips -ml-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto pl-1 pr-6 [scrollbar-width:none] sm:pr-1">
+        <div role="group" aria-label="Sample business" onKeyDown={onChipKey} className="he-seg flex min-w-0 flex-1 gap-0.5 rounded-xl p-1 sm:flex-none sm:gap-1">
           {BIZ.map((x, n) => (
             <button key={x.id} ref={(el) => { chips.current[n] = el; }} type="button" aria-pressed={n === b} onClick={() => restart(n)}
-              className={cn('inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors sm:min-h-9', n === b ? 'bg-white text-[#0a1a2a]' : 'text-white/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] hover:bg-white/[0.06] hover:text-white')}>
-              <x.Icon className="size-3.5" />{x.label}
+              className="inline-flex min-h-10 flex-auto items-center justify-center gap-1.5 rounded-lg px-2 text-xs sm:flex-none font-medium sm:text-[13px] text-white/60 transition-colors hover:text-white sm:min-h-8 sm:px-3">
+              <x.Icon className="hidden size-3.5 shrink-0 sm:block" /><span className="truncate">{x.label}</span>
             </button>
           ))}
         </div>
-        <button type="button" onClick={toggle} hidden={still} aria-label={auto ? 'Pause the demo' : 'Play the demo'} className="flex size-11 shrink-0 items-center justify-center rounded-full text-white/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-colors hover:bg-white/[0.06] hover:text-white sm:size-9">
+        <button type="button" onClick={toggle} hidden={still} aria-label={auto ? 'Pause the demo' : 'Play the demo'} className="he-seg ml-auto flex size-11 shrink-0 items-center justify-center rounded-xl text-white/70 transition-colors hover:text-white sm:size-10">
           {auto ? <Pause className="size-4" /> : <Play className="size-4" />}
         </button>
       </div>
@@ -162,7 +162,7 @@ export function HeroEngine() {
       </ol>
 
       {/* The list */}
-      <div className="relative mt-3 rounded-2xl bg-black/25 px-3 py-4 sm:mt-4 sm:px-6 sm:py-6">
+      <div className="relative mt-3 rounded-xl bg-black/20 px-3 py-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)] sm:mt-4 sm:px-6 sm:py-6">
         <div key={round} className={cn('he-grid relative grid', phase >= 1 && 'p1', phase >= 3 && 'p3', phase >= 4 && 'p4', phase >= 5 && 'p5')}
           style={{ gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))` }} role="img"
           aria-label={`Sample list of ${fmt(biz.contacts)} contacts: ${fmt(skipped)} skipped, ${fmt(reach)} messaged for ${cost.totalLabel} with GST. Each dot is a group of contacts.`}>

@@ -98,18 +98,18 @@ export default async function Landing() {
                 <a href="#how" className="lp-btn lp-btn-ghost h-12 px-5 text-base">How it works</a>
               )}
             </div>
-            <ul className="mt-7 hidden flex-wrap gap-x-5 gap-y-2 text-sm text-white/65 sm:flex">{['Free plan, no card', 'No markup on Meta’s charges', 'Official WhatsApp Business Platform'].map((t) => <li key={t} className="flex items-center gap-1.5"><Check className="size-4 text-[var(--st-send)]" />{t}</li>)}</ul>
-            <p className="t-cap mt-3 hidden max-w-md text-white/45 sm:block">Sending to real customers switches on once your WhatsApp number is connected. Until then the panel runs in a clearly marked test mode.</p>
+            <ul className="mt-8 hidden flex-wrap gap-x-5 gap-y-2 text-sm text-white/60 sm:flex">{['Free plan, no card', 'No markup on Meta’s charges', 'Official WhatsApp Business Platform'].map((t) => <li key={t} className="flex items-center gap-1.5"><Check className="size-4 text-white/40" />{t}</li>)}</ul>
+            <p className="t-cap mt-6 hidden max-w-md border-t border-white/[0.08] pt-4 text-white/40 sm:block">Real sending starts once your WhatsApp number is connected. Until then the panel runs in a marked test mode.</p>
           </div>
           <div className="reveal min-w-0 [animation-delay:0.12s]">
             <HeroEngine />
-            <p className="t-cap mt-4 text-center text-white/60 sm:hidden">Free plan, no card · No markup on Meta’s charges</p>
+            <p className="t-cap mt-4 text-center text-white/50 sm:hidden">Free plan, no card · No markup on Meta’s charges</p>
           </div>
         </div>
       </section>
 
       {/* 2. WHY: the five questions a buyer asks, answered with pictures. */}
-      <section id="why" className="lp-paper scroll-mt-16 py-20 sm:py-28">
+      <section id="why" className="lp-paper scroll-mt-16 py-16 sm:py-24 lg:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="sr max-w-3xl"><H2>Everything you’d ask before buying.</H2><Lead>Reach, cost, safety, your team and the money that comes back, answered in pictures.</Lead></div>
           <div className="mt-8 sm:mt-10"><BuyerAnswers /></div>
@@ -117,7 +117,7 @@ export default async function Landing() {
       </section>
 
       {/* 3. HOW: four tabs, each a real screen, coloured by stage. */}
-      <section id="how" className="scroll-mt-16 py-20 sm:py-28">
+      <section id="how" className="scroll-mt-16 py-16 sm:py-24 lg:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="sr max-w-3xl"><H2>From your list to a busy inbox.</H2><Lead>Four steps, one panel. Tap through them.</Lead></div>
           <div className="sr mt-8 sm:mt-10"><HowTabs /></div>
@@ -126,7 +126,7 @@ export default async function Landing() {
       </section>
 
       {/* 4. RENEWALS: the loop no other panel runs for you. */}
-      <section id="renewals" className="lp-loop scroll-mt-16 py-20 sm:py-28">
+      <section id="renewals" className="lp-loop scroll-mt-16 py-16 sm:py-24 lg:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="sr max-w-3xl"><H2>Renewals that remind themselves.</H2><Lead className="text-white/70">Gyms, classes, subscriptions, internet plans: add the expiry date once, and every customer is reminded before it runs out.</Lead></div>
           <div className="sr mt-10 sm:mt-14"><RenewalLoop /></div>
@@ -135,7 +135,7 @@ export default async function Landing() {
       </section>
 
       {/* 5. WHAT TO SEND: pick your business. */}
-      <section id="send" className="lp-paper-2 scroll-mt-16 py-20 sm:py-28">
+      <section id="send" className="lp-paper-2 scroll-mt-16 py-16 sm:py-24 lg:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="sr max-w-3xl"><H2>Pick your business. See what to send.</H2></div>
           <div className="sr mt-8 sm:mt-10"><BusinessPicker ctaHref={cta.href} ctaLabel={cta.label} /></div>
@@ -143,10 +143,10 @@ export default async function Landing() {
       </section>
 
       {/* 6. WHY NOT THE FREE APP */}
-      <section className="py-20 sm:py-28">
+      <section className="py-16 sm:py-24 lg:py-28">
         <div className="mx-auto max-w-5xl px-4">
           <div className="sr max-w-3xl"><H2>Why not just use the free WhatsApp Business app?</H2><Lead>The app is for chatting. This is for reaching your whole list.</Lead></div>
-          <div className="sr mt-10 overflow-hidden rounded-3xl border border-line bg-card">
+          <div className="sr mt-10 overflow-hidden rounded-2xl border border-line bg-card">
             <div className="hidden grid-cols-[0.8fr_1fr_1.2fr] border-b border-line text-sm font-semibold md:grid"><span className="px-5 py-4" /><span className="px-5 py-4 text-muted">WhatsApp Business app</span><span className="bg-[var(--lp-night)] px-5 py-4 text-white">LeadBotCloud</span></div>
             {compare.map(([a, b, c]) => (
               <div key={a} className="grid border-b border-line last:border-0 md:grid-cols-[0.8fr_1fr_1.2fr]">
@@ -161,7 +161,7 @@ export default async function Landing() {
       </section>
 
       {/* 7. PRICING */}
-      <section id="pricing" className="lp-paper scroll-mt-16 py-20 sm:py-28">
+      <section id="pricing" className="lp-paper scroll-mt-16 py-16 sm:py-24 lg:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="sr text-center"><H2>Simple monthly plans.</H2><p className="t-lead mx-auto mt-4 max-w-xl text-pretty text-muted">Plan prices exclude GST. WhatsApp message charges are paid to Meta separately, at Meta’s rate, with no markup from us.</p></div>
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -179,7 +179,7 @@ export default async function Landing() {
       </section>
 
       {/* 8. FAQ */}
-      <section id="faq" className="mx-auto max-w-3xl scroll-mt-16 px-4 py-20 sm:py-28">
+      <section id="faq" className="mx-auto max-w-3xl scroll-mt-16 px-4 py-16 sm:py-24 lg:py-28">
         <div className="sr mb-10 text-center"><H2>Before you sign up.</H2></div>
         <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-card">{faqs.map(([q, a]) => (
           <details key={q} className="group"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-[15px] font-medium transition-colors hover:bg-ink/[0.02] sm:px-6">{q}<Plus className="size-4 shrink-0 text-muted transition-transform duration-200 group-open:rotate-45" aria-hidden="true" /></summary><p className="max-w-[62ch] px-5 pb-5 text-[15px] leading-relaxed text-muted sm:px-6">{a}</p></details>))}</div>
@@ -201,9 +201,9 @@ export default async function Landing() {
       <footer className="border-t border-line px-4 pb-24 pt-10 text-sm text-muted lg:pb-10">
         <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div><Logo className="text-ink" /><p className="mt-3 max-w-sm">WhatsApp marketing for Indian businesses. A product of DigiXoMedia.</p>{wa ? <a href={wa} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-11 items-center gap-2 font-semibold text-ink hover:underline"><MessageCircle className="size-4" />Chat with us on WhatsApp</a> : null}</div>
-          <div><p className="mb-2 font-semibold text-ink">Product</p><ul>{[['#why', 'Why us'], ['#how', 'How it works'], ['#renewals', 'Renewals'], ['#pricing', 'Pricing'], ['#faq', 'FAQ']].map(([h, l]) => <li key={h}><a href={h} className="flex min-h-11 items-center hover:text-ink">{l}</a></li>)}</ul></div>
-          <div><p className="mb-2 font-semibold text-ink">Account</p><ul><li><Link href="/login" className="flex min-h-11 items-center hover:text-ink">Log in</Link></li><li><Link href="/signup" className="flex min-h-11 items-center hover:text-ink">Create account</Link></li></ul></div>
-          <div><p className="mb-2 font-semibold text-ink">Legal</p><ul>{([['/terms', 'Terms'], ['/privacy', 'Privacy'], ['/acceptable-use', 'Acceptable use'], ['/messaging-policy', 'Messaging and opt-in'], ['/refunds', 'Refunds'], ['/data-deletion', 'Data deletion']] as const).map(([h, l]) => <li key={h}><Link href={h} className="flex min-h-11 items-center hover:text-ink">{l}</Link></li>)}</ul></div>
+          <div><p className="mb-2 font-semibold text-ink">Product</p><ul>{[['#why', 'Why us'], ['#how', 'How it works'], ['#renewals', 'Renewals'], ['#pricing', 'Pricing'], ['#faq', 'FAQ']].map(([h, l]) => <li key={h}><a href={h} className="flex min-h-11 items-center hover:text-ink lg:min-h-9">{l}</a></li>)}</ul></div>
+          <div><p className="mb-2 font-semibold text-ink">Account</p><ul><li><Link href="/login" className="flex min-h-11 items-center hover:text-ink lg:min-h-9">Log in</Link></li><li><Link href="/signup" className="flex min-h-11 items-center hover:text-ink lg:min-h-9">Create account</Link></li></ul></div>
+          <div><p className="mb-2 font-semibold text-ink">Legal</p><ul>{([['/terms', 'Terms'], ['/privacy', 'Privacy'], ['/acceptable-use', 'Acceptable use'], ['/messaging-policy', 'Messaging and opt-in'], ['/refunds', 'Refunds'], ['/data-deletion', 'Data deletion']] as const).map(([h, l]) => <li key={h}><Link href={h} className="flex min-h-11 items-center hover:text-ink lg:min-h-9">{l}</Link></li>)}</ul></div>
         </div>
         <div className="mx-auto mt-8 flex max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-line pt-6 text-xs">
           <p>© {new Date().getFullYear()} LeadBotCloud, a product of DigiXoMedia.</p>

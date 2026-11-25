@@ -9,10 +9,10 @@ const cost = estimateCost(2100, 'marketing');
 
 function Window({ url, children }: { url: string; children: React.ReactNode }) {
   return (
-    <figure className="overflow-hidden rounded-2xl border border-line bg-card shadow-[0_30px_70px_-35px_rgba(10,20,50,0.55)]">
-      <div className="flex items-center gap-1.5 border-b border-line bg-card2 px-3 py-2" aria-hidden="true"><span className="size-2.5 rounded-full bg-rose/70" /><span className="size-2.5 rounded-full bg-amber/70" /><span className="size-2.5 rounded-full bg-brand/70" /><span className="ml-3 truncate rounded-md bg-bg px-3 py-0.5 text-[11px] text-muted">{url}</span></div>
+    <figure className="overflow-hidden rounded-2xl border border-line bg-card shadow-[0_24px_60px_-36px_rgba(10,20,50,0.45)]">
+      <div className="flex items-center border-b border-line bg-card2 px-4 py-2.5" aria-hidden="true"><span className="truncate text-xs text-muted">{url}</span></div>
       <div className="p-4 sm:p-5">{children}</div>
-      <figcaption className="border-t border-line px-4 py-2 text-[11px] text-muted">Sample data. Made-up names and numbers.</figcaption>
+      <figcaption className="border-t border-line px-4 py-2.5 text-xs text-muted">Sample data. Made-up names and numbers.</figcaption>
     </figure>
   );
 }
@@ -73,7 +73,7 @@ function InboxPanel() {
       <ul className="divide-y divide-line">
         {rows.map((r) => (
           <li key={r.n} className="flex items-center gap-3 py-3">
-            <span className="grad-bg flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white">{r.n.slice(0, 1)}</span>
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--st-reply)_22%,transparent)] text-sm font-semibold text-[var(--st-reply-ink)]">{r.n.slice(0, 1)}</span>
             <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-2"><span className="truncate font-semibold">{r.n}</span><span className="shrink-0 text-xs text-muted">{r.t}</span></span><span className="block truncate text-sm text-muted">{r.m}</span></span>
             <span className="flex shrink-0 flex-col items-end gap-1"><span className="rounded-full bg-card2 px-2 py-0.5 text-[11px] font-semibold text-muted">{r.who}</span>{r.unread ? <span className="flex size-5 items-center justify-center rounded-full bg-[var(--lp-wa)] text-[11px] font-semibold text-[#04221a]">{r.unread}</span> : null}</span>
           </li>
@@ -126,13 +126,13 @@ export function HowTabs() {
 
   return (
     <div className="lp-tabs grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
-      <div role="tablist" aria-label="How it works" onKeyDown={onKey} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0">
+      <div role="tablist" aria-label="How it works" onKeyDown={onKey} className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
         {TABS.map((tb, n) => {
           const on = n === i;
           return (
             <button key={tb.id} ref={(el) => { refs.current[n] = el; }} role="tab" id={`tab-${tb.id}`} data-c={tb.c} aria-selected={on} aria-controls={`panel-${tb.id}`} tabIndex={on ? 0 : -1} onClick={() => go(n)}
-              className={cn('relative shrink-0 overflow-hidden rounded-2xl border p-3.5 text-left transition lg:p-5', on ? 'bg-card shadow-lg' : 'border-line bg-card/60 hover:bg-card')}>
-              <span className="flex items-center gap-3 text-[15px] font-semibold tracking-[-0.01em] lg:text-base"><span className="tab-ic flex size-9 shrink-0 items-center justify-center rounded-xl"><tb.Icon className="size-4.5" /></span>{tb.t}</span>
+              className={cn('relative min-h-14 overflow-hidden rounded-xl border p-2.5 text-left transition sm:p-3.5 lg:rounded-2xl lg:p-5', on ? 'bg-card shadow-sm' : 'border-line bg-card/60 hover:bg-card')}>
+              <span className="flex items-center gap-2.5 text-[13px] font-semibold leading-tight tracking-[-0.01em] sm:gap-3 sm:text-[15px] lg:text-base"><span className="tab-ic flex size-8 shrink-0 items-center justify-center rounded-lg sm:size-9 sm:rounded-xl"><tb.Icon className="size-4" /></span>{tb.t}</span>
               <span className={cn('mt-2 hidden text-sm text-muted', on && 'lg:block')}>{tb.d}</span>
               {on && !manual ? <span key={`${i}-timer`} className="lp-timer absolute inset-x-0 bottom-0 h-1" onAnimationEnd={() => go((i + 1) % TABS.length, false)} /> : null}
             </button>

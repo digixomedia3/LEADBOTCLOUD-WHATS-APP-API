@@ -26,8 +26,8 @@ function useInView<T extends Element>() {
 
 function Tile({ c, q, title, children, className }: { c: 'list' | 'check' | 'send' | 'reply' | 'sale'; q: string; title: string; children: React.ReactNode; className?: string }) {
   return (
-    <div data-c={c} className={cn('qa-tile sr flex flex-col rounded-2xl p-5 sm:p-6', className)}>
-      <p className="qa-q text-[13px] font-medium">{q}</p>
+    <div data-c={c} className={cn('qa-tile sr flex flex-col rounded-2xl p-5 sm:p-7', className)}>
+      <p className="qa-q text-[13px]">{q}</p>
       <h3 className="mt-1.5 text-xl font-semibold leading-snug tracking-[-0.02em] sm:text-[1.375rem]">{title}</h3>
       <div className="mt-5 flex-1">{children}</div>
     </div>
@@ -58,7 +58,7 @@ export function BuyerAnswers() {
 
       {/* Cost */}
       <Tile c="send" q="What will it cost me?" title="The exact amount, before you send.">
-        <dl className="qa-receipt rounded-2xl bg-card p-4 text-sm shadow-sm">
+        <dl className="qa-receipt rounded-xl bg-card2 p-4 text-sm">
           <div className="flex justify-between gap-3"><dt className="text-muted">1,000 promotional messages</dt><dd className="tabular-nums">{thousand.baseLabel}</dd></div>
           <div className="mt-1 flex justify-between gap-3"><dt className="text-muted">GST 18%</dt><dd className="tabular-nums">{thousand.gstLabel}</dd></div>
           <div className="mt-2 flex justify-between gap-3 border-t border-dashed border-line pt-2 font-semibold"><dt>Total, paid to Meta</dt><dd className="qa-ink text-lg tracking-[-0.02em] font-semibold tabular-nums">{thousand.totalLabel}</dd></div>
@@ -87,7 +87,7 @@ export function BuyerAnswers() {
       <Tile c="reply" q="Can my staff handle the replies?" title="One inbox for the whole team.">
         <ul className="space-y-2">
           {[['R', 'Ritika S.', 'Send me the link', 'You'], ['A', 'Arjun M.', 'Booked for Monday', 'Rahul'], ['S', 'Sana P.', 'Open on Sunday?', 'Priya']].map(([i, n, m, who], k) => (
-            <li key={n} className="qa-msg flex items-center gap-3 rounded-2xl bg-card p-2.5 shadow-sm" style={{ ['--o' as string]: k }}>
+            <li key={n} className="qa-msg flex items-center gap-3 rounded-xl bg-card2 p-2.5" style={{ ['--o' as string]: k }}>
               <span className="qa-avatar flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold">{i}</span>
               <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-sm font-semibold">{n}</span><span className="block truncate text-xs text-muted">{m}</span></span>
               <span className="qa-tag shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold">{who}</span>

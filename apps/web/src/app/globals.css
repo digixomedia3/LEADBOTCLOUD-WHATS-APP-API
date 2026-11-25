@@ -310,15 +310,18 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 .dark .lp { --lp-paper: #0a101b; --lp-paper-2: #0d1422; --st-list-ink: #7dd3fc; --st-check-ink: #fda4af; --st-send-ink: #4ade80; --st-reply-ink: #c4b5fd; --st-sale-ink: #fcd34d; }
 
-/* ---- Landing v3: hero night sky. The three glows sit where the stages they colour sit: list (sky) top left, replies (violet) top right, sent (green) below. ---- */
-.lp-hero { position: relative; isolation: isolate; overflow: hidden; color: #fff;
-  background:
-    radial-gradient(55% 55% at 8% 0%, rgba(56, 189, 248, 0.26), transparent 62%),
-    radial-gradient(45% 50% at 100% 8%, rgba(167, 139, 250, 0.28), transparent 62%),
-    radial-gradient(60% 55% at 70% 108%, rgba(37, 211, 102, 0.26), transparent 62%),
-    radial-gradient(30% 30% at 30% 100%, rgba(251, 191, 36, 0.12), transparent 70%),
-    linear-gradient(165deg, #061423 0%, #081b2c 50%, #082320 100%); }
-.lp-hero .lp-hl { color: var(--st-send); }
+/* ---- Hero: solid night with one quiet light source behind the demo and a faint grid. Colour lives in the demo, not the backdrop. ---- */
+.lp-hero { position: relative; isolation: isolate; overflow: hidden; color: #fff; background: var(--lp-night); border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.lp-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px; mask-image: radial-gradient(70% 70% at 50% 0%, #000 20%, transparent 75%); -webkit-mask-image: radial-gradient(70% 70% at 50% 0%, #000 20%, transparent 75%); }
+.lp-hero::after { content: ''; position: absolute; z-index: -1; pointer-events: none; width: 900px; height: 600px; right: -200px; top: -120px;
+  background: radial-gradient(closest-side, rgba(37, 211, 102, 0.10), transparent); }
+.lp-hero .lp-hl { color: rgba(255, 255, 255, 0.5); }
+/* Hero demo surface */
+.he-panel { background: linear-gradient(180deg, #0c1d2e 0%, #0a1826 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(255, 255, 255, 0.08), 0 40px 80px -40px rgba(0, 0, 0, 0.8); }
+.he-seg { background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+.he-seg [aria-pressed='true'] { background: rgba(255, 255, 255, 0.12); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); }
 
 /* Hero engine */
 .he [data-c='list'] { --hc: var(--st-list); } .he [data-c='check'] { --hc: var(--st-check); } .he [data-c='send'] { --hc: var(--st-send); }
@@ -346,9 +349,9 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 @keyframes he-sweep { to { left: 100%; } }
 .he-bubble, .he-sale { position: absolute; z-index: 5; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; border-radius: 10px; font-size: 11px; line-height: 1; padding: 6px 8px; box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.7); }
 .he-bubble { background: var(--st-reply); color: #1b0b3a; transform: translate(-50%, calc(-100% - 12px)); border-bottom-left-radius: 2px; animation: he-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--o) * 320ms); }
-.he-bubble b { font-weight: 800; margin-right: 2px; }
-@media (max-width: 639px) { .he-bubble, .he-sale { font-size: 10px; padding: 5px 6px; } .he-chips { mask-image: linear-gradient(90deg, #000 85%, transparent); } }
-.he-sale { background: var(--st-sale); color: #3a2300; font-weight: 800; transform: translate(-50%, 12px); animation: he-drop 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--o) * 450ms); }
+.he-bubble b { font-weight: 600; margin-right: 2px; }
+@media (max-width: 639px) { .he-bubble, .he-sale { font-size: 10px; padding: 5px 6px; } }
+.he-sale { background: var(--st-sale); color: #3a2300; font-weight: 600; transform: translate(-50%, 12px); animation: he-drop 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--o) * 450ms); }
 @keyframes he-rise { from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)) scale(0.8); } }
 @keyframes he-drop { from { opacity: 0; transform: translate(-50%, -4px) scale(0.6); } }
 /* The sale dot turns gold as its tag lands */
@@ -367,9 +370,11 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 .lp [data-c='send'] { --hc: var(--st-send); --hi: var(--st-send-ink); } .lp [data-c='reply'] { --hc: var(--st-reply); --hi: var(--st-reply-ink); }
 .lp [data-c='sale'] { --hc: var(--st-sale); --hi: var(--st-sale-ink); }
 
-/* Buyer questions: each tile washed in its stage colour */
-.qa-tile { background: linear-gradient(170deg, color-mix(in srgb, var(--hc) 11%, var(--card)) 0%, var(--card) 62%); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc) 22%, var(--line)), 0 1px 2px rgba(11, 16, 32, 0.04); }
-.qa-q, .qa-ink { color: var(--hi); }
+/* Buyer questions: plain cards on one neutral; the stage colour appears only in the small visual and the question marker */
+.qa-tile { background: var(--card); box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgba(11, 16, 32, 0.04); }
+.qa-q { color: var(--muted); }
+.qa-q::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: var(--hc); margin-right: 8px; vertical-align: 2px; }
+.qa-ink { color: var(--hi); }
 .qa-chip { background: color-mix(in srgb, var(--hc) 20%, transparent); color: var(--hi); }
 .qa-solid { background: var(--hc); color: #1a1200; }
 .qa-safe { background: var(--st-send); color: #04221a; }
@@ -382,8 +387,7 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 .qa[data-on='false'] :is(.qa-check, .qa-msg, .qa-step) { opacity: 0; transform: translateY(8px); }
 
 /* Renewal loop */
-.lp-loop { position: relative; isolation: isolate; overflow: hidden; color: #fff;
-  background: radial-gradient(50% 60% at 15% 50%, rgba(251, 191, 36, 0.18), transparent 65%), radial-gradient(45% 55% at 95% 0%, rgba(167, 139, 250, 0.22), transparent 65%), linear-gradient(160deg, #140f2b 0%, #0d1530 55%, #0a1b24 100%); }
+.lp-loop { position: relative; isolation: isolate; overflow: hidden; color: #fff; background: radial-gradient(45% 60% at 20% 55%, rgba(255, 255, 255, 0.045), transparent 70%), var(--lp-night); }
 .rl-arc { transition: stroke-dashoffset 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .rl-token { transform-box: view-box; transform-origin: 150px 150px; transition: transform 0.9s cubic-bezier(0.5, 0, 0.2, 1); }
 .rl-node { background: #131c36; color: rgba(255, 255, 255, 0.5); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.12); }
@@ -392,13 +396,12 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 @media (prefers-reduced-motion: reduce) { .rl-arc, .rl-token, .qa-bar, .qa-check, .qa-msg, .qa-step { transition: none !important; } }
 
 /* Stage-coloured how-it-works tabs */
-.lp-tabs [data-c][aria-selected='true'] { border-color: var(--hc); }
+.lp-tabs [data-c][aria-selected='true'] { border-color: color-mix(in srgb, var(--hc) 55%, var(--line)); }
 .lp-tabs [data-c] .tab-ic { background: color-mix(in srgb, var(--hc) 16%, transparent); color: var(--hi); }
 .lp-tabs [data-c][aria-selected='true'] .tab-ic { background: var(--hc); color: #0b1020; }
 .lp-tabs [data-c] .lp-timer { background: var(--hc); }
-/* Closing call: the five stage colours meet */
-.lp-close { position: relative; isolation: isolate; overflow: hidden; color: #fff;
-  background: radial-gradient(40% 60% at 0% 100%, rgba(56, 189, 248, 0.3), transparent 65%), radial-gradient(40% 60% at 100% 0%, rgba(167, 139, 250, 0.32), transparent 65%), radial-gradient(35% 50% at 100% 100%, rgba(251, 191, 36, 0.2), transparent 65%), linear-gradient(150deg, #072a22 0%, #0a2033 60%, #120f2c 100%); }
+/* Closing call: night, with the brand green as a single light from below */
+.lp-close { position: relative; isolation: isolate; overflow: hidden; color: #fff; background: radial-gradient(60% 80% at 50% 120%, rgba(37, 211, 102, 0.16), transparent 70%), var(--lp-night); }
 
 /* Type: one family (Geist) and five roles. Weight steps 400 / 500 / 600; no 800s. */
 .lp { font-family: var(--font-geist), system-ui, -apple-system, 'Segoe UI', sans-serif; font-feature-settings: normal; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
@@ -430,6 +433,9 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 .lp-atext { color: #b45309; }
 .dark .lp-atext { color: var(--amber); }
 .lp ::selection { background: var(--lp-wa); color: #04221a; }
+
+/* Horizontal chip rows on phones: fade the edge so the cut reads as 'scroll for more' */
+@media (max-width: 1023px) { .lp-scroll-x { mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); scroll-snap-type: x mandatory; } .lp-scroll-x > * { scroll-snap-align: start; } }
 
 /* How-it-works tab timer */
 @keyframes lp-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
