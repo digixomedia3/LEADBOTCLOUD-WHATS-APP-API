@@ -2,7 +2,7 @@
 
 Shared memory between sessions (and between Deep and Abdullah). Newest state first. Updated from git history and a real test run, not from memory. Procedures: `docs/agent/RESUME.md`, `docs/agent/HANDOVER.md`.
 
-## Latest handover: 2026-11-25 IST · by Deep (Hermes) · branch `feat/homepage-rebuild` (from `main` fd407d4), NOT merged, NOT deployed
+## Latest handover: 2026-11-25 IST · by Deep (Hermes) · `feat/homepage-rebuild` merged to `main` at 7d70d6b, NOT yet deployed
 ### What was done this session
 - Rebuilt the public homepage from scratch around a hero Deep made himself (Gemini/Neon draft, `leadbotcloud_dynamic_hero_section-2.html`). The previous homepage on `main` and the v3 branch were not reused; `components/marketing/` and the `.lp` CSS were deleted. No backend, schema or env changes.
 - Hero (`components/home/hero.tsx` + `hero-engine.ts`): the draft's markup and its motion script ported to Next.js/Tailwind v4. At 1440px every measured element box matches the draft exactly (x, y, width, height, font, size, tracking). The Tailwind v3 palette is pinned under `.hx` because v4's OKLCH colours render differently. Additions: Log in link (lg+), "Sample chat & figures" label, reduced motion shows the finished state, the loop pauses off screen. Below 640px only: one-line header with a menu, stacked CTAs, one-line phase pills, three-up source cards, tabs that fit 360px, and vertical connectors where the desktop wires are hidden. The draft's trial modal was dropped: CTAs go to `/signup` (`/dashboard` when signed in).
@@ -19,12 +19,12 @@ Same as before. No new env variables. Build check: `NODE_ENV=production pnpm exe
 2. How it works: arrow keys move the tabs; auto-advance stops once touched. Flows: tap a flow, the phone replays it. Cost: slider, type and cap change the receipt; a low cap shows "Held". Pricing: the slider moves the "Fits" badge.
 3. Dark mode (`localStorage['lbc-theme']='dark'` or the pill), reduced motion (finished hero, no autoplay), no sideways scroll at 360.
 ### Not finished / known bugs / failing tests
-- Checks run: lint, typecheck, 315/315 web tests, production build; headless Chrome at 1440 and 360, dark, reduced motion. Not checked on a real phone or Safari.
+- Checks run on the merged code: lint, typecheck, 315/315 web tests, `NODE_ENV=production next build` passes; headless Chrome at 1440 and 360, dark, reduced motion. Not checked on a real phone or Safari.
 - Copy decisions for Deep before merging (the hero copy is his, kept as supplied): the stats "< 1.2s", "3.4x Lead Conversion", "98% Open Rate" and "Replies in 0.8s" are not measured; "AI Qualify / Cloud AI Engine" describes AI the product does not have (journeys and keyword auto-replies, no AI); "Instant Booking ... calendar invite" has no calendar integration; "sync ... to your CRM" means the built-in sales board and webhooks.
 - Homepage strings are inline, not in `packages/shared/i18n/en.json` (existing debt).
 ### Next steps (ordered, with the spec section to read for each)
-1. Deep reviews the preview and decides the copy items above.
-2. On approval: merge `feat/homepage-rebuild` into `main`, then whoever holds `lbc-deploy` deploys and checks `/version`, `/` and `/login`.
+1. Whoever holds `lbc-deploy` (Abdullah) pulls `main` and deploys, then checks `/version`, `/` and `/login`. No migrations or env changes. Roll back with `deploy.sh --rollback` if needed.
+2. Homepage development is paused at Deep's request ("ok for now"). Later: logo casing (LeadBotcloud vs LeadBotCloud), flatter "Leads arrive from" strip. `feat/homepage-pipelines` (margin pipeline network) was rejected; archive only.
 ### Decisions made + open questions (also update docs/open-questions.md)
 - Decision: desktop hero is pixel-matched to Deep's draft; phone-width layout fixed where the draft wrapped or clipped.
 - Decision: every rupee figure outside the hero comes from `lib/cost`, `billing` or `PLAN_LIMITS` and is labelled as a sample; demo names are samples.
