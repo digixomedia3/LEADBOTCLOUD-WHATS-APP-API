@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { estimateCost, GST_PCT, RATE_PAISE_X100 } from '@/lib/cost';
 import { Band, CARD, CONTAINER, Check, Icon, SAMPLE_TAG, STAGE, SectionHead } from './kit';
@@ -16,7 +17,7 @@ const fmt = (n: number) => n.toLocaleString('en-IN');
 const rupees = (paise: number) => '₹' + Math.round(paise / 100).toLocaleString('en-IN');
 const perMsg = (rateX100: number) => '₹' + (rateX100 / 10000).toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
 
-export function CostCheck() {
+export function CostCheck({ ctaHref }: { ctaHref: string }) {
   const [si, setSi] = useState(5);
   const [type, setType] = useState<(typeof TYPES)[number]['id']>('marketing');
   const [cap, setCap] = useState<number>(2500);
@@ -125,7 +126,11 @@ export function CostCheck() {
                   </div>
                 ) : null}
               </div>
-              <p className="mt-3 text-[11.5px] leading-relaxed text-slate-500 dark:text-slate-400">
+              <Link href={ctaHref} className="btn-sheen group mt-4 flex items-center justify-center gap-2 w-full min-h-12 rounded-xl bg-linear-to-b/srgb from-[#10B981] to-[#059669] text-white text-[15px] font-semibold shadow-cta-emerald active:scale-[0.98]">
+                Start free and set your cap
+                <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+              </Link>
+              <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500 dark:text-slate-400">
                 Sample estimate from Meta’s India rate card (July 2026): {perMsg(RATE_PAISE_X100.marketing)} per promotional message and {perMsg(RATE_PAISE_X100.utility)} per update or login code, before GST. Meta bills these to you directly and can change them; we add no markup. The live preview before each send is what counts.
               </p>
             </div>

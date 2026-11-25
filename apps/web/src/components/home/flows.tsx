@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Band, CONTAINER, Icon, SAMPLE_TAG, SectionHead, TONE, type Tone } from './kit';
 import { useInView, useReducedMotion } from './client-kit';
@@ -17,7 +18,7 @@ const DUR = 6500;
 /** Flows: six ready-made templates from the real template library. Desktop reads left to right: pick a flow, watch the
  *  phone, follow the steps. Until the visitor picks one it cycles (a timer bar shows when), pausing on hover and off screen.
  *  The per-message charge is lib/cost's Meta India rate incl. GST, labelled as a sample. */
-export function Flows({ flows, libraryCount }: { flows: FlowData[]; libraryCount: number }) {
+export function Flows({ flows, libraryCount, ctaHref }: { flows: FlowData[]; libraryCount: number; ctaHref: string }) {
   const [i, setI] = useState(0);
   const [touched, setTouched] = useState(false);
   const [hover, setHover] = useState(false);
@@ -87,7 +88,7 @@ export function Flows({ flows, libraryCount }: { flows: FlowData[]; libraryCount
           {/* Phone */}
           <div className="lg:col-span-4 relative flex justify-center">
             <div className="relative w-full max-w-[300px] rounded-[34px] p-2 bg-[#0F172A] dark:bg-slate-800 shadow-phone-light dark:shadow-phone-dark ring-1 ring-slate-900/15 dark:ring-white/15">
-              <div className="h-[430px] rounded-[26px] bg-[#F4F6F9] dark:bg-[#0B1220] overflow-hidden flex flex-col border border-black/5 dark:border-white/5">
+              <div className="h-[380px] rounded-[26px] bg-[#F4F6F9] dark:bg-[#0B1220] overflow-hidden flex flex-col border border-black/5 dark:border-white/5">
                 <div className="px-4 pt-2 pb-1.5 bg-white dark:bg-slate-900 flex items-center justify-between text-[10px] font-semibold text-slate-600 dark:text-slate-400">
                   <span>9:41</span><div className="w-16 h-3.5 rounded-full bg-slate-900 dark:bg-black" /><span className="w-2.5 h-2 rounded-xs bg-emerald-500" />
                 </div>
@@ -155,7 +156,11 @@ export function Flows({ flows, libraryCount }: { flows: FlowData[]; libraryCount
                 </li>
               ))}
             </ol>
-            <p className="mt-6 pt-4 border-t border-slate-900/[0.07] dark:border-white/[0.07] text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">Per-message figure: Meta’s India charge incl. 18% GST, from the rate card in our cost calculator. A sample: Meta bills it to you and can change it.</p>
+            <Link href={ctaHref} className="group mt-6 inline-flex items-center gap-2 min-h-11 px-5 rounded-xl bg-slate-900 dark:bg-emerald-500 text-white dark:text-slate-950 text-sm font-semibold hover:bg-slate-800 dark:hover:bg-emerald-400 transition-colors">
+              See all {libraryCount} templates free
+              <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+            </Link>
+            <p className="mt-5 pt-4 border-t border-slate-900/[0.07] dark:border-white/[0.07] text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">Per-message figure: Meta’s India charge incl. 18% GST, from the rate card in our cost calculator. A sample: Meta bills it to you and can change it.</p>
           </div>
         </div>
       </div>

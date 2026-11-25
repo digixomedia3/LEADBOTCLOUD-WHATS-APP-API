@@ -59,7 +59,7 @@ export function HowItWorks() {
                     <span className={`w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-xl flex items-center justify-center font-jk font-extrabold text-sm ${on ? `${TONE[s.tone].dot} text-white` : 'bg-slate-900/[0.06] dark:bg-white/[0.08] text-slate-500 dark:text-slate-400'}`}>{s.n}</span>
                     <div className="min-w-0">
                       <div className={`font-jk font-bold text-[13px] sm:text-[15px] tracking-[-0.01em] ${on ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
-                        <span className="sm:hidden">{s.short}</span><span className="hidden sm:inline">{s.title}</span>
+                        {s.short}
                       </div>
                       <div className="hidden lg:block text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{s.sub}</div>
                     </div>
@@ -77,10 +77,7 @@ export function HowItWorks() {
             <div className={`absolute -top-20 right-10 w-80 h-48 blur-3xl pointer-events-none ${step.tone === 'amber' ? 'bg-amber-500/[0.07]' : step.tone === 'indigo' ? 'bg-indigo-500/[0.08]' : 'bg-emerald-500/[0.08]'}`} />
             <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
               <div className="lg:col-span-4">
-                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ${TONE[step.tone].ring} ${TONE[step.tone].soft}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${TONE[step.tone].dot}`} />{step.n}. {step.short}
-                </div>
-                <h3 className="mt-3 font-jk font-extrabold text-[1.45rem] sm:text-[1.7rem] leading-[1.15] tracking-[-0.03em] text-slate-900 dark:text-white">{step.title}</h3>
+                <h3 className="font-jk font-extrabold text-[1.45rem] sm:text-[1.7rem] leading-[1.15] tracking-[-0.03em] text-slate-900 dark:text-white">{step.title}</h3>
                 <ul className="mt-4 space-y-2.5">
                   {step.points.map((p) => (
                     <li key={p} className="flex gap-2.5 text-[15px] leading-[1.55] text-slate-600 dark:text-slate-300">

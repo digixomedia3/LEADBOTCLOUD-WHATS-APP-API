@@ -122,8 +122,8 @@ export default async function Landing() {
       <Hero ctaHref={href} ctaLabel={loggedIn ? 'Open your dashboard' : 'Start Free Trial'} stats={heroStats} />
       <ProofBar />
       <HowItWorks />
-      <Flows flows={flows()} libraryCount={TEMPLATE_LIBRARY.length} />
-      <CostCheck />
+      <Flows flows={flows()} libraryCount={TEMPLATE_LIBRARY.length} ctaHref={href} />
+      <CostCheck ctaHref={href} />
       <Safety nodes={safetyNodes()} />
       <Compare proContacts={PLAN_LIMITS.pro.contacts} ctaHref={href} ctaLabel={loggedIn ? 'Open dashboard' : 'Start free'} />
       <Pricing plans={plans()} ctaHref={href} ctaLabel={loggedIn ? 'Open dashboard' : 'Start free'} />

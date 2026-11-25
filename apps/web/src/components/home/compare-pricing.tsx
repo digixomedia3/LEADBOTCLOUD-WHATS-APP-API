@@ -19,7 +19,7 @@ export function Compare({ proContacts, ctaHref, ctaLabel }: { proContacts: numbe
   return (
     <Band tone="paper" id="compare" labelledBy="compare-title" className="py-16 sm:py-24">
       <div className={CONTAINER}>
-        <SectionHead id="compare-title" tone="indigo" n="05" eyebrow="Why not the free app?" title="Outgrown the" highlight="WhatsApp Business app?"
+        <SectionHead id="compare-title" tone="indigo" n="05" eyebrow="Why not the free app?" title="The free app is built for chatting." highlight="This is built for selling."
           lead="The app is made for chatting from one phone. LeadBotCloud is made for selling to a list, with a team, on the official platform." />
 
         <div className="sr-in mt-10 sm:mt-14 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 items-stretch">
@@ -62,7 +62,7 @@ export function Compare({ proContacts, ctaHref, ctaLabel }: { proContacts: numbe
             </div>
             <div className="mt-6">
               <div className="flex items-baseline justify-between gap-3 text-[13px]"><span className="text-slate-500 dark:text-slate-400">Reach per send</span><span className="font-bold tabular-nums text-emerald-700 dark:text-emerald-300">Up to {proContacts.toLocaleString('en-IN')} contacts</span></div>
-              <div className="mt-2 h-2.5 rounded-full overflow-hidden bg-linear-to-r/srgb from-amber-500 via-indigo-500 to-emerald-500" />
+              <div className="mt-2 h-2.5 rounded-full bg-emerald-500" />
             </div>
             <ul className="mt-6 divide-y divide-slate-900/[0.07] dark:divide-white/[0.07]">
               {ROWS.map(([k, , b]) => (
