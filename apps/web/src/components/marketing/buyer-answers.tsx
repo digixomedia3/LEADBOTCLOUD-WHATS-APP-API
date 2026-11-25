@@ -26,9 +26,9 @@ function useInView<T extends Element>() {
 
 function Tile({ c, q, title, children, className }: { c: 'list' | 'check' | 'send' | 'reply' | 'sale'; q: string; title: string; children: React.ReactNode; className?: string }) {
   return (
-    <div data-c={c} className={cn('qa-tile sr flex flex-col rounded-[1.5rem] p-5 sm:p-6', className)}>
-      <p className="qa-q text-sm font-bold">{q}</p>
-      <h3 className="mt-1 font-display text-2xl font-extrabold leading-tight sm:text-[1.65rem]">{title}</h3>
+    <div data-c={c} className={cn('qa-tile sr flex flex-col rounded-2xl p-5 sm:p-6', className)}>
+      <p className="qa-q text-[13px] font-medium">{q}</p>
+      <h3 className="mt-1.5 text-xl font-semibold leading-snug tracking-[-0.02em] sm:text-[1.375rem]">{title}</h3>
       <div className="mt-5 flex-1">{children}</div>
     </div>
   );
@@ -44,14 +44,14 @@ export function BuyerAnswers() {
       <Tile c="list" q="Will it reach all my customers?" title="Everyone who agreed. Not just 256." className="lg:col-span-2">
         <div className="space-y-4">
           <div>
-            <div className="flex items-baseline justify-between gap-3 text-sm"><span className="font-semibold text-muted">Free WhatsApp Business app</span><span className="font-display text-lg font-extrabold tabular-nums text-muted">256</span></div>
+            <div className="flex items-baseline justify-between gap-3 text-sm"><span className="font-semibold text-muted">Free WhatsApp Business app</span><span className="text-lg tracking-[-0.02em] font-semibold tabular-nums text-muted">256</span></div>
             <div className="relative mt-1.5 h-4 rounded-full bg-ink/[0.07]"><span className="qa-bar absolute inset-y-0 left-0 rounded-full bg-ink/25" style={{ ['--w' as string]: '9%' }} /><span className="absolute -top-1 bottom-[-4px] left-[9%] w-0.5 rounded bg-ink/50" aria-hidden="true" /></div>
-            <p className="mt-1 text-xs text-muted">A broadcast stops at 256, and only reaches people who saved your number.</p>
+            <p className="t-cap mt-1 text-muted">A broadcast stops at 256, and only reaches people who saved your number.</p>
           </div>
           <div>
-            <div className="flex items-baseline justify-between gap-3 text-sm"><span className="font-semibold">LeadBotCloud</span><span className="qa-ink font-display text-lg font-extrabold tabular-nums">{fmt(growth)}</span></div>
+            <div className="flex items-baseline justify-between gap-3 text-sm"><span className="font-semibold">LeadBotCloud</span><span className="qa-ink text-lg tracking-[-0.02em] font-semibold tabular-nums">{fmt(growth)}</span></div>
             <div className="relative mt-1.5 h-4 rounded-full bg-ink/[0.07]"><span className="qa-bar qa-fill absolute inset-y-0 left-0 rounded-full" style={{ ['--w' as string]: '100%' }} /></div>
-            <p className="mt-1 text-xs text-muted">Your whole list, up to your plan’s limit ({fmt(growth)} contacts on Growth). Only people with a permission on record get a message.</p>
+            <p className="t-cap mt-1 text-muted">Your whole list, up to your plan’s limit ({fmt(growth)} contacts on Growth). Only people with a permission on record get a message.</p>
           </div>
         </div>
       </Tile>
@@ -61,16 +61,16 @@ export function BuyerAnswers() {
         <dl className="qa-receipt rounded-2xl bg-card p-4 text-sm shadow-sm">
           <div className="flex justify-between gap-3"><dt className="text-muted">1,000 promotional messages</dt><dd className="tabular-nums">{thousand.baseLabel}</dd></div>
           <div className="mt-1 flex justify-between gap-3"><dt className="text-muted">GST 18%</dt><dd className="tabular-nums">{thousand.gstLabel}</dd></div>
-          <div className="mt-2 flex justify-between gap-3 border-t border-dashed border-line pt-2 font-bold"><dt>Total, paid to Meta</dt><dd className="qa-ink font-display text-lg font-extrabold tabular-nums">{thousand.totalLabel}</dd></div>
+          <div className="mt-2 flex justify-between gap-3 border-t border-dashed border-line pt-2 font-semibold"><dt>Total, paid to Meta</dt><dd className="qa-ink text-lg tracking-[-0.02em] font-semibold tabular-nums">{thousand.totalLabel}</dd></div>
         </dl>
-        <p className="mt-3 text-xs text-muted">No markup from us. Updates such as reminders cost {updates.totalLabel} per 1,000 with GST.</p>
+        <p className="t-cap mt-3 text-muted">No markup from us. Updates such as reminders cost {updates.totalLabel} per 1,000 with GST.</p>
       </Tile>
 
       {/* Safety */}
       <Tile c="check" q="Will my number get blocked?" title="Checked before every send.">
         <div className="flex items-center gap-3">
           <Gauge className="qa-ink size-6 shrink-0" />
-          <div className="grid flex-1 grid-cols-3 gap-1 text-center text-[11px] font-bold">
+          <div className="grid flex-1 grid-cols-3 gap-1 text-center text-[11px] font-semibold">
             <span className="qa-safe rounded-l-full py-1.5">Safe</span><span className="rounded-none bg-amber/15 py-1.5 text-muted">Careful</span><span className="rounded-r-full bg-rose/10 py-1.5 text-muted">Stop sending</span>
           </div>
         </div>
@@ -80,7 +80,7 @@ export function BuyerAnswers() {
             return <li key={n} className="qa-check flex items-center gap-2.5" style={{ ['--o' as string]: n }}><span className="qa-chip flex size-7 shrink-0 items-center justify-center rounded-full"><Icon className="size-3.5" /></span>{t as string}</li>;
           })}
         </ul>
-        <p className="mt-3 text-xs text-muted">Meta has the final say on any account. We lower the risk and warn you early.</p>
+        <p className="t-cap mt-3 text-muted">Meta has the final say on any account. We lower the risk and warn you early.</p>
       </Tile>
 
       {/* Team */}
@@ -88,13 +88,13 @@ export function BuyerAnswers() {
         <ul className="space-y-2">
           {[['R', 'Ritika S.', 'Send me the link', 'You'], ['A', 'Arjun M.', 'Booked for Monday', 'Rahul'], ['S', 'Sana P.', 'Open on Sunday?', 'Priya']].map(([i, n, m, who], k) => (
             <li key={n} className="qa-msg flex items-center gap-3 rounded-2xl bg-card p-2.5 shadow-sm" style={{ ['--o' as string]: k }}>
-              <span className="qa-avatar flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold">{i}</span>
+              <span className="qa-avatar flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold">{i}</span>
               <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-sm font-semibold">{n}</span><span className="block truncate text-xs text-muted">{m}</span></span>
-              <span className="qa-tag shrink-0 rounded-full px-2 py-1 text-[11px] font-bold">{who}</span>
+              <span className="qa-tag shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold">{who}</span>
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-muted">Sample names. Assign chats, leave private notes, reply from any phone.</p>
+        <p className="t-cap mt-3 text-muted">Sample names. Assign chats, leave private notes, reply from any phone.</p>
       </Tile>
 
       {/* Money */}
@@ -110,7 +110,7 @@ export function BuyerAnswers() {
             );
           })}
         </ol>
-        <a href="#renewals" className="qa-ink mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold underline-offset-4 hover:underline">See the renewal loop<ArrowRight className="size-4" /></a>
+        <a href="#renewals" className="qa-ink mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold underline-offset-4 hover:underline">See the renewal loop<ArrowRight className="size-4" /></a>
       </Tile>
     </div>
   );

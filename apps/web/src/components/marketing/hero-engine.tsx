@@ -125,18 +125,18 @@ export function HeroEngine() {
   const at = (i: number) => ({ left: `${((i % COLS) + 0.5) * (100 / COLS)}%`, top: `${(Math.floor(i / COLS) + 0.5) * (100 / ROWS)}%` });
 
   return (
-    <div ref={root} className="he relative rounded-[1.75rem] border border-white/12 bg-[#081726]/85 p-3 shadow-[0_40px_90px_-40px_rgba(0,0,0,0.8)] sm:p-5" data-still={still}>
+    <div ref={root} className="he relative rounded-[20px] bg-[#0a1b2c]/90 p-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09),0_24px_64px_-32px_rgba(0,0,0,0.75)] sm:p-5" data-still={still}>
       {/* Business picker + play control */}
       <div className="flex items-center gap-2">
         <div role="group" aria-label="Sample business" onKeyDown={onChipKey} className="he-chips -ml-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto pl-1 pr-6 [scrollbar-width:none] sm:pr-1">
           {BIZ.map((x, n) => (
             <button key={x.id} ref={(el) => { chips.current[n] = el; }} type="button" aria-pressed={n === b} onClick={() => restart(n)}
-              className={cn('inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition sm:text-sm', n === b ? 'bg-white text-[#0a1a2a]' : 'bg-white/[0.07] text-white/80 hover:bg-white/15')}>
-              <x.Icon className="size-4" />{x.label}
+              className={cn('inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors sm:min-h-9', n === b ? 'bg-white text-[#0a1a2a]' : 'text-white/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] hover:bg-white/[0.06] hover:text-white')}>
+              <x.Icon className="size-3.5" />{x.label}
             </button>
           ))}
         </div>
-        <button type="button" onClick={toggle} hidden={still} aria-label={auto ? 'Pause the demo' : 'Play the demo'} className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-white/85 transition hover:bg-white/15">
+        <button type="button" onClick={toggle} hidden={still} aria-label={auto ? 'Pause the demo' : 'Play the demo'} className="flex size-11 shrink-0 items-center justify-center rounded-full text-white/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-colors hover:bg-white/[0.06] hover:text-white sm:size-9">
           {auto ? <Pause className="size-4" /> : <Play className="size-4" />}
         </button>
       </div>
@@ -149,12 +149,12 @@ export function HeroEngine() {
           return (
             <li key={s.id} className="min-w-0">
               <button type="button" onClick={() => jump(n)} aria-current={on ? 'step' : undefined} aria-label={`${s.label}: show this step`}
-                className={cn('he-step group flex min-h-11 w-full flex-col items-start rounded-xl px-1.5 py-1.5 text-left transition sm:px-2.5 sm:py-2', on ? 'bg-white/[0.09]' : 'hover:bg-white/[0.05]')} data-c={s.id}>
+                className={cn('he-step group flex min-h-11 w-full flex-col items-start rounded-xl px-1.5 py-1.5 text-left transition sm:px-2 sm:py-2', on ? 'bg-white/[0.09]' : 'hover:bg-white/[0.05]')} data-c={s.id}>
                 <span className="relative block h-1 w-full overflow-hidden rounded-full bg-white/10">
                   <span className={cn('he-fill absolute inset-y-0 left-0 rounded-full', done ? 'w-full' : on ? 'he-fill-run' : 'w-0')} key={`${round}-${phase}-${n}`} style={on && !done && auto && !still ? { ['--t' as string]: `${HOLD[phase]}ms` } : undefined} />
                 </span>
-                <span className={cn('mt-1.5 flex items-center gap-1 text-[11px] font-semibold sm:text-xs', n <= step ? 'text-white' : 'text-white/45')}><s.Icon className="he-ink hidden size-3.5 shrink-0 sm:block" />{s.label}</span>
-                <span className={cn('hidden truncate font-display text-sm font-extrabold tabular-nums transition sm:block', n <= step ? 'he-ink opacity-100' : 'opacity-0')} style={{ maxWidth: '100%' }}>{stat[n]}</span>
+                <span className={cn('mt-1.5 flex items-center gap-1 text-[11px] font-medium sm:text-[13px]', n <= step ? 'text-white' : 'text-white/45')}><s.Icon className="he-ink hidden size-3.5 shrink-0 sm:block" />{s.label}</span>
+                <span className={cn('mt-0.5 hidden truncate text-sm font-semibold tracking-[-0.01em] tabular-nums transition-opacity sm:block', n <= step ? 'he-ink opacity-100' : 'opacity-0')} style={{ maxWidth: '100%' }}>{stat[n]}</span>
               </button>
             </li>
           );
@@ -191,11 +191,11 @@ export function HeroEngine() {
         {phase === 2 ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center p-3">
             <div className="he-pop w-full max-w-[17.5rem] rounded-2xl bg-white p-4 text-[#0b1020] shadow-2xl">
-              <p className="text-xs font-semibold text-[#5b6478]">Ready to send to {fmt(reach)} people</p>
-              <p className="mt-0.5 font-display text-3xl font-extrabold tabular-nums">{cost.totalLabel}</p>
+              <p className="text-xs font-medium text-[#5b6478]">Ready to send to {fmt(reach)} people</p>
+              <p className="mt-1 text-[1.75rem] font-semibold leading-tight tracking-[-0.03em] tabular-nums">{cost.totalLabel}</p>
               <p className="text-xs text-[#5b6478]">with GST, paid to Meta. No markup from us.</p>
               <div className="relative mt-3">
-                <button type="button" onClick={send} className={cn('lp-wa-btn flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-bold', auto && !still && 'he-press')}>
+                <button type="button" onClick={send} className={cn('lp-btn lp-btn-primary h-12 w-full text-base', auto && !still && 'he-press')}>
                   <Send className="size-4" />Send to {fmt(reach)}
                 </button>
                 {auto && !still ? <MousePointer2 aria-hidden="true" className="he-cursor pointer-events-none absolute right-8 top-6 size-6 fill-white text-[#0b1020]" /> : null}
@@ -214,10 +214,10 @@ export function HeroEngine() {
       </div>
 
       {/* Narration */}
-      <p className="mt-3 flex min-h-12 items-center gap-2.5 px-1 text-sm font-semibold text-white sm:text-base" aria-live="polite">
+      <p className="mt-3 flex min-h-12 items-center gap-2.5 px-1 text-[15px] font-medium text-white" aria-live="polite">
         <span className="he-ink-dot size-2.5 shrink-0 rounded-full" data-c={STEPS[step]!.id} />{caption}
       </p>
-      <p className="px-1 text-[11px] text-white/50">Sample business and names. Each dot is a group of contacts; 70% agreed in this sample. Cost uses Meta’s India rate.</p>
+      <p className="px-1 text-xs text-white/45">Sample business and names. Each dot is a group of contacts; 70% agreed in this sample. Cost uses Meta’s India rate.</p>
     </div>
   );
 }

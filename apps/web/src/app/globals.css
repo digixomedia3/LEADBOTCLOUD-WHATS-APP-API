@@ -300,7 +300,7 @@ input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; margin-top
 input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius: 9999px; background: var(--brand); border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
 
 /* ---- Landing (.lp): WhatsApp-green brand on a night-sky hero, paper sections, and five stage colours that run through the whole page ---- */
-.lp { --lp-g9: #05201a; --lp-g8: #0a3b30; --lp-g7: #0f5a46; --lp-wa: #25d366; --lp-gold: #f6b93b; --lp-paper: #f6f2e9; --lp-paper-2: #ece6d9;
+.lp { --lp-g9: #05201a; --lp-g8: #0a3b30; --lp-g7: #0f5a46; --lp-wa: #25d366; --lp-gold: #f6b93b; --lp-paper: #ffffff; --lp-paper-2: #eef1f6;
   /* Stage colours. One per step of a campaign, used the same way everywhere on the page, so colour is also the legend:
      list = sky, checked/skipped = rose, sent = WhatsApp green, replies = violet, sales = gold. Five hues spread round the wheel. */
   --st-list: #38bdf8; --st-check: #fb7185; --st-send: #25d366; --st-reply: #a78bfa; --st-sale: #fbbf24;
@@ -308,7 +308,7 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
   --st-list-ink: #0369a1; --st-check-ink: #be123c; --st-send-ink: #047857; --st-reply-ink: #6d28d9; --st-sale-ink: #b45309;
   --lp-night: #061423;
 }
-.dark .lp { --lp-paper: #0b1410; --lp-paper-2: #0f1b16; --st-list-ink: #7dd3fc; --st-check-ink: #fda4af; --st-send-ink: #4ade80; --st-reply-ink: #c4b5fd; --st-sale-ink: #fcd34d; }
+.dark .lp { --lp-paper: #0a101b; --lp-paper-2: #0d1422; --st-list-ink: #7dd3fc; --st-check-ink: #fda4af; --st-send-ink: #4ade80; --st-reply-ink: #c4b5fd; --st-sale-ink: #fcd34d; }
 
 /* ---- Landing v3: hero night sky. The three glows sit where the stages they colour sit: list (sky) top left, replies (violet) top right, sent (green) below. ---- */
 .lp-hero { position: relative; isolation: isolate; overflow: hidden; color: #fff;
@@ -319,7 +319,6 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
     radial-gradient(30% 30% at 30% 100%, rgba(251, 191, 36, 0.12), transparent 70%),
     linear-gradient(165deg, #061423 0%, #081b2c 50%, #082320 100%); }
 .lp-hero .lp-hl { color: var(--st-send); }
-.lp-band { height: 6px; background: linear-gradient(90deg, var(--st-list) 0 20%, var(--st-check) 20% 40%, var(--st-send) 40% 60%, var(--st-reply) 60% 80%, var(--st-sale) 80% 100%); }
 
 /* Hero engine */
 .he [data-c='list'] { --hc: var(--st-list); } .he [data-c='check'] { --hc: var(--st-check); } .he [data-c='send'] { --hc: var(--st-send); }
@@ -369,7 +368,7 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 .lp [data-c='sale'] { --hc: var(--st-sale); --hi: var(--st-sale-ink); }
 
 /* Buyer questions: each tile washed in its stage colour */
-.qa-tile { background: linear-gradient(160deg, color-mix(in srgb, var(--hc) 16%, var(--card)) 0%, color-mix(in srgb, var(--hc) 5%, var(--card)) 70%); border: 1px solid color-mix(in srgb, var(--hc) 30%, transparent); }
+.qa-tile { background: linear-gradient(170deg, color-mix(in srgb, var(--hc) 11%, var(--card)) 0%, var(--card) 62%); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc) 22%, var(--line)), 0 1px 2px rgba(11, 16, 32, 0.04); }
 .qa-q, .qa-ink { color: var(--hi); }
 .qa-chip { background: color-mix(in srgb, var(--hc) 20%, transparent); color: var(--hi); }
 .qa-solid { background: var(--hc); color: #1a1200; }
@@ -400,18 +399,36 @@ input[type='range']::-moz-range-thumb { width: 18px; height: 18px; border-radius
 /* Closing call: the five stage colours meet */
 .lp-close { position: relative; isolation: isolate; overflow: hidden; color: #fff;
   background: radial-gradient(40% 60% at 0% 100%, rgba(56, 189, 248, 0.3), transparent 65%), radial-gradient(40% 60% at 100% 0%, rgba(167, 139, 250, 0.32), transparent 65%), radial-gradient(35% 50% at 100% 100%, rgba(251, 191, 36, 0.2), transparent 65%), linear-gradient(150deg, #072a22 0%, #0a2033 60%, #120f2c 100%); }
-.lp-ghost-btn { border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; transition: background 0.2s; }
-.lp-ghost-btn:hover { background: rgba(255, 255, 255, 0.1); }
-.lp .font-display { font-family: var(--font-bricolage), var(--font-jakarta), system-ui, sans-serif; letter-spacing: -0.035em; }
+
+/* Type: one family (Geist) and five roles. Weight steps 400 / 500 / 600; no 800s. */
+.lp { font-family: var(--font-geist), system-ui, -apple-system, 'Segoe UI', sans-serif; font-feature-settings: normal; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.lp .font-display { font-family: inherit; letter-spacing: -0.025em; }
+.lp .tabular-nums, .lp .tabular { font-variant-numeric: tabular-nums; }
+.t-display { font-weight: 600; font-size: 2.25rem; line-height: 1.05; letter-spacing: -0.035em; }
+.t-h2 { font-weight: 600; font-size: 1.875rem; line-height: 1.12; letter-spacing: -0.03em; }
+.t-lead { font-size: 1.0625rem; line-height: 1.6; }
+.t-cap { font-size: 0.8125rem; line-height: 1.5; }
+@media (min-width: 640px) { .t-display { font-size: 3.25rem; letter-spacing: -0.04em; } .t-h2 { font-size: 2.5rem; } .t-lead { font-size: 1.125rem; } }
+@media (min-width: 1024px) { .t-display { font-size: 3.5rem; line-height: 1.04; } .t-h2 { font-size: 2.75rem; } }
+
+/* Header sits on the hero's night colour in both themes */
+.lp-head { background: #061423; color: #fff; border-bottom: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: saturate(140%) blur(12px); -webkit-backdrop-filter: saturate(140%) blur(12px); }
+
+/* Buttons: flat fills, 10px radius, a 1px inner highlight instead of a glow */
+.lp-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border-radius: 10px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; transition: background-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease, transform 0.1s ease; }
+.lp-btn:active { transform: translateY(1px); }
+.lp-btn-primary { background: #25d366; color: #052e1c; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 1px 2px rgba(5, 46, 28, 0.25); }
+.lp-btn-primary:hover { background: #3ddc7a; }
+.lp-btn-ghost { color: #fff; background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.lp-btn-ghost:hover { background: rgba(255, 255, 255, 0.11); }
+.lp-btn-outline { color: var(--ink); background: var(--card); box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgba(11, 16, 32, 0.05); }
+.lp-btn-outline:hover { background: var(--card-2); }
 .lp-paper { background: var(--lp-paper); }
 .lp-paper-2 { background: var(--lp-paper-2); }
 .lp-gtext { color: #047857; }
 .dark .lp-gtext { color: var(--brand); }
 .lp-atext { color: #b45309; }
 .dark .lp-atext { color: var(--amber); }
-.lp-wa-btn { background: var(--lp-wa); color: #04221a; box-shadow: 0 14px 30px -14px rgba(37, 211, 102, 0.75); transition: transform 0.2s, filter 0.2s; }
-.lp-wa-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
-.lp-wa-btn:active { transform: scale(0.97); }
 .lp ::selection { background: var(--lp-wa); color: #04221a; }
 
 /* How-it-works tab timer */

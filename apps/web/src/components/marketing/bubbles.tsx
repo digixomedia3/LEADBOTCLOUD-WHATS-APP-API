@@ -14,7 +14,7 @@ export function Bubble({ from, image, children, buttons = [], time = '10:30 AM',
       <div className="overflow-hidden rounded-xl rounded-tl-none bg-white shadow-sm">
         {image ? <Image src={image} alt={imageAlt} width={640} height={640} className={cn('w-full object-cover', imageClassName)} /> : null}
         <div className="p-2.5">
-          <p className="mb-0.5 text-xs font-bold text-[#027eb5]">{from}</p>
+          <p className="mb-0.5 text-xs font-semibold text-[#027eb5]">{from}</p>
           <div>{children}</div>
           <p className="mt-1 text-right text-[10.5px] text-black/45">{time}</p>
         </div>
@@ -39,7 +39,7 @@ export function PhoneFrame({ title, children, className }: { title: string; chil
   return (
     <div className={cn('mx-auto w-full max-w-[21.5rem] rounded-[2.2rem] border-[7px] border-[#0d1220] bg-[#0d1220] shadow-2xl', className)}>
       <div className="overflow-hidden rounded-[1.7rem] bg-[#efe7dd]">
-        <div className="flex items-center gap-2 bg-[#075e54] px-3 py-2.5 text-white"><span className="flex size-8 items-center justify-center rounded-full bg-white/20 text-xs font-bold">{title.slice(0, 1)}</span><div className="leading-tight"><p className="text-sm font-semibold">{title}</p><p className="flex items-center gap-1 text-[10.5px] text-white/75"><Check className="size-3" />Business account</p></div></div>
+        <div className="flex items-center gap-2 bg-[#075e54] px-3 py-2.5 text-white"><span className="flex size-8 items-center justify-center rounded-full bg-white/20 text-xs font-semibold">{title.slice(0, 1)}</span><div className="leading-tight"><p className="text-sm font-semibold">{title}</p><p className="flex items-center gap-1 text-[10.5px] text-white/75"><Check className="size-3" />Business account</p></div></div>
         <div className="min-h-[18rem] space-y-1 p-3">{children}</div>
       </div>
     </div>

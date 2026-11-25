@@ -19,9 +19,9 @@ export function MobileMenu({ items, loginHref }: { items: [string, string][]; lo
   }, [open]);
   return (
     <div className="lg:hidden">
-      <Button variant="ghost" size="icon" aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open} aria-controls="lp-menu" onClick={() => setOpen(!open)}>{open ? <X className="size-5" /> : <Menu className="size-5" />}</Button>
+      <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 hover:text-white" aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open} aria-controls="lp-menu" onClick={() => setOpen(!open)}>{open ? <X className="size-5" /> : <Menu className="size-5" />}</Button>
       {open ? (
-        <nav id="lp-menu" aria-label="Sections" className="absolute inset-x-0 top-full border-b border-line bg-bg shadow-xl">
+        <nav id="lp-menu" aria-label="Sections" className="absolute inset-x-0 top-full border-b border-line bg-bg text-ink shadow-xl">
           <ul className="mx-auto max-w-6xl px-4 py-2">
             {items.map(([h, l]) => <li key={h}><a href={h} onClick={() => setOpen(false)} className="flex min-h-12 items-center text-base font-semibold">{l}</a></li>)}
             {loginHref ? <li><Link href={loginHref} className="flex min-h-12 items-center text-base font-semibold text-muted">Log in</Link></li> : null}
@@ -48,7 +48,7 @@ export function StickyCta({ href, label, hideWhen = 'final-cta' }: { href: strin
   const show = past && !atEnd;
   return (
     <div aria-hidden={!show} className={`fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/92 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur transition-transform duration-300 lg:hidden ${show ? 'translate-y-0' : 'translate-y-full'}`}>
-      <Link href={href} tabIndex={show ? 0 : -1} className="lp-wa-btn flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-bold">{label}<ArrowRight className="size-5" /></Link>
+      <Link href={href} tabIndex={show ? 0 : -1} className="lp-btn lp-btn-primary h-12 w-full text-base">{label}<ArrowRight className="size-5" /></Link>
     </div>
   );
 }

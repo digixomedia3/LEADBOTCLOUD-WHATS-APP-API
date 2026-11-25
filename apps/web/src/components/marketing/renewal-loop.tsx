@@ -62,10 +62,10 @@ export function RenewalLoop() {
         })}
         {/* Centre: the same customer, moving through the loop */}
         <div className="absolute inset-[24%] flex flex-col items-center justify-center text-center">
-          <span className="flex size-11 items-center justify-center rounded-full bg-white/12 font-display text-lg font-extrabold">A</span>
-          <p className="mt-1.5 text-sm font-bold">Aarav K.</p>
+          <span className="flex size-11 items-center justify-center rounded-full bg-white/12 font-display text-lg font-semibold">A</span>
+          <p className="mt-1.5 text-sm font-semibold">Aarav K.</p>
           <p className="text-[11px] text-white/60">Gym, monthly · ₹1,500</p>
-          <p key={i} data-c={STEPS[i]!.c} className="rl-pill he-pop mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold">
+          <p key={i} data-c={STEPS[i]!.c} className="rl-pill he-pop mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold">
             {['Ends Friday', 'Reminder sent', '“Renew now”', 'Renewed till 15 Jan'][i]}{i === 1 ? <CheckCheck className="size-3.5" /> : null}
           </p>
         </div>
@@ -78,7 +78,7 @@ export function RenewalLoop() {
               <button type="button" data-c={s.c} onClick={() => { setAuto(false); setI(n); }} aria-current={n === i ? 'step' : undefined}
                 className={cn('rl-row flex min-h-14 w-full items-center gap-4 rounded-2xl px-4 py-3 text-left transition', n === i ? 'bg-white/[0.09]' : 'hover:bg-white/[0.05]')}>
                 <span className={cn('rl-node flex size-10 shrink-0 items-center justify-center rounded-xl', n <= i && 'rl-on')}><s.Icon className="size-4.5" /></span>
-                <span className="leading-tight"><span className="block font-display text-lg font-bold">{s.t}</span><span className={cn('block text-sm text-white/65', n !== i && 'hidden sm:block')}>{s.d}</span></span>
+                <span className="leading-tight"><span className="block text-base font-semibold tracking-[-0.01em] sm:text-[17px]">{s.t}</span><span className={cn('block text-sm text-white/65', n !== i && 'hidden sm:block')}>{s.d}</span></span>
               </button>
             </li>
           ))}

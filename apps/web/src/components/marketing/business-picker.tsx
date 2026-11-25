@@ -53,10 +53,10 @@ export function BusinessPicker({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabe
           </PhoneFrame>
         </div>
         <div>
-          <h3 className="font-display text-3xl font-extrabold leading-tight sm:text-4xl">{b.head}</h3>
+          <h3 className="text-2xl font-semibold leading-tight tracking-[-0.03em] text-balance sm:text-[2rem]">{b.head}</h3>
           <ul className="mt-5 space-y-3 text-lg">{b.uses.map((u) => <li key={u} className="flex gap-3"><span className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--lp-wa)] text-[#04221a]"><Check className="size-4" /></span>{u}</li>)}</ul>
           <p className="mt-5 max-w-md text-sm text-muted">Buttons let people reply, call or open a link right from the chat. Sample message, made-up names. Yours go out under your business name, using templates Meta has approved.</p>
-          <Link href={ctaHref} className="lp-wa-btn mt-6 inline-flex min-h-12 items-center gap-2 rounded-xl px-6 text-base font-bold">{ctaLabel}<ArrowRight className="size-5" /></Link>
+          <Link href={ctaHref} className="lp-btn lp-btn-primary mt-7 h-12 px-6 text-base">{ctaLabel}<ArrowRight className="size-5" /></Link>
         </div>
       </div>
     </div>

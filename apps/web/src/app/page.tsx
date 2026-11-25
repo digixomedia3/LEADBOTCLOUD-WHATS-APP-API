@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import { Bricolage_Grotesque } from 'next/font/google';
+import { Geist } from 'next/font/google';
 import Link from 'next/link';
-import { ArrowRight, Check, CheckCircle2, MessageCircle, X } from 'lucide-react';
+import { ArrowRight, Check, MessageCircle, Plus, X } from 'lucide-react';
 import { PLAN_LIMITS } from '@lbc/shared';
-import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/shell/theme-toggle';
 import { ScrollReveal } from '@/components/marketing/scroll-reveal';
 import { HeroEngine } from '@/components/marketing/hero-engine';
@@ -12,11 +11,13 @@ import { RenewalLoop } from '@/components/marketing/renewal-loop';
 import { HowTabs } from '@/components/marketing/how-tabs';
 import { BusinessPicker } from '@/components/marketing/business-picker';
 import { MobileMenu, StickyCta } from '@/components/marketing/site-chrome';
+import { Logo } from '@/components/marketing/logo';
 import { company } from '@/lib/company';
 import { getSession } from '@/lib/session';
 import { cn } from '@/lib/utils';
 
-const display = Bricolage_Grotesque({ subsets: ['latin'], variable: '--font-bricolage', display: 'swap' });
+// One family for the whole marketing page. latin-ext carries the rupee sign (U+20B9).
+const geist = Geist({ subsets: ['latin', 'latin-ext'], variable: '--font-geist', display: 'swap' });
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -57,7 +58,8 @@ const compare: [string, string, string][] = [
   ['Risk to your number', 'Campaigning from it can get it flagged', 'Checks and limits built to protect it'],
 ];
 
-function H2({ children, className }: { children: React.ReactNode; className?: string }) { return <h2 className={cn('font-display text-balance text-[2rem] font-extrabold leading-[1.05] sm:text-5xl lg:text-[3.4rem]', className)}>{children}</h2>; }
+function H2({ children, className }: { children: React.ReactNode; className?: string }) { return <h2 className={cn('t-h2 text-balance', className)}>{children}</h2>; }
+function Lead({ children, className }: { children: React.ReactNode; className?: string }) { return <p className={cn('t-lead mt-4 max-w-2xl text-pretty text-muted', className)}>{children}</p>; }
 
 export default async function Landing() {
   const session = await getSession();
@@ -65,76 +67,75 @@ export default async function Landing() {
   const waDigits = company().supportWhatsapp?.replace(/\D/g, '') || null;
   const wa = waDigits ? `https://wa.me/${waDigits}?text=${encodeURIComponent('Hi, I would like to know more about LeadBotCloud.')}` : null;
   return (
-    <div className={cn('lp min-h-dvh overflow-x-clip', display.variable)}>
+    <div className={cn('lp min-h-dvh overflow-x-clip', geist.variable)}>
       <ScrollReveal />
-      <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur">
+      <header className="lp-head sticky top-0 z-40">
         <div className="relative mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
-          <Link href="/" className="flex min-h-11 items-center gap-2 font-display text-xl font-extrabold"><span className="flex size-9 items-center justify-center rounded-xl bg-[var(--lp-wa)] text-[#04221a]">L</span>LeadBotCloud</Link>
-          <nav className="ml-6 hidden items-center gap-1 text-sm font-semibold text-muted lg:flex" aria-label="Sections">
-            {NAV.map(([h, l]) => <a key={h} href={h} className="rounded-lg px-3 py-2 hover:bg-ink/5 hover:text-ink">{l}</a>)}
+          <Link href="/" aria-label="LeadBotCloud home" className="flex min-h-11 items-center"><Logo /></Link>
+          <nav className="ml-8 hidden items-center gap-0.5 text-sm font-medium lg:flex" aria-label="Sections">
+            {NAV.map(([h, l]) => <a key={h} href={h} className="rounded-lg px-3 py-2 text-white/70 transition-colors hover:bg-white/[0.06] hover:text-white">{l}</a>)}
           </nav>
-          <div className="ml-auto flex items-center gap-1.5">
-            <ThemeToggle className="hidden sm:inline-flex" />
-            {!session ? <Link href="/login" className="hidden min-h-11 items-center px-3 text-sm font-semibold sm:flex">Log in</Link> : null}
-            <Link href={cta.href} className="lp-wa-btn inline-flex min-h-10 items-center whitespace-nowrap rounded-xl px-3.5 text-sm font-bold">{cta.label}</Link>
+          <div className="ml-auto flex items-center gap-1">
+            <ThemeToggle className="hidden text-white/70 hover:bg-white/[0.08] hover:text-white sm:inline-flex" />
+            {!session ? <Link href="/login" className="hidden min-h-11 items-center px-3 text-sm font-medium text-white/80 transition-colors hover:text-white sm:flex">Log in</Link> : null}
+            <Link href={cta.href} className="lp-btn lp-btn-primary h-11 px-4 text-sm sm:h-10">{cta.label}</Link>
             <MobileMenu items={NAV} loginHref={session ? undefined : '/login'} />
           </div>
         </div>
-        <div className="lp-band h-1" aria-hidden="true" />
       </header>
 
       {/* 1. HERO: one campaign, start to finish, played live. */}
       <section className="lp-hero">
-        <div className="mx-auto grid max-w-6xl items-center gap-7 px-4 pb-10 pt-7 sm:gap-10 sm:pb-20 sm:pt-14 lg:grid-cols-[minmax(0,0.84fr)_minmax(0,1.16fr)] lg:gap-12 lg:pb-24 lg:pt-16">
+        <div className="mx-auto grid max-w-6xl items-center gap-7 px-4 pb-10 pt-7 sm:gap-10 sm:pb-20 sm:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] lg:gap-12 lg:pb-24 lg:pt-16">
           <div className="reveal min-w-0">
-            <h1 className="font-display text-[2.3rem] font-extrabold leading-[0.98] sm:text-6xl lg:text-[3.35rem]">Message your whole list on WhatsApp. <span className="lp-hl">Watch the sales come back.</span></h1>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-white/80 sm:mt-6 sm:text-xl">See the exact cost before you send. People who never agreed are skipped for you<span className="hidden sm:inline">, and every reply lands in one inbox your team shares</span>.</p>
-            <div className="mt-5 flex flex-wrap items-center gap-2.5 sm:mt-8 sm:gap-3">
-              <Link href={cta.href} className="lp-wa-btn inline-flex min-h-13 items-center gap-2 rounded-xl px-7 text-lg font-bold sm:min-h-14">{cta.label}<ArrowRight className="size-5" /></Link>
+            <h1 className="t-display text-balance">Message your whole list on WhatsApp. <span className="lp-hl">Watch the sales come back.</span></h1>
+            <p className="t-lead mt-5 max-w-[34rem] text-pretty text-white/75 sm:mt-6">See the exact cost before you send. People who never agreed are skipped for you<span className="hidden sm:inline">, and every reply lands in one inbox your team shares</span>.</p>
+            <div className="mt-7 flex flex-wrap items-center gap-3 sm:mt-8">
+              <Link href={cta.href} className="lp-btn lp-btn-primary h-12 px-6 text-base">{cta.label}<ArrowRight className="size-4" /></Link>
               {wa ? (
-                <a href={wa} target="_blank" rel="noopener noreferrer" className="lp-ghost-btn inline-flex min-h-13 items-center gap-2 rounded-xl px-5 text-base font-semibold sm:min-h-14"><MessageCircle className="size-5 text-[var(--st-send)]" />Chat with us</a>
+                <a href={wa} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost h-12 px-5 text-base"><MessageCircle className="size-4 text-[var(--st-send)]" />Chat with us</a>
               ) : (
-                <a href="#how" className="lp-ghost-btn inline-flex min-h-13 items-center rounded-xl px-5 text-base font-semibold sm:min-h-14">How it works</a>
+                <a href="#how" className="lp-btn lp-btn-ghost h-12 px-5 text-base">How it works</a>
               )}
             </div>
-            <ul className="mt-6 hidden flex-wrap gap-x-6 gap-y-2 text-sm text-white/80 sm:flex">{['Free plan, no card', 'No markup on Meta’s charges', 'Official WhatsApp Business Platform'].map((t) => <li key={t} className="flex items-center gap-1.5"><CheckCircle2 className="size-4 text-[var(--st-send)]" />{t}</li>)}</ul>
-            <p className="mt-4 hidden max-w-md text-xs text-white/55 sm:block">Sending to real customers switches on once your WhatsApp number is connected. Until then the whole panel runs in a clearly marked test mode.</p>
+            <ul className="mt-7 hidden flex-wrap gap-x-5 gap-y-2 text-sm text-white/65 sm:flex">{['Free plan, no card', 'No markup on Meta’s charges', 'Official WhatsApp Business Platform'].map((t) => <li key={t} className="flex items-center gap-1.5"><Check className="size-4 text-[var(--st-send)]" />{t}</li>)}</ul>
+            <p className="t-cap mt-3 hidden max-w-md text-white/45 sm:block">Sending to real customers switches on once your WhatsApp number is connected. Until then the panel runs in a clearly marked test mode.</p>
           </div>
           <div className="reveal min-w-0 [animation-delay:0.12s]">
             <HeroEngine />
-            <p className="mt-4 text-center text-sm text-white/75 sm:hidden">Free plan, no card · No markup on Meta’s charges</p>
+            <p className="t-cap mt-4 text-center text-white/60 sm:hidden">Free plan, no card · No markup on Meta’s charges</p>
           </div>
         </div>
       </section>
 
       {/* 2. WHY: the five questions a buyer asks, answered with pictures. */}
-      <section id="why" className="lp-paper scroll-mt-16 py-16 sm:py-24">
+      <section id="why" className="lp-paper scroll-mt-16 py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="sr max-w-3xl"><H2>Everything you’d ask before buying.</H2></div>
+          <div className="sr max-w-3xl"><H2>Everything you’d ask before buying.</H2><Lead>Reach, cost, safety, your team and the money that comes back, answered in pictures.</Lead></div>
           <div className="mt-8 sm:mt-10"><BuyerAnswers /></div>
         </div>
       </section>
 
       {/* 3. HOW: four tabs, each a real screen, coloured by stage. */}
-      <section id="how" className="scroll-mt-16 py-16 sm:py-24">
+      <section id="how" className="scroll-mt-16 py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="sr max-w-3xl"><H2>From your list to a busy inbox.</H2><p className="mt-4 text-lg text-muted">Four steps, one panel. Tap through them.</p></div>
+          <div className="sr max-w-3xl"><H2>From your list to a busy inbox.</H2><Lead>Four steps, one panel. Tap through them.</Lead></div>
           <div className="sr mt-8 sm:mt-10"><HowTabs /></div>
-          <p className="mt-6 text-sm text-muted">The panel is built and runs in test mode until your WhatsApp number is connected.</p>
+          <p className="t-cap mt-6 text-muted">The panel is built and runs in test mode until your WhatsApp number is connected.</p>
         </div>
       </section>
 
       {/* 4. RENEWALS: the loop no other panel runs for you. */}
-      <section id="renewals" className="lp-loop scroll-mt-16 py-16 sm:py-24">
+      <section id="renewals" className="lp-loop scroll-mt-16 py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="sr max-w-3xl"><H2>Renewals that remind themselves.</H2><p className="mt-4 text-lg text-white/75">Gyms, classes, subscriptions, internet plans: add the expiry date once, and every customer is reminded before it runs out.</p></div>
+          <div className="sr max-w-3xl"><H2>Renewals that remind themselves.</H2><Lead className="text-white/70">Gyms, classes, subscriptions, internet plans: add the expiry date once, and every customer is reminded before it runs out.</Lead></div>
           <div className="sr mt-10 sm:mt-14"><RenewalLoop /></div>
-          <p className="mt-8 text-xs text-white/55">Sample customer. Online payment links are being switched on; until then you mark a payment in one tap.</p>
+          <p className="t-cap mt-10 text-white/45">Sample customer. Online payment links are being switched on; until then you mark a payment in one tap.</p>
         </div>
       </section>
 
       {/* 5. WHAT TO SEND: pick your business. */}
-      <section id="send" className="lp-paper-2 scroll-mt-16 py-16 sm:py-24">
+      <section id="send" className="lp-paper-2 scroll-mt-16 py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="sr max-w-3xl"><H2>Pick your business. See what to send.</H2></div>
           <div className="sr mt-8 sm:mt-10"><BusinessPicker ctaHref={cta.href} ctaLabel={cta.label} /></div>
@@ -142,64 +143,64 @@ export default async function Landing() {
       </section>
 
       {/* 6. WHY NOT THE FREE APP */}
-      <section className="py-16 sm:py-24">
+      <section className="py-20 sm:py-28">
         <div className="mx-auto max-w-5xl px-4">
-          <div className="sr max-w-3xl"><H2>Why not just use the free WhatsApp Business app?</H2><p className="mt-4 text-lg text-muted">The app is for chatting. This is for reaching your whole list.</p></div>
+          <div className="sr max-w-3xl"><H2>Why not just use the free WhatsApp Business app?</H2><Lead>The app is for chatting. This is for reaching your whole list.</Lead></div>
           <div className="sr mt-10 overflow-hidden rounded-3xl border border-line bg-card">
-            <div className="hidden grid-cols-[0.8fr_1fr_1.2fr] border-b border-line text-sm font-bold md:grid"><span className="px-5 py-4" /><span className="px-5 py-4 text-muted">WhatsApp Business app</span><span className="bg-[var(--lp-night)] px-5 py-4 text-white">LeadBotCloud</span></div>
+            <div className="hidden grid-cols-[0.8fr_1fr_1.2fr] border-b border-line text-sm font-semibold md:grid"><span className="px-5 py-4" /><span className="px-5 py-4 text-muted">WhatsApp Business app</span><span className="bg-[var(--lp-night)] px-5 py-4 text-white">LeadBotCloud</span></div>
             {compare.map(([a, b, c]) => (
               <div key={a} className="grid border-b border-line last:border-0 md:grid-cols-[0.8fr_1fr_1.2fr]">
-                <p className="px-5 pt-4 font-display text-lg font-bold md:py-4">{a}</p>
+                <p className="px-5 pt-4 font-semibold md:py-4">{a}</p>
                 <p className="flex items-start gap-2 px-5 py-2 text-muted md:py-4"><X className="mt-1 size-4 shrink-0 text-rose" /><span><span className="font-semibold md:hidden">App: </span>{b}</span></p>
                 <p className="flex items-start gap-2 bg-brand/[0.07] px-5 py-2 pb-4 font-medium md:py-4"><Check className="mt-1 size-4 shrink-0 lp-gtext" /><span><span className="font-semibold md:hidden">LeadBotCloud: </span>{c}</span></p>
               </div>
             ))}
           </div>
-          <p className="mt-3 text-xs text-muted">The API route has rules of its own: approved templates, recorded permission, and per-message charges from Meta.</p>
+          <p className="t-cap mt-3 text-muted">The API route has rules of its own: approved templates, recorded permission, and per-message charges from Meta.</p>
         </div>
       </section>
 
       {/* 7. PRICING */}
-      <section id="pricing" className="lp-paper scroll-mt-16 py-16 sm:py-24">
+      <section id="pricing" className="lp-paper scroll-mt-16 py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="sr text-center"><H2>Simple monthly plans.</H2><p className="mx-auto mt-3 max-w-xl text-muted">Plan prices exclude GST. WhatsApp message charges are paid to Meta separately, at Meta’s rate, with no markup from us.</p></div>
+          <div className="sr text-center"><H2>Simple monthly plans.</H2><p className="t-lead mx-auto mt-4 max-w-xl text-pretty text-muted">Plan prices exclude GST. WhatsApp message charges are paid to Meta separately, at Meta’s rate, with no markup from us.</p></div>
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {plans.map((p, i) => { const l = PLAN_LIMITS[p.id]; const hot = 'hot' in p; return (
-              <div key={p.id} style={{ ['--i' as string]: i }} className={cn('sr sr-zoom card relative flex flex-col p-6', hot && 'border-[var(--lp-g8)] ring-2 ring-[var(--lp-wa)] lg:-mt-4 lg:pb-10')}>
-                {hot ? <span className="absolute -top-3 left-6 rounded-full bg-[var(--lp-wa)] px-3 py-1 text-xs font-bold text-[#04221a]">Most popular</span> : null}
-                <h3 className="font-display text-xl font-bold">{l.label}</h3><p className="text-xs text-muted">{p.note}</p>
-                <p className="mt-4 font-display text-4xl font-extrabold">{p.price}<span className="text-sm font-medium text-muted">/month</span></p>
+              <div key={p.id} style={{ ['--i' as string]: i }} className={cn('sr sr-zoom card relative flex flex-col p-6', hot && 'ring-2 ring-[var(--st-send)]')}>
+                {hot ? <span className="absolute -top-3 left-6 rounded-full bg-[var(--lp-night)] px-2.5 py-1 text-xs font-medium text-white dark:bg-white dark:text-[#0b1020]">Most popular</span> : null}
+                <h3 className="text-lg font-semibold tracking-[-0.015em]">{l.label}</h3><p className="text-sm text-muted">{p.note}</p>
+                <p className="mt-5 flex items-baseline gap-1"><span className="text-[2.5rem] font-semibold leading-none tracking-[-0.04em] tabular-nums">{p.price}</span><span className="text-sm text-muted">/month</span></p>
                 <ul className="mt-5 flex-1 space-y-2.5 text-sm"><li className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 lp-gtext" />{l.users} {l.users === 1 ? 'user' : 'users'}, {l.contacts.toLocaleString('en-IN')} contacts</li>{p.pts.map((x) => <li key={x} className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 lp-gtext" />{x}</li>)}</ul>
-                {hot ? <Link href={cta.href} className="lp-wa-btn mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-xl text-base font-bold">{cta.label}</Link> : <Button asChild variant="outline" className="mt-6 w-full"><Link href={cta.href}>{cta.label}</Link></Button>}
+                <Link href={cta.href} className={cn('lp-btn mt-6 h-11 w-full text-sm', hot ? 'lp-btn-primary' : 'lp-btn-outline')}>{cta.label}</Link>
               </div>); })}
           </div>
-          <p className="mt-6 text-center text-xs text-muted">Online payment is being switched on. Until then every account starts on the free plan and carries over when paid plans open. You are never charged without a card on file.</p>
+          <p className="t-cap mx-auto mt-8 max-w-2xl text-center text-muted">Online payment is being switched on. Until then every account starts on the free plan and carries over when paid plans open. You are never charged without a card on file.</p>
         </div>
       </section>
 
       {/* 8. FAQ */}
-      <section id="faq" className="mx-auto max-w-3xl scroll-mt-16 px-4 py-16 sm:py-24">
+      <section id="faq" className="mx-auto max-w-3xl scroll-mt-16 px-4 py-20 sm:py-28">
         <div className="sr mb-10 text-center"><H2>Before you sign up.</H2></div>
-        <div className="space-y-3">{faqs.map(([q, a]) => (
-          <details key={q} className="card group p-0"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-3 font-semibold">{q}<span className="text-2xl leading-none text-[var(--lp-g7)] transition-transform group-open:rotate-45 dark:text-brand" aria-hidden="true">+</span></summary><p className="px-5 pb-5 text-sm text-muted">{a}</p></details>))}</div>
+        <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-card">{faqs.map(([q, a]) => (
+          <details key={q} className="group"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-[15px] font-medium transition-colors hover:bg-ink/[0.02] sm:px-6">{q}<Plus className="size-4 shrink-0 text-muted transition-transform duration-200 group-open:rotate-45" aria-hidden="true" /></summary><p className="max-w-[62ch] px-5 pb-5 text-[15px] leading-relaxed text-muted sm:px-6">{a}</p></details>))}</div>
       </section>
 
       {/* 9. CLOSE */}
       <section id="final-cta" className="lp-close">
         <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:py-24">
           <H2>They already know you. Say something.</H2>
-          <p className="mx-auto mt-5 max-w-xl text-lg text-white/80">Make a free workspace in a minute. Upload a list, see the cost, and try the whole panel before you spend a rupee.</p>
+          <p className="t-lead mx-auto mt-5 max-w-xl text-pretty text-white/75">Make a free workspace in a minute. Upload a list, see the cost, and try the whole panel before you spend a rupee.</p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link href={cta.href} className="lp-wa-btn inline-flex min-h-14 items-center gap-2 rounded-xl px-9 text-lg font-bold">{cta.label}<ArrowRight className="size-5" /></Link>
-            {wa ? <a href={wa} target="_blank" rel="noopener noreferrer" className="lp-ghost-btn inline-flex min-h-14 items-center gap-2 rounded-xl px-6 text-base font-semibold"><MessageCircle className="size-5 text-[var(--st-send)]" />Ask a person on WhatsApp</a> : null}
+            <Link href={cta.href} className="lp-btn lp-btn-primary h-12 px-7 text-base">{cta.label}<ArrowRight className="size-4" /></Link>
+            {wa ? <a href={wa} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost h-12 px-6 text-base"><MessageCircle className="size-4 text-[var(--st-send)]" />Ask a person on WhatsApp</a> : null}
           </div>
-          <p className="mt-4 text-xs text-white/60">Free plan, no card. Message charges are set by Meta and billed separately.</p>
+          <p className="t-cap mt-5 text-white/50">Free plan, no card. Message charges are set by Meta and billed separately.</p>
         </div>
       </section>
 
       <footer className="border-t border-line px-4 pb-24 pt-10 text-sm text-muted lg:pb-10">
         <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
-          <div><p className="flex items-center gap-2 font-display text-lg font-extrabold text-ink"><span className="flex size-8 items-center justify-center rounded-lg bg-[var(--lp-wa)] text-[#04221a]">L</span>LeadBotCloud</p><p className="mt-3 max-w-sm">WhatsApp marketing for Indian businesses. A product of DigiXoMedia.</p>{wa ? <a href={wa} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-11 items-center gap-2 font-semibold text-ink hover:underline"><MessageCircle className="size-4" />Chat with us on WhatsApp</a> : null}</div>
+          <div><Logo className="text-ink" /><p className="mt-3 max-w-sm">WhatsApp marketing for Indian businesses. A product of DigiXoMedia.</p>{wa ? <a href={wa} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-11 items-center gap-2 font-semibold text-ink hover:underline"><MessageCircle className="size-4" />Chat with us on WhatsApp</a> : null}</div>
           <div><p className="mb-2 font-semibold text-ink">Product</p><ul>{[['#why', 'Why us'], ['#how', 'How it works'], ['#renewals', 'Renewals'], ['#pricing', 'Pricing'], ['#faq', 'FAQ']].map(([h, l]) => <li key={h}><a href={h} className="flex min-h-11 items-center hover:text-ink">{l}</a></li>)}</ul></div>
           <div><p className="mb-2 font-semibold text-ink">Account</p><ul><li><Link href="/login" className="flex min-h-11 items-center hover:text-ink">Log in</Link></li><li><Link href="/signup" className="flex min-h-11 items-center hover:text-ink">Create account</Link></li></ul></div>
           <div><p className="mb-2 font-semibold text-ink">Legal</p><ul>{([['/terms', 'Terms'], ['/privacy', 'Privacy'], ['/acceptable-use', 'Acceptable use'], ['/messaging-policy', 'Messaging and opt-in'], ['/refunds', 'Refunds'], ['/data-deletion', 'Data deletion']] as const).map(([h, l]) => <li key={h}><Link href={h} className="flex min-h-11 items-center hover:text-ink">{l}</Link></li>)}</ul></div>
