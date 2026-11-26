@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Band, CONTAINER, Icon, SAMPLE_TAG, SectionHead, TONE, type Tone } from './kit';
+import { Band, BTN_PRIMARY_SM, CONTAINER, Icon, SAMPLE_TAG, SectionHead, TONE, type Tone } from './kit';
 import { useInView, useReducedMotion } from './client-kit';
 
 export type FlowData = {
@@ -49,7 +49,7 @@ export function Flows({ flows, libraryCount, ctaHref }: { flows: FlowData[]; lib
   const lastOn = steps.reduce((m, s, k) => (s.on ? k : m), 0);
 
   return (
-    <Band tone="paper" id="flows" labelledBy="flows-title" className="py-16 sm:py-24">
+    <Band tone="paper" id="flows" labelledBy="flows-title" className="py-12 sm:py-20 lg:py-24">
       <div className={CONTAINER}>
         <SectionHead id="flows-title" tone="amber" n="02" eyebrow="Ready-made flows" title="Start from a flow that" highlight="already works."
           lead={<>{libraryCount} ready templates written to Meta’s template rules. Pick one, change the words, and it runs. Choose a flow to watch it.</>} />
@@ -156,7 +156,7 @@ export function Flows({ flows, libraryCount, ctaHref }: { flows: FlowData[]; lib
                 </li>
               ))}
             </ol>
-            <Link href={ctaHref} className="group mt-6 inline-flex items-center gap-2 min-h-11 px-5 rounded-xl bg-slate-900 dark:bg-emerald-500 text-white dark:text-slate-950 text-sm font-semibold hover:bg-slate-800 dark:hover:bg-emerald-400 transition-colors">
+            <Link href={ctaHref} className={`${BTN_PRIMARY_SM} mt-6`}>
               See all {libraryCount} templates free
               <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
             </Link>

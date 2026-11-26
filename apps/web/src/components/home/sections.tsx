@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Arrow, Band, BTN_PRIMARY, CONTAINER, Check, Icon, TONE, type Tone } from './kit';
+import { Arrow, Band, BTN_PRIMARY, BTN_PRIMARY_SM, CONTAINER, Check, Icon, TONE, type Tone } from './kit';
 import { Logo } from './site-header';
 
 /* ---------------- Proof bar: the first separator after the hero ---------------- */
@@ -30,9 +30,9 @@ export function ProofBar() {
             </div>
           </div>
         </div>
-        <div className="mt-8 pt-7 border-t border-slate-900/[0.07] dark:border-white/[0.07] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-0 lg:divide-x divide-slate-900/[0.07] dark:divide-white/[0.07]">
+        <div className="mt-8 pt-7 border-t border-slate-900/[0.07] dark:border-white/[0.07] grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-5 lg:gap-0 lg:divide-x divide-slate-900/[0.07] dark:divide-white/[0.07]">
           {TRUST.map((x, i) => (
-            <div key={x.t} className={`flex items-start gap-3 ${i > 0 ? 'lg:pl-6' : ''} ${i < 3 ? 'lg:pr-6' : ''}`}>
+            <div key={x.t} className={`flex flex-col sm:flex-row items-start gap-2 sm:gap-3 ${i > 0 ? 'lg:pl-6' : ''} ${i < 3 ? 'lg:pr-6' : ''}`}>
               <span className={`relative w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${TONE[x.tone].soft}`}>
                 <Icon name={x.icon} className="w-5 h-5" />
                 {x.live ? <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" /></span> : null}
@@ -52,7 +52,7 @@ export function ProofBar() {
 /* ---------------- FAQ ---------------- */
 export function Faq({ faqs, waHref }: { faqs: [string, string][]; waHref: string | null }) {
   return (
-    <Band tone="paper" id="faq" labelledBy="faq-title" className="py-16 sm:py-24">
+    <Band tone="paper" id="faq" labelledBy="faq-title" className="py-12 sm:py-20 lg:py-24">
       <div className={`${CONTAINER} grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14`}>
         <div className="lg:col-span-4 lg:sticky lg:top-24 self-start">
           <div className="sr-in">
@@ -68,7 +68,7 @@ export function Faq({ faqs, waHref }: { faqs: [string, string][]; waHref: string
             <div className="text-[15px] font-bold text-slate-900 dark:text-white">Talk to a person</div>
             <p className="mt-1 text-[13.5px] leading-relaxed text-slate-500 dark:text-slate-400">Not sure it fits your business? Ask us on WhatsApp. A person from our team replies.</p>
             {waHref ? (
-              <a href={waHref} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center justify-center gap-2 w-full min-h-11 rounded-xl bg-slate-900 dark:bg-emerald-500 text-white dark:text-slate-950 text-sm font-semibold hover:bg-slate-800 dark:hover:bg-emerald-400 transition-colors">
+              <a href={waHref} target="_blank" rel="noopener noreferrer" className={`${BTN_PRIMARY_SM} mt-4 w-full`}>
                 <Icon name="chat" className="w-4 h-4" />Chat on WhatsApp
               </a>
             ) : null}

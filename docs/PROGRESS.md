@@ -2,7 +2,52 @@
 
 Shared memory between sessions (and between Deep and Abdullah). Newest state first. Updated from git history and a real test run, not from memory. Procedures: `docs/agent/RESUME.md`, `docs/agent/HANDOVER.md`.
 
-## Latest handover: 2026-11-25 IST · by Deep (Hermes) · `feat/homepage-rebuild` merged to `main` at 7d70d6b, NOT yet deployed
+## Latest handover: 2026-11-26 IST · by Deep (Hermes) · `feat/homepage-polish-2` pushed for review, NOT merged, NOT deployed
+### What was done this session
+- Polish of everything below the hero, after Deep shared a Gemini review and screenshots. Hero files (`hero.tsx`, `hero-engine.ts`) are untouched (`git diff main` on them is empty). No backend, schema or env changes.
+- Buttons: one emerald primary (`BTN_PRIMARY_SM` in `kit.tsx`, same gradient as the hero CTA) replaces every black CTA: header Start Free, See all templates, compare CTA, Chat on WhatsApp.
+- Repetition: "How it works" became "Inside the workspace" (tabs: Lead inbox, Flow builder, Team & sales) so it no longer retells the hero's capture/qualify/convert loop; the duplicate lead-source chips were dropped (the proof bar already shows them); safety node 4 is now "Limit & spend cap" so it no longer restates the cost band.
+- Phone length: compare is a compact two-column table below `md` (1,928px to 1,269px at 360); trust strip is 2x2; section padding is smaller. Page height at 360: 14,048px to 13,236px. Desktop: 8,872px to 8,938px (the Free banner adds a little).
+- Pricing: three paid cards (Starter, Growth, Pro) with Free as a full-width banner below; the phone rail now opens on Starter, the default best fit. Banner takes the "Fits" highlight when the slider is at 500 or less.
+- Cost band: controls column spreads to match the receipt height.
+- Decisions: kept the six-node safety pipeline (Gemini's 2x2 grid would lose the pipeline idea); no frameless phone and no "Avg. reply" badge (unmeasured number); FAQ stays as it was (already a collapsed accordion, all 10 questions).
+### Current state of the app (what works end to end right now)
+Unchanged apart from the homepage. Built and tested against fakes only. `main` has the homepage rebuild; the live VM still shows an older one.
+### How to run it locally (exact commands, any new env vars, migrations, seed data)
+Same as before. No new env variables. Build check: `NODE_ENV=production pnpm exec next build` (passes, homepage 159 kB first-load).
+### How to test what changed
+1. Open `/` at 1440 and 360, light and dark. Header, flows, compare and FAQ buttons are emerald.
+2. "Inside the workspace": three tabs, arrow keys move them; the lead inbox is alone on the right.
+3. 360px: compare is one table with both sides per row; pricing rail starts on Starter; Free banner under it. Move the pricing slider to 200 or 500: the banner gets the "Fits" badge.
+### Not finished / known bugs / failing tests
+- Checks run: lint, typecheck, 315/315 web tests, production build, headless Chrome at 1440 and 360 in light and dark, no horizontal scroll. Not checked on a real phone or Safari. Reduced motion not re-tested (no new animations added).
+- Phone page is still about 13,200px (flows 1,351px, safety 1,331px, cost 1,314px are the next biggest blocks).
+- Homepage strings are still inline, not in `packages/shared/i18n/en.json` (existing debt). Logo casing question still open.
+### Next steps (ordered, with the spec section to read for each)
+1. Deep reviews the preview of `feat/homepage-polish-2`; merge to `main` only on his word.
+2. Abdullah (holder of `lbc-deploy`) deploys `main` and checks `/version`, `/` and `/login`. No migrations or env changes.
+3. Optional: trim the flows and safety blocks further on phones.
+### Decisions made + open questions (also update docs/open-questions.md)
+- Decision: body CTAs match the hero's emerald; no black buttons.
+- Decision: Free plan shown as a banner under the three paid plans.
+### Credentials/env changes the other developer needs (names only, never values)
+None.
+
+## Module checklist (spec A8 build order; status from code and tests, nothing here is verified against real Meta/Razorpay/email)
+- 1. Repo, tooling, design system, shell, auth, workspaces, super-admin: ✅ (admin panel with staff two-step sign-in built)
+- 2. Schema + RLS + tests, `packages/meta`, error map, webhook receiver, queues: ✅
+- 3. Connect WhatsApp (Embedded Signup) + inbound processing: 🟡 built against fakes; needs real Meta app
+- 4. Customers/consent/segments, inbox, single-send queue: ✅ (against fakes)
+- 5. Templates (studio, media headers, offers), bulk send (cost preview, spend caps, reports): ✅ (against fakes)
+- 6. Auto-replies, dashboard, notifications, number-health guardrails, cost ledger: 🟡 verify against the spec list
+- 7. Renewal engine: 🟡 Razorpay links tested against a fake only
+- 8. LeadBotCloud billing (Razorpay, plans, limits, GST invoices, complimentary plans) + legal pages: 🟡 fake Razorpay; marketing website not confirmed
+- 9. A/B tests, journeys, agent API + MCP, lead engine and connectors: ✅ built; lead scoring parked; AI writer, Hindi UI, chatbot builder, AI FAQ: ⬜ not confirmed
+- 10. Hardening: 🟡 security work done; off-machine backups and a second VM are ⬜
+(Rows marked "verify" or "not confirmed" were not checked line by line against the spec this session.)
+
+## History
+### Handover: 2026-11-25 IST · by Deep (Hermes) · `feat/homepage-rebuild` merged to `main` at 7d70d6b, NOT yet deployed
 ### What was done this session
 - Rebuilt the public homepage from scratch around a hero Deep made himself (Gemini/Neon draft, `leadbotcloud_dynamic_hero_section-2.html`). The previous homepage on `main` and the v3 branch were not reused; `components/marketing/` and the `.lp` CSS were deleted. No backend, schema or env changes.
 - Hero (`components/home/hero.tsx` + `hero-engine.ts`): the draft's markup and its motion script ported to Next.js/Tailwind v4. At 1440px every measured element box matches the draft exactly (x, y, width, height, font, size, tracking). The Tailwind v3 palette is pinned under `.hx` because v4's OKLCH colours render differently. Additions: Log in link (lg+), "Sample chat & figures" label, reduced motion shows the finished state, the loop pauses off screen. Below 640px only: one-line header with a menu, stacked CTAs, one-line phase pills, three-up source cards, tabs that fit 360px, and vertical connectors where the desktop wires are hidden. The draft's trial modal was dropped: CTAs go to `/signup` (`/dashboard` when signed in).
@@ -31,20 +76,6 @@ Same as before. No new env variables. Build check: `NODE_ENV=production pnpm exe
 ### Credentials/env changes the other developer needs (names only, never values)
 None.
 
-## Module checklist (spec A8 build order; status from code and tests, nothing here is verified against real Meta/Razorpay/email)
-- 1. Repo, tooling, design system, shell, auth, workspaces, super-admin: ✅ (admin panel with staff two-step sign-in built)
-- 2. Schema + RLS + tests, `packages/meta`, error map, webhook receiver, queues: ✅
-- 3. Connect WhatsApp (Embedded Signup) + inbound processing: 🟡 built against fakes; needs real Meta app
-- 4. Customers/consent/segments, inbox, single-send queue: ✅ (against fakes)
-- 5. Templates (studio, media headers, offers), bulk send (cost preview, spend caps, reports): ✅ (against fakes)
-- 6. Auto-replies, dashboard, notifications, number-health guardrails, cost ledger: 🟡 verify against the spec list
-- 7. Renewal engine: 🟡 Razorpay links tested against a fake only
-- 8. LeadBotCloud billing (Razorpay, plans, limits, GST invoices, complimentary plans) + legal pages: 🟡 fake Razorpay; marketing website not confirmed
-- 9. A/B tests, journeys, agent API + MCP, lead engine and connectors: ✅ built; lead scoring parked; AI writer, Hindi UI, chatbot builder, AI FAQ: ⬜ not confirmed
-- 10. Hardening: 🟡 security work done; off-machine backups and a second VM are ⬜
-(Rows marked "verify" or "not confirmed" were not checked line by line against the spec this session.)
-
-## History
 ### Handover: 2026-11-25 IST · by Deep (Hermes) · merged to `main` at 7274aad (2026-11-25), NOT yet deployed
 #### What was done this session
 - Redesigned the public homepage (`apps/web/src/app/page.tsx`) after a critique scored the old one 5/10 against the brief: highly visual, visually explanatory, interactive, high-converting. No backend, schema or env changes.

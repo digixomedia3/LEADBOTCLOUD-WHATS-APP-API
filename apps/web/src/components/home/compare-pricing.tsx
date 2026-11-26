@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Arrow, Band, CONTAINER, Check, Cross, SectionHead, TONE } from './kit';
+import { Arrow, Band, BTN_PRIMARY_SM, CONTAINER, Check, Cross, SectionHead, TONE } from './kit';
 
 /* ---------------- App vs LeadBotCloud: two cards side by side, same rows, so the eye compares across ---------------- */
 const ROWS: [string, string, string][] = [
@@ -17,12 +17,37 @@ const ROWS: [string, string, string][] = [
 export function Compare({ proContacts, ctaHref, ctaLabel }: { proContacts: number; ctaHref: string; ctaLabel: string }) {
   const appPct = Math.max((256 / proContacts) * 100, 0.8);
   return (
-    <Band tone="paper" id="compare" labelledBy="compare-title" className="py-16 sm:py-24">
+    <Band tone="paper" id="compare" labelledBy="compare-title" className="py-12 sm:py-20 lg:py-24">
       <div className={CONTAINER}>
         <SectionHead id="compare-title" tone="indigo" n="05" eyebrow="Why not the free app?" title="The free app is built for chatting." highlight="This is built for selling."
           lead="The app is made for chatting from one phone. LeadBotCloud is made for selling to a list, with a team, on the official platform." />
 
-        <div className="sr-in mt-10 sm:mt-14 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 items-stretch">
+        {/* Phone: one compact table, so both sides are read at a glance instead of scrolling past two tall cards */}
+        <div className="sr-in mt-8 md:hidden rounded-[22px] bg-white dark:bg-slate-800/80 border border-slate-900/[0.08] dark:border-white/[0.08] shadow-card-light dark:shadow-card-dark overflow-hidden">
+          <div className="grid grid-cols-2 text-center">
+            <div className="px-3 py-3 bg-slate-50 dark:bg-white/[0.03]">
+              <div className="font-jk font-bold text-[13px] text-slate-600 dark:text-slate-300">WhatsApp Business app</div>
+              <div className="mt-1.5 h-1.5 rounded-full bg-slate-200/80 dark:bg-white/[0.06] overflow-hidden"><div className="h-full rounded-full bg-slate-400" style={{ width: `${appPct}%` }} /></div>
+              <div className="mt-1 text-[11.5px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">256 per list</div>
+            </div>
+            <div className="px-3 py-3 bg-emerald-500/[0.07] dark:bg-emerald-400/[0.08] border-l border-emerald-500/30">
+              <div className="font-jk font-bold text-[13px] text-slate-900 dark:text-white">LeadBotCloud</div>
+              <div className="mt-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <div className="mt-1 text-[11.5px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">Up to {proContacts.toLocaleString('en-IN')}</div>
+            </div>
+          </div>
+          {ROWS.map(([k, a, b]) => (
+            <div key={k} className="border-t border-slate-900/[0.07] dark:border-white/[0.07]">
+              <div className="px-3 pt-2.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{k}</div>
+              <div className="grid grid-cols-2 gap-2 px-3 pb-3 pt-1">
+                <div className="flex gap-1.5 text-[12.5px] leading-snug text-slate-500 dark:text-slate-400"><Cross className="mt-0.5 w-3 h-3 shrink-0 text-rose-500" />{a}</div>
+                <div className="flex gap-1.5 text-[12.5px] leading-snug font-medium text-slate-900 dark:text-white"><Check className="mt-0.5 w-3 h-3 shrink-0 text-emerald-600 dark:text-emerald-400" />{b}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="sr-in mt-10 sm:mt-14 hidden md:grid grid-cols-2 gap-4 lg:gap-6 items-stretch">
           {/* The app */}
           <div className="rounded-[24px] p-5 sm:p-7 bg-slate-50 dark:bg-white/[0.02] border border-slate-900/[0.07] dark:border-white/[0.07]">
             <div className="flex items-center gap-3">
@@ -79,7 +104,7 @@ export function Compare({ proContacts, ctaHref, ctaLabel }: { proContacts: numbe
           <p className="text-[14px] text-slate-600 dark:text-slate-300 max-w-2xl">
             <b className="text-slate-900 dark:text-white">Moving over is a CSV away.</b> Export your contacts, upload them, and say where each person agreed to hear from you. Reach is Pro’s contact limit; Meta also sets a daily limit that grows as your number earns trust.
           </p>
-          <Link href={ctaHref} className="group shrink-0 inline-flex items-center justify-center gap-2 min-h-11 px-5 rounded-xl bg-slate-900 dark:bg-emerald-500 text-white dark:text-slate-950 text-sm font-semibold hover:bg-slate-800 dark:hover:bg-emerald-400 transition-colors">
+          <Link href={ctaHref} className={`${BTN_PRIMARY_SM} shrink-0`}>
             {ctaLabel}<Arrow />
           </Link>
         </div>
@@ -97,6 +122,8 @@ export function Pricing({ plans, ctaHref, ctaLabel }: { plans: PlanCard[]; ctaHr
   const [si, setSi] = useState(3);
   const n = STEPS[si]!;
   const fit = plans.find((p) => p.contacts >= n)?.id ?? plans[plans.length - 1]!.id;
+  const free = plans.find((p) => p.id === 'free');
+  const paid = plans.filter((p) => p.id !== 'free');
   const rail = useRef<HTMLDivElement>(null);
   const prev = useRef(fit);
   useEffect(() => {
@@ -109,7 +136,7 @@ export function Pricing({ plans, ctaHref, ctaLabel }: { plans: PlanCard[]; ctaHr
   }, [fit]);
 
   return (
-    <Band tone="canvas" id="pricing" labelledBy="pricing-title" className="py-16 sm:py-24">
+    <Band tone="canvas" id="pricing" labelledBy="pricing-title" className="py-12 sm:py-20 lg:py-24">
       <div className={CONTAINER}>
         <SectionHead id="pricing-title" tone="emerald" n="06" eyebrow="Pricing" title="One flat monthly fee." highlight="Meta’s charges at cost." align="center"
           lead="Pay us for the plan. Meta bills message charges to you directly, and we add no markup. Start free, no card needed." />
@@ -123,11 +150,11 @@ export function Pricing({ plans, ctaHref, ctaLabel }: { plans: PlanCard[]; ctaHr
           <div className="flex justify-between text-[11px] text-slate-400 tabular-nums"><span>200</span><span>1,00,000</span></div>
         </div>
 
-        <div ref={rail} className="sr-in mt-8 -mx-4 px-4 pt-3 pb-2 sm:mx-0 sm:px-0 flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory no-scrollbar">
-          {plans.map((p) => {
+        <div ref={rail} className="sr-in mt-8 -mx-4 px-4 pt-3 pb-2 lg:mx-auto lg:px-0 lg:max-w-5xl flex lg:grid lg:grid-cols-3 gap-3 lg:gap-5 overflow-x-auto lg:overflow-visible snap-x snap-mandatory no-scrollbar">
+          {paid.map((p) => {
             const best = p.id === fit;
             return (
-              <div key={p.id} data-plan={p.id} className={`relative snap-center shrink-0 w-[84%] sm:w-auto flex flex-col p-6 rounded-[24px] border transition-all duration-300 ${best ? 'bg-white dark:bg-slate-800/95 border-transparent ring-2 ring-emerald-500/60 shadow-[0_30px_60px_-24px_rgba(16,185,129,0.35)]' : 'bg-white/70 dark:bg-slate-900/50 border-slate-900/[0.08] dark:border-white/[0.08]'}`}>
+              <div key={p.id} data-plan={p.id} className={`relative snap-center shrink-0 w-[84%] sm:w-[46%] lg:w-auto flex flex-col p-6 rounded-[24px] border transition-all duration-300 ${best ? 'bg-white dark:bg-slate-800/95 border-transparent ring-2 ring-emerald-500/60 shadow-[0_30px_60px_-24px_rgba(16,185,129,0.35)]' : 'bg-white/70 dark:bg-slate-900/50 border-slate-900/[0.08] dark:border-white/[0.08]'}`}>
                 {best ? <span className="absolute -top-3 left-6 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500 text-white shadow-xs">Fits {n.toLocaleString('en-IN')} contacts</span> : null}
                 <h3 className="font-jk font-bold text-lg tracking-[-0.01em] text-slate-900 dark:text-white">{p.label}</h3>
                 <p className="text-[13px] text-slate-500 dark:text-slate-400">{p.note}</p>
@@ -152,7 +179,23 @@ export function Pricing({ plans, ctaHref, ctaLabel }: { plans: PlanCard[]; ctaHr
             );
           })}
         </div>
-        <p className="sm:hidden mt-1 text-center text-[11.5px] text-slate-400">Swipe to compare plans</p>
+        <p className="lg:hidden mt-1 text-center text-[11.5px] text-slate-400">Swipe to compare plans</p>
+        {free ? (
+          <div className={`sr-in mt-4 lg:mx-auto lg:max-w-5xl relative flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8 rounded-2xl px-5 py-4 border transition-all duration-300 ${fit === 'free' ? 'bg-white dark:bg-slate-800/95 border-transparent ring-2 ring-emerald-500/60 shadow-[0_24px_50px_-24px_rgba(16,185,129,0.35)]' : 'bg-white/70 dark:bg-white/[0.02] border-slate-900/[0.08] dark:border-white/[0.08]'}`}>
+            {fit === 'free' ? <span className="absolute -top-3 left-5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500 text-white shadow-xs">Fits {n.toLocaleString('en-IN')} contacts</span> : null}
+            <div className="flex items-baseline gap-3 shrink-0">
+              <h3 className="font-jk font-bold text-lg tracking-[-0.01em] text-slate-900 dark:text-white">{free.label}</h3>
+              <span className="font-jk font-extrabold text-2xl tabular-nums text-slate-900 dark:text-white">{free.price}<span className="text-sm font-medium text-slate-500 dark:text-slate-400">/month</span></span>
+            </div>
+            <ul className="flex flex-wrap gap-x-4 gap-y-1.5 flex-1 text-[13.5px] text-slate-600 dark:text-slate-300">
+              <li className="font-semibold tabular-nums text-slate-900 dark:text-white">{free.contacts.toLocaleString('en-IN')} contacts · {free.users} seat</li>
+              {free.points.map((x) => <li key={x} className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-500" />{x}</li>)}
+            </ul>
+            <Link href={ctaHref} className={`${fit === 'free' ? BTN_PRIMARY_SM : 'inline-flex items-center justify-center min-h-11 px-5 rounded-xl text-sm font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-900/[0.11] dark:border-white/[0.12] hover:border-emerald-500/50 transition-all active:scale-[0.98]'} shrink-0`}>
+              {ctaLabel}
+            </Link>
+          </div>
+        ) : null}
 
         <div className="sr-in mt-8 rounded-2xl px-5 py-4 bg-white/70 dark:bg-white/[0.02] border border-slate-900/[0.07] dark:border-white/[0.07] flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-6">
           <span className="shrink-0 text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Every plan includes</span>
