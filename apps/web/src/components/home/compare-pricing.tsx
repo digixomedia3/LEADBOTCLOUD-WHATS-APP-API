@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Arrow, Band, CONTAINER, Check, Cross, SectionHead, TONE } from './kit';
+import { Arrow, Band, BTN_PRIMARY_SM, CONTAINER, Check, Cross, SectionHead, TONE } from './kit';
 
 /* ---------------- App vs LeadBotCloud: two cards side by side, same rows, so the eye compares across ---------------- */
 const ROWS: [string, string, string][] = [
@@ -79,7 +79,7 @@ export function Compare({ proContacts, ctaHref, ctaLabel }: { proContacts: numbe
           <p className="text-[14px] text-slate-600 dark:text-slate-300 max-w-2xl">
             <b className="text-slate-900 dark:text-white">Moving over is a CSV away.</b> Export your contacts, upload them, and say where each person agreed to hear from you. Reach is Pro’s contact limit; Meta also sets a daily limit that grows as your number earns trust.
           </p>
-          <Link href={ctaHref} className="group shrink-0 inline-flex items-center justify-center gap-2 min-h-11 px-5 rounded-xl bg-slate-900 dark:bg-emerald-500 text-white dark:text-slate-950 text-sm font-semibold hover:bg-slate-800 dark:hover:bg-emerald-400 transition-colors">
+          <Link href={ctaHref} className={`${BTN_PRIMARY_SM} shrink-0`}>
             {ctaLabel}<Arrow />
           </Link>
         </div>

@@ -19,6 +19,9 @@ export const GRAD_TEXT =
   'bg-linear-to-r/srgb from-[#059669] via-[#10B981] to-[#0D9488] dark:from-emerald-400 dark:via-emerald-300 dark:to-teal-300 bg-clip-text text-transparent';
 export const BTN_PRIMARY =
   'btn-sheen group inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-linear-to-b/srgb from-[#10B981] to-[#059669] hover:from-[#12c78b] hover:to-[#04885e] text-white font-semibold text-[15px] whitespace-nowrap shadow-cta-emerald transition-all duration-200 active:scale-[0.98]';
+/** Compact primary for body sections and the header: same emerald as the hero CTA, 44px tall. */
+export const BTN_PRIMARY_SM =
+  'btn-sheen group inline-flex items-center justify-center gap-2 min-h-11 px-5 rounded-xl bg-linear-to-b/srgb from-[#10B981] to-[#059669] hover:from-[#12c78b] hover:to-[#04885e] text-white text-sm font-semibold whitespace-nowrap shadow-cta-emerald transition-all duration-200 active:scale-[0.98]';
 export const BTN_SECONDARY =
   'group inline-flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl bg-white dark:bg-slate-900/80 text-slate-800 dark:text-slate-100 font-semibold text-[15px] whitespace-nowrap border border-slate-900/[0.11] dark:border-white/[0.12] shadow-xs hover:border-emerald-500/50 dark:hover:border-emerald-400/50 hover:bg-emerald-50/40 dark:hover:bg-emerald-500/10 transition-all duration-200 active:scale-[0.98]';
 export const SAMPLE_TAG =

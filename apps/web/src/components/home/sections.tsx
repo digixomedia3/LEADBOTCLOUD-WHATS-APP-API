@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Arrow, Band, BTN_PRIMARY, CONTAINER, Check, Icon, TONE, type Tone } from './kit';
+import { Arrow, Band, BTN_PRIMARY, BTN_PRIMARY_SM, CONTAINER, Check, Icon, TONE, type Tone } from './kit';
 import { Logo } from './site-header';
 
 /* ---------------- Proof bar: the first separator after the hero ---------------- */
@@ -68,7 +68,7 @@ export function Faq({ faqs, waHref }: { faqs: [string, string][]; waHref: string
             <div className="text-[15px] font-bold text-slate-900 dark:text-white">Talk to a person</div>
             <p className="mt-1 text-[13.5px] leading-relaxed text-slate-500 dark:text-slate-400">Not sure it fits your business? Ask us on WhatsApp. A person from our team replies.</p>
             {waHref ? (
-              <a href={waHref} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center justify-center gap-2 w-full min-h-11 rounded-xl bg-slate-900 dark:bg-emerald-500 text-white dark:text-slate-950 text-sm font-semibold hover:bg-slate-800 dark:hover:bg-emerald-400 transition-colors">
+              <a href={waHref} target="_blank" rel="noopener noreferrer" className={`${BTN_PRIMARY_SM} mt-4 w-full`}>
                 <Icon name="chat" className="w-4 h-4" />Chat on WhatsApp
               </a>
             ) : null}

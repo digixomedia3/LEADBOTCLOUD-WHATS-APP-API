@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
+import { BTN_PRIMARY_SM } from './kit';
 
 /** Header from Deep's hero draft. Additions: section links go to real anchors, a Log in link (lg+), and a phone menu
  *  (below md) that holds the nav, the theme switch and Log in, so the 360px header keeps one line. */
@@ -79,7 +80,7 @@ export function SiteHeader({ ctaHref, ctaLabel, loggedIn }: { ctaHref: string; c
             </Link>
           ) : null}
           <ThemePill className="hidden sm:flex" />
-          <Link href={ctaHref} className="btn-sheen inline-flex items-center h-10 sm:h-auto px-4 py-2 rounded-xl bg-slate-900 dark:bg-emerald-500 text-white text-[13px] sm:text-sm font-semibold whitespace-nowrap hover:bg-slate-800 dark:hover:bg-emerald-400 transition-all duration-200 shadow-xs active:scale-[0.98]">
+          <Link href={ctaHref} className={`${BTN_PRIMARY_SM} h-10 sm:h-auto min-h-10 sm:min-h-11 px-4 text-[13px] sm:text-sm`}>
             {ctaLabel}
           </Link>
           <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls="mobile-menu" aria-label={open ? 'Close menu' : 'Open menu'}
