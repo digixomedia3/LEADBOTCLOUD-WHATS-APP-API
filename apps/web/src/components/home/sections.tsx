@@ -52,7 +52,7 @@ export function ProofBar() {
 /* ---------------- FAQ ---------------- */
 export function Faq({ faqs, waHref }: { faqs: [string, string][]; waHref: string | null }) {
   return (
-    <Band tone="paper" id="faq" labelledBy="faq-title" className="py-16 sm:py-24">
+    <Band tone="paper" id="faq" labelledBy="faq-title" className="py-12 sm:py-20 lg:py-24">
       <div className={`${CONTAINER} grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14`}>
         <div className="lg:col-span-4 lg:sticky lg:top-24 self-start">
           <div className="sr-in">

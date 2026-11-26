@@ -43,7 +43,7 @@ export function HowItWorks() {
   const step = STEPS[active]!;
 
   return (
-    <Band tone="canvas" id="how" labelledBy="how-title" className="py-16 sm:py-24">
+    <Band tone="canvas" id="how" labelledBy="how-title" className="py-12 sm:py-20 lg:py-24">
       <div className={CONTAINER}>
         <SectionHead id="how-title" tone="indigo" n="01" eyebrow="Inside the workspace" title="The screens your team" highlight="works in every day." align="center"
           lead="Three real screens from LeadBotCloud, shown with sample data. Tap one to open it." />

@@ -21,7 +21,7 @@ export function Safety({ nodes }: { nodes: SafetyNode[] }) {
   }, [inView, reduced, nodes.length]);
 
   return (
-    <Band tone="canvas" id="safety" labelledBy="safety-title" className="py-16 sm:py-24">
+    <Band tone="canvas" id="safety" labelledBy="safety-title" className="py-12 sm:py-20 lg:py-24">
       <div className={CONTAINER}>
         <SectionHead id="safety-title" tone="emerald" n="04" eyebrow="Number safety" title="Every send passes" highlight="four checks first."
           lead="A blocked number costs more than any campaign. So the checks run before every send, not after a complaint." />

@@ -30,7 +30,7 @@ export function CostCheck({ ctaHref }: { ctaHref: string }) {
   const rate = RATE_PAISE_X100[type];
 
   return (
-    <Band tone="night" id="cost" labelledBy="cost-title" className="py-16 sm:py-24">
+    <Band tone="night" id="cost" labelledBy="cost-title" className="py-12 sm:py-20 lg:py-24">
       <div className={CONTAINER}>
         <SectionHead id="cost-title" tone="emerald" n="03" eyebrow="Cost, before you send" title="Know the exact cost" highlight="before you press send."
           lead="Meta charges per message. LeadBotCloud adds up the total with GST before anything goes out, and holds the campaign if it is over your cap." />
@@ -39,7 +39,7 @@ export function CostCheck({ ctaHref }: { ctaHref: string }) {
           <div className="absolute -top-16 left-1/3 w-80 h-44 bg-emerald-500/[0.07] blur-3xl pointer-events-none" />
           <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
             {/* Controls */}
-            <div className="lg:col-span-6 space-y-7">
+            <div className="lg:col-span-6 flex flex-col justify-between gap-7">
               <div>
                 <div className="flex items-end justify-between gap-3">
                   <label htmlFor="cost-n" className="text-sm font-semibold text-slate-700 dark:text-slate-200">People who agreed to hear from you</label>

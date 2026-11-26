@@ -49,7 +49,7 @@ export function Flows({ flows, libraryCount, ctaHref }: { flows: FlowData[]; lib
   const lastOn = steps.reduce((m, s, k) => (s.on ? k : m), 0);
 
   return (
-    <Band tone="paper" id="flows" labelledBy="flows-title" className="py-16 sm:py-24">
+    <Band tone="paper" id="flows" labelledBy="flows-title" className="py-12 sm:py-20 lg:py-24">
       <div className={CONTAINER}>
         <SectionHead id="flows-title" tone="amber" n="02" eyebrow="Ready-made flows" title="Start from a flow that" highlight="already works."
           lead={<>{libraryCount} ready templates written to Meta’s template rules. Pick one, change the words, and it runs. Choose a flow to watch it.</>} />

@@ -17,7 +17,7 @@ const ROWS: [string, string, string][] = [
 export function Compare({ proContacts, ctaHref, ctaLabel }: { proContacts: number; ctaHref: string; ctaLabel: string }) {
   const appPct = Math.max((256 / proContacts) * 100, 0.8);
   return (
-    <Band tone="paper" id="compare" labelledBy="compare-title" className="py-16 sm:py-24">
+    <Band tone="paper" id="compare" labelledBy="compare-title" className="py-12 sm:py-20 lg:py-24">
       <div className={CONTAINER}>
         <SectionHead id="compare-title" tone="indigo" n="05" eyebrow="Why not the free app?" title="The free app is built for chatting." highlight="This is built for selling."
           lead="The app is made for chatting from one phone. LeadBotCloud is made for selling to a list, with a team, on the official platform." />
@@ -136,7 +136,7 @@ export function Pricing({ plans, ctaHref, ctaLabel }: { plans: PlanCard[]; ctaHr
   }, [fit]);
 
   return (
-    <Band tone="canvas" id="pricing" labelledBy="pricing-title" className="py-16 sm:py-24">
+    <Band tone="canvas" id="pricing" labelledBy="pricing-title" className="py-12 sm:py-20 lg:py-24">
       <div className={CONTAINER}>
         <SectionHead id="pricing-title" tone="emerald" n="06" eyebrow="Pricing" title="One flat monthly fee." highlight="Meta’s charges at cost." align="center"
           lead="Pay us for the plan. Meta bills message charges to you directly, and we add no markup. Start free, no card needed." />
