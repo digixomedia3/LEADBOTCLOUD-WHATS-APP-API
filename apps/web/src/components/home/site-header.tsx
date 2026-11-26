@@ -80,7 +80,7 @@ export function SiteHeader({ ctaHref, ctaLabel, loggedIn }: { ctaHref: string; c
             </Link>
           ) : null}
           <ThemePill className="hidden sm:flex" />
-          <Link href={ctaHref} className={`${BTN_PRIMARY_SM} h-10 sm:h-auto min-h-10 sm:min-h-11 px-4 text-[13px] sm:text-sm`}>
+          <Link href={ctaHref} className={`${BTN_PRIMARY_SM} h-10 sm:h-auto min-h-10 sm:min-h-11 px-4 text-[13px] sm:text-sm shadow-xs!`}>
             {ctaLabel}
           </Link>
           <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls="mobile-menu" aria-label={open ? 'Close menu' : 'Open menu'}
