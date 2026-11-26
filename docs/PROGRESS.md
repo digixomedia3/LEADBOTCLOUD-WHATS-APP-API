@@ -2,7 +2,7 @@
 
 Shared memory between sessions (and between Deep and Abdullah). Newest state first. Updated from git history and a real test run, not from memory. Procedures: `docs/agent/RESUME.md`, `docs/agent/HANDOVER.md`.
 
-## Latest handover: 2026-11-26 IST · by Deep (Hermes) · `feat/homepage-polish-2` pushed for review, NOT merged, NOT deployed
+## Latest handover: 2026-11-26 IST · by Deep (Hermes) · `feat/homepage-polish-2` merged to `main` at c032ff4, NOT yet deployed
 ### What was done this session
 - Polish of everything below the hero, after Deep shared a Gemini review and screenshots. Hero files (`hero.tsx`, `hero-engine.ts`) are untouched (`git diff main` on them is empty). No backend, schema or env changes.
 - Buttons: one emerald primary (`BTN_PRIMARY_SM` in `kit.tsx`, same gradient as the hero CTA) replaces every black CTA: header Start Free, See all templates, compare CTA, Chat on WhatsApp.
@@ -24,7 +24,7 @@ Same as before. No new env variables. Build check: `NODE_ENV=production pnpm exe
 - Phone page is still about 13,200px (flows 1,351px, safety 1,331px, cost 1,314px are the next biggest blocks).
 - Homepage strings are still inline, not in `packages/shared/i18n/en.json` (existing debt). Logo casing question still open.
 ### Next steps (ordered, with the spec section to read for each)
-1. Deep reviews the preview of `feat/homepage-polish-2`; merge to `main` only on his word.
+1. Merged to `main` (Deep approved). Abdullah deploys next.
 2. Abdullah (holder of `lbc-deploy`) deploys `main` and checks `/version`, `/` and `/login`. No migrations or env changes.
 3. Optional: trim the flows and safety blocks further on phones.
 ### Decisions made + open questions (also update docs/open-questions.md)
