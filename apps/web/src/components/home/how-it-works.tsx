@@ -8,15 +8,15 @@ import { useInView, useReducedMotion } from './client-kit';
  *  shows when) until the visitor touches them; hover or leaving the screen pauses; reduced motion never auto-advances. */
 const STEPS: { key: string; tone: Tone; n: string; short: string; title: string; sub: string; points: string[] }[] = [
   {
-    key: 'capture', tone: 'amber', n: '1', short: 'Capture', title: 'Every lead lands in one inbox', sub: 'Ads, forms, your site, Shopify, Sheets, IndiaMART',
-    points: ['Click-to-WhatsApp ads, website button, hosted forms with QR codes', 'Meta Lead Ads, Shopify, Google Sheets, IndiaMART, JustDial, CSV', 'Duplicates merged; permission to message recorded separately'],
+    key: 'capture', tone: 'amber', n: 'list', short: 'Lead inbox', title: 'Every lead lands in one inbox', sub: 'Ads, forms, your site, Shopify, Sheets, IndiaMART',
+    points: ['Click-to-WhatsApp ads, website button, hosted forms with QR codes', 'From ads, forms, Shopify, Sheets, IndiaMART, JustDial or a CSV', 'Duplicates merged; permission to message recorded separately'],
   },
   {
-    key: 'qualify', tone: 'indigo', n: '2', short: 'Qualify', title: 'A flow asks the right questions', sub: 'Templates, waits and conditions. No code',
+    key: 'qualify', tone: 'indigo', n: 'split', short: 'Flow builder', title: 'A flow asks the right questions', sub: 'Templates, waits and conditions. No code',
     points: ['Starts on a new lead, a tag, or when you press start', 'Waits for a reply, checks it, tags the lead and picks the teammate', 'Stops by itself on a reply, an opt-out or a dead number'],
   },
   {
-    key: 'convert', tone: 'emerald', n: '3', short: 'Convert', title: 'Your team closes in one inbox', sub: 'Assigned chats, a sales board and renewals',
+    key: 'convert', tone: 'emerald', n: 'users', short: 'Team & sales', title: 'Your team closes in one inbox', sub: 'Assigned chats, a sales board and renewals',
     points: ['Shared inbox with assignment, notes and quick replies', 'A board of leads by stage, with the deal value', 'Renewal reminders with a payment link, marked paid by themselves'],
   },
 ];
@@ -45,8 +45,8 @@ export function HowItWorks() {
   return (
     <Band tone="canvas" id="how" labelledBy="how-title" className="py-16 sm:py-24">
       <div className={CONTAINER}>
-        <SectionHead id="how-title" tone="indigo" n="01" eyebrow="How it works" title="From first “Hi” to paid customer," highlight="in three steps." align="center"
-          lead="The same three steps you just watched in the demo. Each one is a real screen inside LeadBotCloud." />
+        <SectionHead id="how-title" tone="indigo" n="01" eyebrow="Inside the workspace" title="The screens your team" highlight="works in every day." align="center"
+          lead="Three real screens from LeadBotCloud, shown with sample data. Tap one to open it." />
 
         <div ref={ref} className="sr-in mt-10 sm:mt-12" data-paused={paused ? '1' : '0'} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
           <div role="tablist" aria-label="How it works" onKeyDown={onKey} className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -56,7 +56,7 @@ export function HowItWorks() {
                 <button key={s.key} ref={(el) => { tabs.current[i] = el; }} role="tab" id={`how-tab-${s.key}`} aria-selected={on} aria-controls="how-panel" tabIndex={on ? 0 : -1} onClick={() => pick(i)}
                   className={`relative overflow-hidden text-left rounded-2xl p-3 sm:p-4 min-h-[64px] border transition-all duration-300 cursor-pointer ${on ? `bg-white dark:bg-slate-800/95 border-transparent ring-1 ${TONE[s.tone].ring} shadow-card-light dark:shadow-card-dark` : 'bg-white/50 dark:bg-slate-900/40 border-slate-900/[0.07] dark:border-white/[0.07] hover:bg-white/80 dark:hover:bg-slate-800/60'}`}>
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <span className={`w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-xl flex items-center justify-center font-jk font-extrabold text-sm ${on ? `${TONE[s.tone].dot} text-white` : 'bg-slate-900/[0.06] dark:bg-white/[0.08] text-slate-500 dark:text-slate-400'}`}>{s.n}</span>
+                    <span className={`w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-xl flex items-center justify-center font-jk font-extrabold text-sm ${on ? `${TONE[s.tone].dot} text-white` : 'bg-slate-900/[0.06] dark:bg-white/[0.08] text-slate-500 dark:text-slate-400'}`}><Icon name={s.n} className="w-4 h-4" /></span>
                     <div className="min-w-0">
                       <div className={`font-jk font-bold text-[13px] sm:text-[15px] tracking-[-0.01em] ${on ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
                         {s.short}
@@ -99,10 +99,6 @@ export function HowItWorks() {
 }
 
 /* ---------------- 1. Capture ---------------- */
-const SOURCES: [string, string][] = [
-  ['bolt', 'WhatsApp ads'], ['globe', 'Website button'], ['qr', 'Form + QR code'], ['form', 'Meta Lead Ads'], ['cart', 'Shopify'],
-  ['sheet', 'Google Sheets'], ['store', 'IndiaMART'], ['store', 'JustDial'], ['upload', 'CSV import'],
-];
 const LEADS = [
   { n: 'Riya Sharma', src: 'Meta Lead Ads', msg: 'Please share the 2BHK price list', t: 'now', badge: null },
   { n: 'Arjun Patel', src: 'Website button', msg: 'Is cash on delivery available?', t: '1m', badge: null },
@@ -112,25 +108,8 @@ const LEADS = [
 
 function CaptureMock() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,330px)_minmax(0,1fr)] gap-4 md:gap-0 items-center">
-      <div className="relative">
-        <div className="flex flex-wrap md:grid md:grid-cols-2 gap-1.5 md:gap-2 md:pr-8">
-          {SOURCES.map(([ic, l], i) => (
-            <div key={l} className="animate-spring-in opacity-0 inline-flex items-center gap-2 whitespace-nowrap px-2.5 py-1.5 md:py-2 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-900/[0.08] dark:border-white/[0.08] shadow-xs text-[11.5px] md:text-xs font-semibold text-slate-700 dark:text-slate-200"
-              style={{ animationDelay: `${i * 60}ms` }}>
-              <span className={`w-5 h-5 rounded-md flex items-center justify-center ${TONE.amber.soft}`}><Icon name={ic} className="w-3 h-3" /></span>{l}
-            </div>
-          ))}
-        </div>
-        {/* converge line into the inbox (desktop) */}
-        <div className="hidden md:block absolute right-0 top-4 bottom-4 w-8">
-          <div className="absolute left-0 top-0 bottom-0 w-px dash-y" />
-          <div className="absolute left-0 right-0 top-1/2 h-px dash-x" />
-          <span className="pkt-x" style={{ ['--pc' as string]: '#F59E0B', ['--pd' as string]: '1.4s' }} />
-        </div>
-      </div>
-
-      <div className={`${CARD} p-3 sm:p-4`}>
+    <div className="w-full max-w-2xl mx-auto lg:mx-0 lg:ml-auto">
+      <div className={`${CARD} p-3 sm:p-4 shadow-[0_30px_60px_-30px_rgba(15,23,42,0.35)] dark:shadow-card-dark`}>
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${TONE.amber.soft}`}><Icon name="list" className="w-4 h-4" /></span>

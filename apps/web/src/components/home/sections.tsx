@@ -30,9 +30,9 @@ export function ProofBar() {
             </div>
           </div>
         </div>
-        <div className="mt-8 pt-7 border-t border-slate-900/[0.07] dark:border-white/[0.07] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-0 lg:divide-x divide-slate-900/[0.07] dark:divide-white/[0.07]">
+        <div className="mt-8 pt-7 border-t border-slate-900/[0.07] dark:border-white/[0.07] grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-5 lg:gap-0 lg:divide-x divide-slate-900/[0.07] dark:divide-white/[0.07]">
           {TRUST.map((x, i) => (
-            <div key={x.t} className={`flex items-start gap-3 ${i > 0 ? 'lg:pl-6' : ''} ${i < 3 ? 'lg:pr-6' : ''}`}>
+            <div key={x.t} className={`flex flex-col sm:flex-row items-start gap-2 sm:gap-3 ${i > 0 ? 'lg:pl-6' : ''} ${i < 3 ? 'lg:pr-6' : ''}`}>
               <span className={`relative w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${TONE[x.tone].soft}`}>
                 <Icon name={x.icon} className="w-5 h-5" />
                 {x.live ? <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" /></span> : null}

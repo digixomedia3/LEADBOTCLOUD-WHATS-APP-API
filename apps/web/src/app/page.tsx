@@ -56,7 +56,7 @@ function safetyNodes(): SafetyNode[] {
     { icon: 'users', title: 'Permission on record', value: '2,100', unit: 'can be messaged', skip: '900 never agreed', note: 'Only people with a recorded opt-in get promotions.' },
     { icon: 'stop', title: 'STOP honoured', value: '2,064', unit: 'still opted in', skip: '36 said STOP before', note: 'Opt-outs are logged with the date, forever.' },
     { icon: 'doc', title: 'Template check', value: 'Passed', unit: 'no rejection triggers', note: 'Flags what gets templates rejected before you submit.' },
-    { icon: 'gauge', title: 'Limit, cost & cap', value: estimateCost(left, 'marketing').totalLabel.replace(/\.\d\d$/, ''), unit: 'incl. GST, under cap', note: 'Daily limit and quality checked; over your cap, nothing is sent.' },
+    { icon: 'gauge', title: 'Limit & spend cap', value: 'Under cap', unit: 'daily limit and your cap', note: 'Checked on the total from the cost preview above; over your cap, nothing is sent.' },
     { icon: 'send', title: 'Sent', value: left.toLocaleString('en-IN'), unit: 'people messaged', note: 'Every skip is listed in your report with the reason.' },
   ];
 }
